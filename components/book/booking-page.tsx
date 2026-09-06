@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, Check, Leaf } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
+import { BookingLiveSummary } from "@/components/book/booking-live-summary";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
+import { PostcodeInput } from "@/components/book/postcode-input";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
 import { WasteTypeSelector } from "@/components/book/waste-type-selector";
@@ -158,7 +160,10 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     <main className="min-h-screen overflow-x-hidden bg-[#F6F2E7] text-[#16241C]">
       <Navbar />
 
-      <div className="mx-auto w-full max-w-[720px] px-5 pb-20 pt-32 sm:px-6 sm:pt-36">
+      <div className="mx-auto w-full max-w-[1100px] px-5 pb-20 pt-32 sm:px-6 sm:pt-36">
+        <div className="flex gap-8">
+          {/* ---- main content ---- */}
+          <div className="min-w-0 flex-1 max-w-[720px]">
         <div className="mb-5 flex items-baseline justify-between gap-4">
           <h1 className="m-0 text-[22px] font-semibold tracking-[-0.01em] text-[#0B3B24] sm:text-[27px]">
             {confirmed ? "You're all set" : titles[step - 1]}
@@ -205,11 +210,10 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                       Suburb or postcode
-                      <input
+                      <PostcodeInput
                         value={form.address}
-                        onChange={(event) => updateField("address", event.target.value)}
-                        placeholder="e.g. Brisbane 4000"
-                        className={inputClass(errors.address)}
+                        onChange={(value) => updateField("address", value)}
+                        error={errors.address}
                       />
                       <ValidationMessage message={errors.address} />
                     </label>
@@ -389,6 +393,17 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
             </div>
           </form>
         )}
+          </div>
+
+          {/* ---- live summary sidebar ---- */}
+          {confirmed ? null : (
+            <aside className="hidden w-[320px] shrink-0 lg:block">
+              <div className="sticky top-36">
+                <BookingLiveSummary form={form} total={estimatedTotal} currentStep={step} />
+              </div>
+            </aside>
+          )}
+        </div>
       </div>
 
       <div className="border-t border-[#E8E1CF] py-10 text-center">
