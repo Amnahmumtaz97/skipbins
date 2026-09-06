@@ -36,6 +36,17 @@ a {
   text-decoration: none;
 }
 
+@keyframes fadeStep {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .custom-select {
   appearance: none;
   -webkit-appearance: none;
@@ -61,3 +72,104 @@ a {
   box-shadow: 0 0 0 3px rgba(11, 59, 36, 0.1);
   outline: none;
 }
+
+.bin-card-overlay {
+  transform: translateY(100%);
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.group:hover .bin-card-overlay,
+.bin-card-media:focus-within .bin-card-overlay {
+  transform: translateY(0);
+}
+
+.bin-card-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.group:hover .bin-card-reveal,
+.bin-card-media:focus-within .bin-card-reveal {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bin-card-reveal-title {
+  transition-delay: 80ms;
+}
+
+.bin-card-reveal-desc {
+  transition-delay: 150ms;
+}
+
+.bin-card-reveal-cta {
+  transition-delay: 230ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bin-card-overlay,
+  .bin-card-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ── What We Accept cards ─────────────────────────────────── */
+.accept-card {
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out;
+}
+
+.accept-card:hover {
+  transform: translateY(-6px) scale(1.005) translateZ(0);
+  box-shadow: 0 24px 36px rgba(0, 0, 0, 0.10), 0 24px 46px var(--shadow-color);
+  border-color: var(--swatch) !important;
+  box-shadow: 0 24px 36px rgba(0, 0, 0, 0.10), 0 24px 46px rgba(101, 163, 13, 0.28);
+  border-color: #65A30D !important;
+}
+
+.accept-card:active {
+  transform: scale(1) translateZ(0);
+  box-shadow: 0 15px 24px rgba(0, 0, 0, 0.08), 0 15px 24px var(--shadow-color);
+  box-shadow: 0 15px 24px rgba(0, 0, 0, 0.08), 0 15px 24px rgba(101, 163, 13, 0.2);
+}
+
+.accept-card .ac-overlay {
+  transition: transform 0.3s ease-out;
+}
+
+.accept-card:hover .ac-overlay {
+  transform: translateX(-50%) scale(4) translateZ(0);
+}
+
+.accept-card .ac-circle {
+  transition: border-color 0.3s ease-out, background 0.3s ease-out;
+}
+
+.accept-card:hover .ac-circle {
+  border-color: var(--swatch) !important;
+  background: var(--swatch-light) !important;
+  border-color: #0B3B24 !important;
+  background: #DDECCB !important;
+}
+
+.accept-card .ac-inner {
+  transition: opacity 0.3s ease-out;
+}
+
+.accept-card:hover .ac-inner {
+  opacity: 0.45;
+  opacity: 0.4;
+}
+
+.accept-card .ac-icon {
+  transition: color 0.3s ease-out;
+}
+
+.accept-card:hover .ac-icon {
+  color: #0B3B24 !important;
+}
+
