@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# local booking fallback
+/.data/
+
 # production
 /build
 

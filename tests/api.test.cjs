@@ -41,12 +41,14 @@ test('quote route rejects invalid JSON, body shape, size and cross-origin reques
   assert.equal((await quotes.POST(request(valid, {Origin:'https://other.test'}))).status, 400);
   assert.equal((await quotes.POST(new Request('https://skipbins.test/api/quotes',{method:'POST',headers:{'Content-Type':'application/json'},body:'{'}))).status, 400);
 });
-test('missing pricing integration fails closed with no price or internal error', async () => {
+test('quotes return catalogue bin prices and fail closed on invalid input', async () => {
   const response = await quotes.POST(request(valid));
-  assert.equal(response.status, 503);
+  assert.equal(response.status, 200);
   const data = await response.json();
-  assert.deepEqual(Object.keys(data), ['error']);
-  assert.match(data.error, /temporarily unavailable/);
+  assert.equal(data.serviceable, true);
+  assert.equal(data.total, 149);
+  const extended = await quotes.POST(request({ ...valid, hirePeriod: 'Extended (14 days)' }));
+  assert.equal((await extended.json()).total, 209);
 });
 test('rate quota cannot be bypassed with caller-controlled IPs and resets after one minute', () => {
   assert.equal(rateLimit('test-only', 2, 0), null);

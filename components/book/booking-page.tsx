@@ -2,13 +2,14 @@
 
 import type { FormEvent } from "react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Leaf, Loader2 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
 import { BookingLiveSummary } from "@/components/book/booking-live-summary";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
 import { PostcodeField } from "@/components/book/postcode-field";
+import { DatePicker } from "@/components/ui/date-picker";
 import { isValidPostcode, postcodeError } from "@/lib/postcode";
 import { isQuoteServiceUnavailable, requestQuote } from "@/lib/quote-client";
 import { inputClass } from "@/components/book/form-field";
@@ -23,6 +24,7 @@ import {
   resolveWasteId,
   todayIsoDate,
 } from "@/lib/booking-utils";
+import { quoteTotal } from "@/lib/pricing";
 import type { BinPlacement, BookingFormState, HirePeriod } from "@/types/skip-bin";
 
 type BookingPageProps = {
@@ -60,6 +62,16 @@ function firstIncompleteStep(form: BookingFormState) {
   return 6;
 }
 
+function isStepComplete(currentStep: number, form: BookingFormState) {
+  if (currentStep === 1) return acceptedWaste.some((waste) => waste.id === form.wasteType);
+  if (currentStep === 2) return bins.some((bin) => bin.id === form.binSize);
+  if (currentStep === 3) return isValidPostcode(form.address);
+  if (currentStep === 4) return Boolean(form.deliveryDate && form.deliveryDate >= todayIsoDate() && form.hirePeriod);
+  if (currentStep === 5)
+    return Boolean(form.streetAddress.trim() && form.fullName.trim() && isValidEmail(form.email) && isValidAuPhone(form.phone));
+  return false;
+}
+
 const titles = [
   "What are you throwing away?",
   "Choose your bin size",
@@ -87,14 +99,23 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
   const [maxReached, setMaxReached] = useState(() => firstIncompleteStep(form));
   const [bookingReference, setBookingReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  const [estimatedTotal, setEstimatedTotal] = useState<number | null>(null);
   const [requestError, setRequestError] = useState("");
+  const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const stepWasComplete = useRef(isStepComplete(step, form));
+
+  useEffect(() => {
+    const complete = isStepComplete(step, form);
+    const becameComplete = complete && !stepWasComplete.current;
+    stepWasComplete.current = complete;
+    if (!becameComplete) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    actionsRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "end" });
+  }, [form, step]);
 
   const updateField = <K extends FieldKey>(field: K, value: BookingFormState[K]) => {
     setRequestError("");
     if (["binSize", "wasteType", "address", "deliveryDate", "hirePeriod"].includes(field)) {
-      setEstimatedTotal(null);
       setMaxReached(step);
     }
     setForm((current) => ({ ...current, [field]: value }));
@@ -134,6 +155,7 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     if (nextStep < 1 || nextStep > maxReached) return;
     setErrors({});
     setStep(nextStep);
+    stepWasComplete.current = isStepComplete(nextStep, form);
   };
 
   const handleContinue = async () => {
@@ -143,9 +165,8 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     if (step === 3 || step === 4) {
       setSubmitting(true);
       try {
-        const quote = await requestQuote({ postcode: form.address, size: form.binSize, waste: form.wasteType,
+        await requestQuote({ postcode: form.address, size: form.binSize, waste: form.wasteType,
           ...(step === 4 ? { date: form.deliveryDate, hirePeriod: form.hirePeriod } : {}) });
-        if (step === 4) setEstimatedTotal(quote.total);
       } catch (error) {
         if (!isQuoteServiceUnavailable(error)) {
           setRequestError(error instanceof Error ? error.message : "We couldn't check availability. Please try again.");
@@ -156,13 +177,18 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     const nextStep = Math.min(step + 1, 6);
     setMaxReached((current) => Math.max(current, nextStep));
     setStep(nextStep);
+    stepWasComplete.current = isStepComplete(nextStep, form);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleBack = () => {
     if (submitting) return;
     setErrors({});
-    setStep((current) => Math.max(1, current - 1));
+    setStep((current) => {
+      const nextStep = Math.max(1, current - 1);
+      stepWasComplete.current = isStepComplete(nextStep, form);
+      return nextStep;
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -300,17 +326,14 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
 
               {step === 4 ? (
                 <div className="space-y-4">
-                  <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
-                    Delivery date
-                    <input
-                      type="date"
-                      min={todayIsoDate()}
-                      value={form.deliveryDate}
-                      onChange={(event) => updateField("deliveryDate", event.target.value)}
-                      className={inputClass(errors.deliveryDate)}
-                    />
-                    <ValidationMessage message={errors.deliveryDate} />
-                  </label>
+                  <DatePicker
+                    compact
+                    label="Delivery date"
+                    value={form.deliveryDate}
+                    min={todayIsoDate()}
+                    error={errors.deliveryDate}
+                    onChange={(value) => updateField("deliveryDate", value)}
+                  />
                   <div>
                     <p className="mb-1.5 text-[13px] font-semibold text-[#0B3B24]">Rental period</p>
                     <div className="flex flex-wrap gap-2">
@@ -403,7 +426,7 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
             </div>
 
             <ValidationMessage message={requestError} />
-            <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1CF] pt-[22px]">
+            <div ref={actionsRef} className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1CF] pt-[22px] scroll-mb-6">
               {step === 1 ? (
                 <Link
                   href="/"

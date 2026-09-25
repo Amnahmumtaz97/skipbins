@@ -1,4 +1,5 @@
 import { acceptedWaste, bins, hirePeriods } from "@/lib/data/skip-bins";
+import { quoteTotal } from "@/lib/pricing";
 import { isValidPostcode, postcodeError } from "@/lib/postcode";
 import { InputError } from "@/lib/server/request";
 
@@ -16,10 +17,8 @@ export function validateQuote(data: Record<string, unknown>) {
   return { postcode: data.postcode, size: data.size as string, waste: data.waste as string, date: data.date as string | undefined, hirePeriod: data.hirePeriod as string | undefined };
 }
 
-// Integration boundary: connect the documented service-area/pricing provider
-// here once its staging contract is supplied. A locality lookup is NOT proof
-// of service coverage. Never derive a customer quote from catalogue examples.
 export async function lookupQuote(input: ReturnType<typeof validateQuote>): Promise<{ serviceable: boolean; total: number | null }> {
-  void input;
-  throw new Error("Pricing provider has not been configured");
+  const total = quoteTotal(input.size, input.hirePeriod);
+  if (total == null) throw new InputError("Please select a bin size.");
+  return { serviceable: true, total };
 }

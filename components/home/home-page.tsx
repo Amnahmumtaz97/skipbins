@@ -16,8 +16,8 @@ import { FAQsSection } from "@/components/home/faqs-section";
 import { LeafyBackground } from "@/components/home/leafy-background";
 import { Navbar } from "@/components/home/navbar";
 import { WhatWeAcceptSection } from "@/components/home/what-we-accept-section";
+import { DatePicker } from "@/components/ui/date-picker";
 import { StyledSelect } from "@/components/ui/styled-select";
-import { ValidationMessage } from "@/components/book/validation-message";
 import {
   acceptedWaste,
   bins,
@@ -77,11 +77,6 @@ export function HomePage() {
     router.push(`/book?${params.toString()}`);
     setLoading(false);
   };
-
-  const fieldClass = (error?: string) =>
-    `mt-1.5 h-14 min-w-0 max-w-full w-full rounded-xl border bg-white px-3 py-3 text-base sm:text-sm font-medium text-[#172018] outline-none transition placeholder:text-[#9aa59a] focus:border-[#14532D] focus:ring-2 focus:ring-[#DDECCB] ${
-      error ? "border-red-500" : "border-[#cbd8c5]"
-    }`;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#F4F7EC] text-[#172018]">
@@ -154,18 +149,13 @@ export function HomePage() {
                   error={quoteErrors.waste}
                   options={acceptedWaste.map((item) => ({ value: item.id, label: item.label }))}
                 />
-                <label className="flex min-w-0 flex-col text-xs font-bold text-[#14532D]">
-                  <span className="block h-5 leading-5">Delivery date</span>
-                  <input
-                    name="delivery-date"
-                    type="date"
-                    min={todayIsoDate()}
-                    value={quote.date}
-                    onChange={(event) => updateQuote("date", event.target.value)}
-                    className={fieldClass(quoteErrors.date)}
-                  />
-                  <ValidationMessage message={quoteErrors.date} />
-                </label>
+                <DatePicker
+                  label="Delivery date"
+                  value={quote.date}
+                  min={todayIsoDate()}
+                  error={quoteErrors.date}
+                  onChange={(value) => updateQuote("date", value)}
+                />
               </fieldset>
               <button
                 type="submit"

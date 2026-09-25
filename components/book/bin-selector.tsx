@@ -37,10 +37,12 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
                 <sup className="text-[13px]">m³</sup>
               </span>
               <span className="mt-1.5 block text-[13.5px] text-[#5B6B60]">{bin.capacity.replace("Approx. ", "")}</span>
-              <span className="mt-4 block text-xs font-bold text-[#14532D]">Pricing</span>
-              <span className={`mt-0.5 block text-[14.5px] ${selected ? "font-bold text-[#0B3B24]" : "font-medium text-[#16241C]"}`}>
-                Check availability for pricing
+              <span className="mt-4 block text-xs font-bold uppercase tracking-wide text-[#14532D]">{bin.name}</span>
+              <span className={`mt-0.5 block ${selected ? "font-bold text-[#0B3B24]" : "font-semibold text-[#16241C]"}`}>
+                <span className="text-[13px] font-medium text-[#5B6B60]">From </span>
+                <span className="text-[22px] font-bold leading-none tracking-tight">{bin.price}</span>
               </span>
+              <span className="mt-1 block text-[12px] text-[#5B6B60]">7-day hire, delivery included</span>
             </button>
           );
         })}

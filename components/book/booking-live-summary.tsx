@@ -111,14 +111,18 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
         <div className="flex items-center justify-between">
           <span className="text-[12px] font-bold text-[#5B6B60]">Estimated total</span>
           <span className="text-[15px] font-bold text-[#0B3B24]">
-            {total ? formatCurrency(total) : "—"}
+            {total !== null ? formatCurrency(total) : "—"}
           </span>
         </div>
-        {!total ? (
+        {total === null ? (
           <p className="mt-1 text-[11px] text-[#5B6B60]">
-            Pricing follows service-area and delivery checks
+            Select a bin size to see the hire price
           </p>
-        ) : null}
+        ) : (
+          <p className="mt-1 text-[11px] text-[#5B6B60]">
+            Includes delivery and pickup. Extended hire adds 40%.
+          </p>
+        )}
       </div>
     </div>
   );
