@@ -25,6 +25,7 @@ import {
   todayIsoDate,
 } from "@/lib/booking-utils";
 import { quoteTotal } from "@/lib/pricing";
+import { isAwaitingPayment, loadBookingDraft, saveBookingDraft } from "@/lib/booking-draft";
 import type { BinPlacement, BookingFormState, HirePeriod } from "@/types/skip-bin";
 
 type BookingPageProps = {
@@ -106,6 +107,21 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
   const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod);
   const actionsRef = useRef<HTMLDivElement>(null);
   const stepWasComplete = useRef(isStepComplete(step, form));
+  const restoredDraft = useRef(false);
+
+  useEffect(() => {
+    if (restoredDraft.current) return;
+    if (!cancelled && !isAwaitingPayment()) return;
+    const draft = loadBookingDraft();
+    if (!draft) return;
+    restoredDraft.current = true;
+    setForm(draft);
+    setStep(6);
+    setMaxReached(6);
+    stepWasComplete.current = true;
+    if (cancelled) setRequestError("Payment was cancelled. Your booking is not confirmed.");
+    window.scrollTo(0, 0);
+  }, [cancelled]);
 
   useEffect(() => {
     const complete = isStepComplete(step, form);
@@ -212,6 +228,7 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "We couldn't confirm your booking. Please try again.");
       if (typeof result.checkoutUrl === "string" && result.checkoutUrl.startsWith("https://")) {
+        saveBookingDraft(form);
         window.location.assign(result.checkoutUrl);
         return;
       }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
+import { ClearBookingDraft } from "@/components/book/clear-booking-draft";
 import { Navbar } from "@/components/home/navbar";
 import { getBookingByCheckoutSession, markBookingPaid } from "@/lib/server/booking-service";
 import { formatCurrency } from "@/lib/booking-utils";
@@ -21,6 +22,7 @@ export default async function BookingSuccessPage({ searchParams }: PageProps<"/b
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#F6F2E7] text-[#16241C]">
       <Navbar />
+      {booking?.status === "paid" ? <ClearBookingDraft /> : null}
       <div className="mx-auto w-full max-w-[720px] px-5 pb-20 pt-32 sm:px-6 sm:pt-36">
         {booking?.status === "paid" ? (
           <div className="px-2.5 pb-2.5 pt-8 text-center">

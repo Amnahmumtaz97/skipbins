@@ -29,6 +29,7 @@ import {
 
 } from "@/lib/data/skip-bins";
 import { todayIsoDate } from "@/lib/booking-utils";
+import { clearBookingDraft } from "@/lib/booking-draft";
 
 type QuoteState = {
   size: string;
@@ -68,6 +69,7 @@ export function HomePage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setLoading(true);
+    clearBookingDraft();
     const params = new URLSearchParams({
       size: quote.size,
       location: quote.postcode.trim(),
