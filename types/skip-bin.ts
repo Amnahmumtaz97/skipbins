@@ -7,6 +7,7 @@ export type SkipBin = {
   recommendedFor: string;
   price: string;
   image: string;
+  imageAlt?: string;
   features: string[];
   popular?: boolean;
 };

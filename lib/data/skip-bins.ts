@@ -18,7 +18,7 @@ export const bins: SkipBin[] = [
     capacity: "Approx. ~2 trailer loads",
     recommendedFor: "Garage cleanout, small garden waste, minor renovation scraps",
     price: "$149",
-    image: images.mini,
+    image: "",
     features: ["Up to 7 days rental", "General household waste", "Fast delivery", "Eco-friendly disposal"],
   },
   {
@@ -29,7 +29,7 @@ export const bins: SkipBin[] = [
     capacity: "Approx. ~3 trailer loads",
     recommendedFor: "Bathroom reno, kitchen cleanout, backyard clear-up",
     price: "$179",
-    image: images.mini,
+    image: "",
     features: ["Up to 7 days rental", "Home renovation projects", "Fast delivery", "Eco-friendly disposal"],
   },
   {
@@ -40,7 +40,7 @@ export const bins: SkipBin[] = [
     capacity: "Approx. ~4–5 trailer loads",
     recommendedFor: "Kitchen and bathroom renovations, mixed household waste",
     price: "$219",
-    image: images.medium,
+    image: "",
     features: ["Up to 7 days rental", "Home renovation projects", "Fast delivery", "Free replacement if needed"],
   },
   {
@@ -51,7 +51,7 @@ export const bins: SkipBin[] = [
     capacity: "Approx. ~6 trailer loads",
     recommendedFor: "Full house clear-out, major renovation, roofing and flooring",
     price: "$249",
-    image: images.large,
+    image: "",
     features: ["Up to 7 days rental", "Construction waste", "Fast delivery", "Bulk disposal available"],
     popular: true,
   },
@@ -63,7 +63,7 @@ export const bins: SkipBin[] = [
     capacity: "Approx. ~9 trailer loads",
     recommendedFor: "Large construction, commercial sites, multi-room renovations",
     price: "$329",
-    image: images.extra,
+    image: "",
     features: ["Up to 7 days rental", "Major projects", "Fast delivery", "Commercial ready"],
   },
   {
@@ -74,7 +74,7 @@ export const bins: SkipBin[] = [
     capacity: "Approx. ~12 trailer loads",
     recommendedFor: "Commercial demolitions, large builds, multi-dwelling projects",
     price: "$399",
-    image: images.extra,
+    image: "",
     features: ["Up to 7 days rental", "Heavy construction waste", "Fast delivery", "Commercial ready"],
   },
 ];
@@ -150,7 +150,7 @@ export const placements: BinPlacement[] = ["Driveway", "Street / verge", "On-sit
 
 export const heroSlides: HeroSlide[] = [
   { image: images.hero, alt: "Green skip bin filled with garden waste outdoors", label: "Green garden clean-up" },
-  { image: images.medium, alt: "Green waste collection skip bin ready for a renovation", label: "Responsible renovation waste" },
+  { image: "", alt: "Green waste collection skip bin ready for a renovation", label: "Responsible renovation waste" },
   { image: images.difference, alt: "Green skip bin supporting a cleaner outdoor space", label: "Cleaner spaces, greener future" },
 ];
 
@@ -227,3 +227,4 @@ export function getWasteById(value?: string | null) {
   if (!value) return undefined;
   return acceptedWaste.find((item) => item.id === value || item.label === value);
 }
+
