@@ -19,6 +19,7 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
       initialLocation={firstParam(params.location)}
       initialWaste={firstParam(params.waste)}
       initialDate={firstParam(params.date)}
+      cancelled={firstParam(params.cancelled) === "1"}
     />
   );
 }

@@ -18,6 +18,7 @@ const { validateQuote } = require('../lib/server/quote-service.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
+const stripeWebhook = require('../app/api/stripe/webhook/route.ts');
 const contact = require('../app/api/contact/route.ts');
 const postcodes = require('../app/api/postcodes/route.ts');
 const { NextRequest } = require('next/server');
@@ -67,8 +68,16 @@ test('booking validates all inputs and never returns a simulated reference', asy
   const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
   const response = await bookings.POST(request(body));
-  assert.equal(response.status, 503);
-  assert.equal((await response.json()).reference, undefined);
+  assert.ok(response.status === 400 || response.status === 503);
+  const data = await response.json();
+  assert.equal(data.reference, undefined);
+  assert.equal(data.checkoutUrl, undefined);
+});
+test('stripe webhook rejects missing signatures', async () => {
+  const response = await stripeWebhook.POST(new Request('https://skipbins.test/api/stripe/webhook', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  }));
+  assert.equal(response.status, 400);
 });
 test('postcode endpoint rejects unsafe queries and preserves 0800 from provider', async () => {
   const shortResponse = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=90'));

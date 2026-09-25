@@ -25,8 +25,12 @@ alter table public.bookings add column if not exists street_address text;
 alter table public.bookings add column if not exists placement text not null default '';
 alter table public.bookings add column if not exists access text not null default '';
 alter table public.bookings add column if not exists notes text not null default '';
+alter table public.bookings add column if not exists status text not null default 'pending';
+alter table public.bookings add column if not exists amount_cents integer not null default 0;
+alter table public.bookings add column if not exists stripe_session_id text;
 
 create unique index if not exists bookings_reference_key on public.bookings (reference);
+create unique index if not exists bookings_stripe_session_id_key on public.bookings (stripe_session_id) where stripe_session_id is not null;
 
 alter table public.bookings enable row level security;
 

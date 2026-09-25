@@ -32,11 +32,12 @@ type BookingPageProps = {
   initialLocation?: string;
   initialWaste?: string;
   initialDate?: string;
+  cancelled?: boolean;
 };
 
 type FieldKey = keyof BookingFormState;
 
-function initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate }: BookingPageProps): BookingFormState {
+function initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate }: Omit<BookingPageProps, "cancelled">): BookingFormState {
   return {
     fullName: "",
     email: "",
@@ -90,7 +91,7 @@ const intros = [
   "Check everything looks right before you confirm your booking.",
 ];
 
-export function BookingPage({ initialSize, initialLocation, initialWaste, initialDate }: BookingPageProps) {
+export function BookingPage({ initialSize, initialLocation, initialWaste, initialDate, cancelled }: BookingPageProps) {
   const [form, setForm] = useState<BookingFormState>(() =>
     initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate }),
   );
@@ -99,7 +100,9 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
   const [maxReached, setMaxReached] = useState(() => firstIncompleteStep(form));
   const [bookingReference, setBookingReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [requestError, setRequestError] = useState("");
+  const [requestError, setRequestError] = useState(
+    cancelled ? "Payment was cancelled. Your booking is not confirmed." : "",
+  );
   const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod);
   const actionsRef = useRef<HTMLDivElement>(null);
   const stepWasComplete = useRef(isStepComplete(step, form));
@@ -205,11 +208,14 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     setSubmitting(true);
     setRequestError("");
     try {
-      const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form), signal: AbortSignal.timeout(12000) });
+      const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form), signal: AbortSignal.timeout(20000) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "We couldn't confirm your booking. Please try again.");
-      if (typeof result.reference !== "string" || !result.reference) throw new Error("We couldn't confirm your booking. Please try again.");
-      setBookingReference(result.reference);
+      if (typeof result.checkoutUrl === "string" && result.checkoutUrl.startsWith("https://")) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+      throw new Error("We couldn't start payment. Please try again.");
     } catch (error) {
       setRequestError(error instanceof Error && error.name === "Error" ? error.message : "We couldn't confirm your booking. Please try again.");
     } finally { setSubmitting(false); }
@@ -449,7 +455,7 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
                 disabled={submitting}
                 className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
               >
-                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Confirm booking" : "Next step"}
+                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Pay now" : "Next step"}
                 {step === 6 ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} />}
               </button>
             </div>
