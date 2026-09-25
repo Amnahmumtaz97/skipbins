@@ -2,13 +2,15 @@
 
 import type { FormEvent } from "react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowRight, Check, Leaf } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Check, Leaf, Loader2 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
 import { BookingLiveSummary } from "@/components/book/booking-live-summary";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
-import { PostcodeInput } from "@/components/book/postcode-input";
+import { PostcodeField } from "@/components/book/postcode-field";
+import { isValidPostcode, postcodeError } from "@/lib/postcode";
+import { isQuoteServiceUnavailable, requestQuote } from "@/lib/quote-client";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
 import { WasteTypeSelector } from "@/components/book/waste-type-selector";
@@ -17,17 +19,11 @@ import { acceptedWaste, bins, hirePeriods, placements } from "@/lib/data/skip-bi
 import {
   isValidAuPhone,
   isValidEmail,
-  parsePrice,
-  quoteForHire,
   resolveBinId,
   resolveWasteId,
   todayIsoDate,
 } from "@/lib/booking-utils";
 import type { BinPlacement, BookingFormState, HirePeriod } from "@/types/skip-bin";
-
-function buildReference() {
-  return `SB-${Date.now().toString(36).toUpperCase().slice(-6)}`;
-}
 
 type BookingPageProps = {
   initialSize?: string;
@@ -38,26 +34,8 @@ type BookingPageProps = {
 
 type FieldKey = keyof BookingFormState;
 
-const titles = [
-  "Choose your bin size",
-  "What are you throwing away?",
-  "Where do you need it delivered?",
-  "When should we deliver?",
-  "Your details",
-  "Review your booking",
-];
-
-const intros = [
-  "General sizing guide below — if you're not sure, our size guide or support team can help confirm the right fit.",
-  "Choose the waste stream that best matches your load — pricing is calculated from your selection, so an accurate match keeps your quote correct.",
-  "We use your suburb or postcode to check service availability and calculate accurate pricing for your area.",
-  "Choose your delivery date. Flexible rental periods are available and pickup is included.",
-  "We'll use this to confirm your booking and coordinate delivery with you.",
-  "Check everything looks right before you confirm your booking.",
-];
-
-export function BookingPage({ initialSize, initialLocation, initialWaste, initialDate }: BookingPageProps) {
-  const [form, setForm] = useState<BookingFormState>({
+function initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate }: BookingPageProps): BookingFormState {
+  return {
     fullName: "",
     email: "",
     phone: "",
@@ -70,20 +48,55 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     wasteType: resolveWasteId(initialWaste),
     hirePeriod: "",
     notes: "",
-  });
+  };
+}
+
+function firstIncompleteStep(form: BookingFormState) {
+  if (!acceptedWaste.some((waste) => waste.id === form.wasteType)) return 1;
+  if (!bins.some((bin) => bin.id === form.binSize)) return 2;
+  if (!isValidPostcode(form.address)) return 3;
+  if (!form.deliveryDate || form.deliveryDate < todayIsoDate() || !form.hirePeriod) return 4;
+  if (!form.streetAddress.trim() || !form.fullName.trim() || !isValidEmail(form.email) || !isValidAuPhone(form.phone)) return 5;
+  return 6;
+}
+
+const titles = [
+  "What are you throwing away?",
+  "Choose your bin size",
+  "Where do you need it delivered?",
+  "When should we deliver?",
+  "Your details",
+  "Review your booking",
+];
+
+const intros = [
+  "Choose the waste stream that best matches your load — pricing is calculated from your selection, so an accurate match keeps your quote correct.",
+  "General sizing guide below — if you're not sure, our size guide or support team can help confirm the right fit.",
+  "We use your suburb or postcode to check service availability and calculate accurate pricing for your area.",
+  "Choose your delivery date. Flexible rental periods are available and pickup is included.",
+  "We'll use this to confirm your booking and coordinate delivery with you.",
+  "Check everything looks right before you confirm your booking.",
+];
+
+export function BookingPage({ initialSize, initialLocation, initialWaste, initialDate }: BookingPageProps) {
+  const [form, setForm] = useState<BookingFormState>(() =>
+    initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate }),
+  );
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
-  const [step, setStep] = useState(1);
-  const [maxReached, setMaxReached] = useState(1);
+  const [step, setStep] = useState(() => firstIncompleteStep(form));
+  const [maxReached, setMaxReached] = useState(() => firstIncompleteStep(form));
   const [bookingReference, setBookingReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const selectedBin = bins.find((bin) => bin.id === form.binSize);
-  const estimatedTotal = useMemo(() => {
-    if (!selectedBin || !form.hirePeriod) return null;
-    return quoteForHire(parsePrice(selectedBin.price), form.hirePeriod);
-  }, [form.hirePeriod, selectedBin]);
+  const [estimatedTotal, setEstimatedTotal] = useState<number | null>(null);
+  const [requestError, setRequestError] = useState("");
 
   const updateField = <K extends FieldKey>(field: K, value: BookingFormState[K]) => {
+    setRequestError("");
+    if (["binSize", "wasteType", "address", "deliveryDate", "hirePeriod"].includes(field)) {
+      setEstimatedTotal(null);
+      setMaxReached(step);
+    }
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => {
       const next = { ...current };
@@ -95,15 +108,16 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
   const validateStep = (currentStep: number) => {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
 
-    if (currentStep === 1 && !form.binSize) nextErrors.binSize = "Please select a bin size.";
-    if (currentStep === 2 && !form.wasteType) nextErrors.wasteType = "Please select a waste type.";
-    if (currentStep === 3 && !form.address.trim()) nextErrors.address = "Please enter your suburb or postcode.";
+    if (currentStep === 2 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
+    if (currentStep === 1 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
+    if (currentStep === 3 && !isValidPostcode(form.address)) nextErrors.address = postcodeError;
     if (currentStep === 4) {
       if (!form.deliveryDate) nextErrors.deliveryDate = "Please select a delivery date.";
       else if (form.deliveryDate < todayIsoDate()) nextErrors.deliveryDate = "Please select a delivery date.";
       if (!form.hirePeriod) nextErrors.hirePeriod = "Please select a rental period.";
     }
     if (currentStep === 5) {
+      if (!form.streetAddress.trim()) nextErrors.streetAddress = "Please enter your delivery address.";
       if (!form.fullName.trim()) nextErrors.fullName = "Please enter your full name.";
       if (!form.email.trim()) nextErrors.email = "Please enter a valid email address.";
       else if (!isValidEmail(form.email)) nextErrors.email = "Please enter a valid email address.";
@@ -116,13 +130,29 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
   };
 
   const goTo = (nextStep: number) => {
+    if (submitting) return;
     if (nextStep < 1 || nextStep > maxReached) return;
     setErrors({});
     setStep(nextStep);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    if (submitting) return;
     if (!validateStep(step)) return;
+    setRequestError("");
+    if (step === 3 || step === 4) {
+      setSubmitting(true);
+      try {
+        const quote = await requestQuote({ postcode: form.address, size: form.binSize, waste: form.wasteType,
+          ...(step === 4 ? { date: form.deliveryDate, hirePeriod: form.hirePeriod } : {}) });
+        if (step === 4) setEstimatedTotal(quote.total);
+      } catch (error) {
+        if (!isQuoteServiceUnavailable(error)) {
+          setRequestError(error instanceof Error ? error.message : "We couldn't check availability. Please try again.");
+          return;
+        }
+      } finally { setSubmitting(false); }
+    }
     const nextStep = Math.min(step + 1, 6);
     setMaxReached((current) => Math.max(current, nextStep));
     setStep(nextStep);
@@ -130,28 +160,33 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
   };
 
   const handleBack = () => {
+    if (submitting) return;
     setErrors({});
     setStep((current) => Math.max(1, current - 1));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
     if (step !== 6) {
       handleContinue();
       return;
     }
-    if (!validateStep(5)) {
-      setStep(5);
-      setMaxReached((current) => Math.max(current, 5));
-      return;
+    for (let current = 1; current <= 5; current++) {
+      if (!validateStep(current)) { setStep(current); return; }
     }
     setSubmitting(true);
-    window.setTimeout(() => {
-      setBookingReference(buildReference());
-      setSubmitting(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 400);
+    setRequestError("");
+    try {
+      const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form), signal: AbortSignal.timeout(12000) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "We couldn't confirm your booking. Please try again.");
+      if (typeof result.reference !== "string" || !result.reference) throw new Error("We couldn't confirm your booking. Please try again.");
+      setBookingReference(result.reference);
+    } catch (error) {
+      setRequestError(error instanceof Error && error.name === "Error" ? error.message : "We couldn't confirm your booking. Please try again.");
+    } finally { setSubmitting(false); }
   };
 
   const confirmed = Boolean(bookingReference);
@@ -191,12 +226,13 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
+            <fieldset disabled={submitting} className="min-w-0">
             <div key={step} className="animate-[fadeStep_280ms_ease]">
-              {step === 1 ? (
+              {step === 2 ? (
                 <BinSelector value={form.binSize} onChange={(value) => updateField("binSize", value)} error={errors.binSize} />
               ) : null}
 
-              {step === 2 ? (
+              {step === 1 ? (
                 <WasteTypeSelector
                   accepted={acceptedWaste}
                   value={form.wasteType}
@@ -208,15 +244,13 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
               {step === 3 ? (
                 <div className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
-                      Suburb or postcode
-                      <PostcodeInput
+                    <div>
+                      <PostcodeField
                         value={form.address}
                         onChange={(value) => updateField("address", value)}
                         error={errors.address}
                       />
-                      <ValidationMessage message={errors.address} />
-                    </label>
+                    </div>
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                       Delivery address
                       <input
@@ -225,7 +259,7 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
                         placeholder="Street address"
                         className={inputClass()}
                       />
-                      <span className="text-xs font-medium text-[#5B6B60]">Optional</span>
+                      <ValidationMessage message={errors.streetAddress} />
                     </label>
                   </div>
                   <div>
@@ -307,6 +341,10 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
 
               {step === 5 ? (
                 <div className="space-y-4">
+                  <label className="block text-sm font-semibold text-[#0B3B24]">Delivery address
+                    <input autoComplete="street-address" value={form.streetAddress} onChange={(event) => updateField("streetAddress", event.target.value)} className={inputClass(errors.streetAddress)} required maxLength={240} />
+                    <ValidationMessage message={errors.streetAddress} />
+                  </label>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                       Full name
@@ -364,7 +402,8 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
               ) : null}
             </div>
 
-            <div className="mt-7 flex items-center justify-between border-t border-[#E8E1CF] pt-[22px]">
+            <ValidationMessage message={requestError} />
+            <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1CF] pt-[22px]">
               {step === 1 ? (
                 <Link
                   href="/"
@@ -387,10 +426,11 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
                 disabled={submitting}
                 className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
               >
-                {step === 6 ? (submitting ? "Confirming..." : "Confirm booking") : "Next step"}
+                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Confirm booking" : "Next step"}
                 {step === 6 ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} />}
               </button>
             </div>
+            </fieldset>
           </form>
         )}
           </div>

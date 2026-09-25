@@ -1,8 +1,8 @@
 import { Check } from "lucide-react";
 
 const STEPS = [
-  { id: 1, label: "Bin size" },
-  { id: 2, label: "Waste type" },
+  { id: 1, label: "Waste type" },
+  { id: 2, label: "Bin size" },
   { id: 3, label: "Location" },
   { id: 4, label: "Dates" },
   { id: 5, label: "Details" },

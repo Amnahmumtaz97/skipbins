@@ -1,20 +1,55 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Calendar, Leaf, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const links = ["Bin Sizes", "What We Accept", "FAQs", "Contact Us"];
-const mobileLinks = ["For Homeowners", "For Business", ...links];
 
-const hrefFor = (label: string) => {
-  if (label === "Contact Us") return "/contact";
-  if (label === "For Homeowners" || label === "For Business") return "/";
-  return `/#${label.toLowerCase().replaceAll(" ", "-")}`;
+const sectionFor: Record<string, string> = {
+  "Bin Sizes": "bin-sizes",
+  "What We Accept": "what-we-accept",
+  FAQs: "faqs",
 };
+
+const pendingSectionKey = "skipbins:pending-section";
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (pathname !== "/") return;
+    const legacySection = window.location.hash.slice(1);
+    const pendingSection = window.sessionStorage.getItem(pendingSectionKey);
+    const section = pendingSection || legacySection;
+    if (!section) return;
+    window.sessionStorage.removeItem(pendingSectionKey);
+    if (legacySection) window.history.replaceState(window.history.state, "", "/");
+    window.requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [pathname]);
+
+  const goToSection = (section: string) => {
+    setOpen(false);
+    if (pathname === "/") {
+      document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.sessionStorage.setItem(pendingSectionKey, section);
+    router.push("/");
+  };
+
+  const navItem = (item: string, mobile = false) => {
+    const className = mobile
+      ? "w-full rounded-full border border-[#DDECCB] bg-[#FAF9F3]/95 px-4 py-3 text-left shadow-sm transition-colors hover:bg-[#DDECCB] hover:text-[#0B3B24]"
+      : "rounded-full border border-[#cbd8c5] bg-[#DDECCB] px-4 py-2.5 text-[#0B3B24] shadow-sm backdrop-blur-md transition-colors hover:border-[#b8d69a] hover:bg-[#cce3b1]";
+    if (item === "Contact Us") return <Link key={item} href="/contact" className={className} onClick={() => setOpen(false)}>{item}</Link>;
+    const section = sectionFor[item];
+    if (section) return <button key={item} type="button" className={className} onClick={() => goToSection(section)}>{item}</button>;
+    return <Link key={item} href="/" className={className} onClick={() => setOpen(false)}>{item}</Link>;
+  };
 
   return (
     <header className="fixed left-0 right-0 top-0 z-20 w-full bg-transparent px-4 py-4 sm:px-8 sm:py-5 lg:px-10">
@@ -32,29 +67,10 @@ export function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden items-center gap-1 text-xs font-bold text-[#405347] md:flex">
-            <Link
-              href="/"
-              className="rounded-lg bg-[#DDECCB] px-3 py-2 text-[#0B3B24] shadow-sm transition-colors hover:bg-[#cce3b1]"
-            >
-              For homeowners
-            </Link>
-            <Link href="/" className="rounded-lg px-3 py-2 transition-colors hover:text-[#0B3B24]">
-              For business
-            </Link>
-          </div>
         </div>
 
         <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 whitespace-nowrap bg-transparent text-sm font-semibold xl:flex">
-          {links.map((item) => (
-            <Link
-              key={item}
-              href={hrefFor(item)}
-              className="rounded-full border border-[#cbd8c5] bg-[#DDECCB] px-4 py-2.5 text-[#0B3B24] shadow-sm backdrop-blur-md transition-colors hover:border-[#b8d69a] hover:bg-[#cce3b1]"
-            >
-              {item}
-            </Link>
-          ))}
+          {links.map((item) => navItem(item))}
         </nav>
 
         <div className="flex items-center gap-3">
@@ -77,16 +93,7 @@ export function Navbar() {
 
       {open && (
         <nav className="mt-5 grid gap-2 border-t border-[#dfe8d7] pt-5 text-sm font-semibold text-[#14532D] xl:hidden">
-          {mobileLinks.map((item) => (
-            <Link
-              className="rounded-full border border-[#DDECCB] bg-[#FAF9F3]/95 px-4 py-3 shadow-sm transition-colors hover:bg-[#DDECCB] hover:text-[#0B3B24]"
-              key={item}
-              href={hrefFor(item)}
-              onClick={() => setOpen(false)}
-            >
-              {item}
-            </Link>
-          ))}
+          {links.map((item) => navItem(item, true))}
         </nav>
       )}
     </header>

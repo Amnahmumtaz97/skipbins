@@ -1,5 +1,5 @@
 import { acceptedWaste, getBinBySizeOrId } from "@/lib/data/skip-bins";
-import type { HirePeriod } from "@/types/skip-bin";
+
 
 export function todayIsoDate() {
   const now = new Date();
@@ -9,9 +9,6 @@ export function todayIsoDate() {
   return `${year}-${month}-${day}`;
 }
 
-export function parsePrice(price: string) {
-  return Number(price.replace(/[^0-9.]/g, ""));
-}
 
 export function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
@@ -45,8 +42,4 @@ export function resolveBinId(value?: string | null) {
   return getBinBySizeOrId(value)?.id ?? "";
 }
 
-export function quoteForHire(weeklyPrice: number, hirePeriod: HirePeriod | "") {
-  if (hirePeriod === "Standard (7 days)") return weeklyPrice;
-  if (hirePeriod === "Extended (14 days)") return Math.round(weeklyPrice * 1.5);
-  return null;
-}
+

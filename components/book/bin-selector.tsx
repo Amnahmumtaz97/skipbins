@@ -37,9 +37,9 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
                 <sup className="text-[13px]">m³</sup>
               </span>
               <span className="mt-1.5 block text-[13.5px] text-[#5B6B60]">{bin.capacity.replace("Approx. ", "")}</span>
-              <span className="mt-4 block text-xs font-bold text-[#14532D]">Price (inc. GST)</span>
+              <span className="mt-4 block text-xs font-bold text-[#14532D]">Pricing</span>
               <span className={`mt-0.5 block text-[14.5px] ${selected ? "font-bold text-[#0B3B24]" : "font-medium text-[#16241C]"}`}>
-                {selected ? `${bin.price} — selected` : bin.price}
+                Check availability for pricing
               </span>
             </button>
           );
@@ -56,3 +56,4 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
     </div>
   );
 }
+

@@ -1,8 +1,8 @@
 "use client";
 
-import { BinPhoto } from "@/components/home/bin-photo";
 import Link from "next/link";
 import { ArrowRight, Calendar, Check } from "lucide-react";
+import { BinVector } from "@/components/home/bin-vector";
 import type { SkipBin } from "@/types/skip-bin";
 
 type BinSizeCardProps = {
@@ -36,7 +36,7 @@ export function BinSizeCard({ bin, selected, onSelect }: BinSizeCardProps) {
       ) : null}
 
       <div className="bin-card-media relative h-56 overflow-hidden sm:h-60">
-        <BinPhoto size={bin.size} purpose={bin.description} src={bin.image} alt={bin.imageAlt} />
+        <BinVector id={bin.id} size={bin.size} name={bin.name} />
 
         <button
           type="button"

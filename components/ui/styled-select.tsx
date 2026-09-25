@@ -40,8 +40,8 @@ export function StyledSelect({
   const display = selected ? optionLabel(selected) : "";
 
   return (
-    <div className="relative text-xs font-bold text-[#14532D]">
-      <label htmlFor={`${name}-button`}>{label}</label>
+    <div className="relative flex min-w-0 flex-col text-xs font-bold text-[#14532D]">
+      <label htmlFor={`${name}-button`} className="block h-5 leading-5">{label}</label>
       <input type="hidden" name={name} value={value} />
       <button
         id={`${name}-button`}
@@ -49,7 +49,7 @@ export function StyledSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className={`mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-3 py-3 text-left text-sm font-medium text-[#172018] shadow-sm outline-none transition-colors hover:border-[#65A30D] focus:border-[#0B3B24] focus:ring-2 focus:ring-[#DDECCB] ${
+        className={`mt-1.5 flex h-14 w-full min-w-0 items-center justify-between gap-3 rounded-xl border bg-white px-3 py-3 text-left text-sm font-medium text-[#172018] shadow-sm outline-none transition-colors hover:border-[#65A30D] focus:border-[#0B3B24] focus:ring-2 focus:ring-[#DDECCB] ${
           error ? "border-red-500" : "border-[#cbd8c5]"
         }`}
       >

@@ -36,7 +36,7 @@ function SummaryItem({ icon, label, value, done }: SummaryItemProps) {
   );
 }
 
-export function BookingLiveSummary({ form, total, currentStep }: LiveSummaryProps) {
+export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
   const bin = bins.find((b) => b.id === form.binSize);
   const waste = acceptedWaste.find((w) => w.id === form.wasteType);
 
@@ -44,7 +44,7 @@ export function BookingLiveSummary({ form, total, currentStep }: LiveSummaryProp
     {
       icon: <Package size={13} />,
       label: "Bin size",
-      value: bin ? `${bin.name} — ${bin.size} — ${bin.price}` : "Not selected yet",
+      value: bin ? `${bin.name} — ${bin.size}` : "Not selected yet",
       done: Boolean(bin),
     },
     {
@@ -116,10 +116,11 @@ export function BookingLiveSummary({ form, total, currentStep }: LiveSummaryProp
         </div>
         {!total ? (
           <p className="mt-1 text-[11px] text-[#5B6B60]">
-            Select bin size and rental period to see pricing
+            Pricing follows service-area and delivery checks
           </p>
         ) : null}
       </div>
     </div>
   );
 }
+

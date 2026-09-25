@@ -28,6 +28,8 @@ export function FAQsSection({ items }: { items: FAQItem[] }) {
         {items.map((item) => (
           <div key={item.id} className="overflow-hidden rounded-xl border border-[#e4e8dc] bg-white">
             <button
+              aria-expanded={openId === item.id}
+              aria-controls={`faq-${item.id}`}
               onClick={() => setOpenId(openId === item.id ? null : item.id)}
               className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:bg-[#DDECCB]/20"
             >
@@ -41,7 +43,7 @@ export function FAQsSection({ items }: { items: FAQItem[] }) {
             </button>
 
             {openId === item.id && (
-              <div className="border-t border-[#e4e8dc] px-6 py-5">
+              <div id={`faq-${item.id}`} className="border-t border-[#e4e8dc] px-6 py-5">
                 <p className="text-[#405347]">{item.answer}</p>
               </div>
             )}

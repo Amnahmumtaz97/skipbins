@@ -1,14 +1,18 @@
 "use client";
 
+
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { ArrowRight, Calendar, Check, CircleHelp, Leaf } from "lucide-react";
+import { ArrowRight, Calendar, Check, CircleHelp, Leaf, Loader2 } from "lucide-react";
+import { PostcodeField } from "@/components/book/postcode-field";
+import { isValidPostcode, postcodeError } from "@/lib/postcode";
 import { BinSizesSection } from "@/components/home/bin-sizes-section";
 import { DifferenceSlider } from "@/components/home/difference-slider";
-import { FAQsSection } from "@/components/home/faqs-section";
 import { HeroCarousel } from "@/components/home/hero-carousel";
+import { FAQsSection } from "@/components/home/faqs-section";
+
 import { LeafyBackground } from "@/components/home/leafy-background";
 import { Navbar } from "@/components/home/navbar";
 import { WhatWeAcceptSection } from "@/components/home/what-we-accept-section";
@@ -21,6 +25,8 @@ import {
   faqItems,
   heroSlides,
   images,
+
+
 } from "@/lib/data/skip-bins";
 import { todayIsoDate } from "@/lib/booking-utils";
 
@@ -37,6 +43,7 @@ export function HomePage() {
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteState>(emptyQuote);
   const [quoteErrors, setQuoteErrors] = useState<Partial<QuoteState>>({});
+  const [loading, setLoading] = useState(false);
 
   const updateQuote = (field: keyof QuoteState, value: string) => {
     setQuote((current) => ({ ...current, [field]: value }));
@@ -47,11 +54,12 @@ export function HomePage() {
     });
   };
 
-  const handleQuoteSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleQuoteSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (loading) return;
     const nextErrors: Partial<QuoteState> = {};
     if (!quote.size) nextErrors.size = "Please select a bin size.";
-    if (!quote.postcode.trim()) nextErrors.postcode = "Please enter your suburb or postcode.";
+    if (!isValidPostcode(quote.postcode)) nextErrors.postcode = postcodeError;
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
     if (!quote.date) nextErrors.date = "Please select a delivery date.";
     else if (quote.date < todayIsoDate()) nextErrors.date = "Please select a delivery date.";
@@ -59,6 +67,7 @@ export function HomePage() {
     setQuoteErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    setLoading(true);
     const params = new URLSearchParams({
       size: quote.size,
       location: quote.postcode.trim(),
@@ -66,10 +75,11 @@ export function HomePage() {
       date: quote.date,
     });
     router.push(`/book?${params.toString()}`);
+    setLoading(false);
   };
 
   const fieldClass = (error?: string) =>
-    `mt-1.5 w-full rounded-xl border bg-white px-3 py-3 text-sm font-medium text-[#172018] outline-none transition placeholder:text-[#9aa59a] focus:border-[#14532D] focus:ring-2 focus:ring-[#DDECCB] ${
+    `mt-1.5 h-14 min-w-0 max-w-full w-full rounded-xl border bg-white px-3 py-3 text-base sm:text-sm font-medium text-[#172018] outline-none transition placeholder:text-[#9aa59a] focus:border-[#14532D] focus:ring-2 focus:ring-[#DDECCB] ${
       error ? "border-red-500" : "border-[#cbd8c5]"
     }`;
 
@@ -105,10 +115,10 @@ export function HomePage() {
             </p>
           </div>
 
-          <div className="relative flex min-h-[360px] items-center justify-center py-8 pr-2 sm:min-h-[480px] sm:py-12 sm:pr-6 lg:min-h-[560px] lg:justify-end lg:py-20 lg:pr-12">
+          <div className="relative flex min-w-0 items-center justify-center py-6 sm:py-10 lg:justify-end lg:py-16">
             <form
               id="hero-booking"
-              className="w-full max-w-md rounded-2xl border border-white/70 bg-[#FAF9F3]/95 p-5 shadow-[0_8px_24px_rgba(11,59,36,0.12)] backdrop-blur-sm sm:p-8"
+              className="@container min-w-0 w-full max-w-lg rounded-2xl border border-white/70 bg-[#FAF9F3]/95 p-5 shadow-[0_8px_24px_rgba(11,59,36,0.12)] backdrop-blur-sm sm:p-8"
               onSubmit={handleQuoteSubmit}
               noValidate
             >
@@ -124,7 +134,7 @@ export function HomePage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <fieldset disabled={loading} className="grid min-w-0 grid-cols-1 items-start gap-4 @min-[380px]:grid-cols-2">
                 <StyledSelect
                   label="Bin size"
                   name="bin-size"
@@ -134,17 +144,7 @@ export function HomePage() {
                   error={quoteErrors.size}
                   options={bins.map((bin) => ({ value: bin.id, label: `${bin.size} - ${bin.name}` }))}
                 />
-                <label className="text-xs font-bold text-[#14532D]">
-                  Suburb or postcode
-                  <input
-                    name="postcode"
-                    placeholder="e.g. Brisbane 4000"
-                    value={quote.postcode}
-                    onChange={(event) => updateQuote("postcode", event.target.value)}
-                    className={fieldClass(quoteErrors.postcode)}
-                  />
-                  <ValidationMessage message={quoteErrors.postcode} />
-                </label>
+                <PostcodeField value={quote.postcode} onChange={(value) => updateQuote("postcode", value)} error={quoteErrors.postcode} />
                 <StyledSelect
                   label="Waste type"
                   name="waste-type"
@@ -154,8 +154,8 @@ export function HomePage() {
                   error={quoteErrors.waste}
                   options={acceptedWaste.map((item) => ({ value: item.id, label: item.label }))}
                 />
-                <label className="text-xs font-bold text-[#14532D]">
-                  Delivery date
+                <label className="flex min-w-0 flex-col text-xs font-bold text-[#14532D]">
+                  <span className="block h-5 leading-5">Delivery date</span>
                   <input
                     name="delivery-date"
                     type="date"
@@ -166,13 +166,14 @@ export function HomePage() {
                   />
                   <ValidationMessage message={quoteErrors.date} />
                 </label>
-              </div>
-
+              </fieldset>
               <button
                 type="submit"
+                disabled={loading}
+                aria-busy={loading}
                 className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#14532D] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0B3B24]"
               >
-                Get my quote
+                {loading ? <><Loader2 size={16} className="animate-spin" /> Continuing…</> : "Get my quote"}
                 <ArrowRight size={16} />
               </button>
             </form>
@@ -273,3 +274,6 @@ export function HomePage() {
     </main>
   );
 }
+
+
+
