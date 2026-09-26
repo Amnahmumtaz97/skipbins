@@ -134,8 +134,14 @@ export async function createPendingBooking(data: BookingRecord, amountCents: num
 export async function attachCheckoutSession(bookingId: string, sessionId: string) {
   const client = supabase();
   if (client) {
-    const { error } = await client.from("bookings").update({ stripe_session_id: sessionId }).eq("id", bookingId);
+    const { data, error } = await client
+      .from("bookings")
+      .update({ stripe_session_id: sessionId })
+      .eq("id", bookingId)
+      .select("id")
+      .maybeSingle();
     if (error && process.env.NODE_ENV === "production") throw error;
+    if (data) return;
   }
   const existing = await readLocal();
   const row = existing.find((item) => item.id === bookingId);
