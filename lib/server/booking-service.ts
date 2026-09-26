@@ -40,12 +40,16 @@ export type StoredBooking = {
 };
 
 function writeKey() {
-  return (
+  const secretKey =
     process.env.SUPABASE_SECRET_KEY?.trim() ||
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
-    ""
-  );
+    "";
+
+  if (secretKey || process.env.NODE_ENV === "production") return secretKey;
+
+  // Local development also mirrors bookings to .data. The publishable key can
+  // insert a row under RLS, while the local mirror supports the update flow.
+  return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
 }
 
 function newReference() {

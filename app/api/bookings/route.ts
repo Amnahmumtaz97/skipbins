@@ -9,6 +9,7 @@ import { getStripe } from "@/lib/server/stripe";
 export async function POST(request: Request) {
   const limited = rateLimit("bookings", 10);
   if (limited) return limited;
+  let stage = "validation";
   try {
     const data = await readJson(request);
     if (!data.deliveryDate || !data.hirePeriod) throw new InputError("Please select delivery and rental dates.");
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     }
 
     const amountCents = Math.round(quote.total * 100);
+    stage = "booking-persistence";
     const booking = await createPendingBooking({
       address: String(data.address),
       binSize: String(data.binSize),
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
     const origin = new URL(request.url).origin;
     const bin = getBinBySizeOrId(input.size);
     const waste = getWasteById(input.waste);
+    stage = "stripe-session";
     const session = await getStripe().checkout.sessions.create({
       mode: "payment",
       currency: "aud",
@@ -67,7 +70,16 @@ export async function POST(request: Request) {
       cancel_url: `${origin}/book?cancelled=1`,
     });
     if (!session.url) throw new Error("Stripe did not return a checkout URL");
+    stage = "booking-session-attachment";
     await attachCheckoutSession(booking.id, session.id);
     return Response.json({ checkoutUrl: session.url }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) { return apiError(error); }
+  } catch (error) {
+    if (!(error instanceof InputError)) {
+      console.error("[bookings] Checkout request failed", {
+        stage,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+    return apiError(error);
+  }
 }
