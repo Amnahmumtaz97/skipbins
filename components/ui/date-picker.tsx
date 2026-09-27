@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { ValidationMessage } from "@/components/book/validation-message";
-import { todayIsoDate } from "@/lib/booking-utils";
+import { isSundayIso, todayIsoDate } from "@/lib/booking-utils";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
@@ -113,7 +113,7 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
   };
 
   const pick = (iso: string) => {
-    if (iso < minDate) return;
+    if (iso < minDate || isSundayIso(iso)) return;
     onChange(iso);
     setOpen(false);
   };
@@ -155,7 +155,7 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
               </span>
             ))}
             {days.map((cell) => {
-              const disabled = cell.iso < minDate;
+              const disabled = cell.iso < minDate || isSundayIso(cell.iso);
               const selectedDay = cell.iso === value;
               const isToday = cell.iso === today;
               return (
@@ -195,7 +195,7 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
             </button>
             <button
               type="button"
-              disabled={today < minDate}
+              disabled={today < minDate || isSundayIso(today)}
               onClick={() => pick(today)}
               className="text-[11px] font-bold text-[#65A30D] transition hover:text-[#0B3B24] disabled:text-[#C7D2C9]"
             >

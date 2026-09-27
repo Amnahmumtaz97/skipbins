@@ -5,10 +5,10 @@ import { useId } from "react";
 const widths: Record<string, number> = {
   "2m3": 270,
   "3m3": 300,
-  "4.5m3": 340,
+  "4m3": 340,
   "6m3": 375,
-  "9m3": 415,
-  "12m3": 450,
+  "8m3": 415,
+  "9m3": 450,
 };
 
 export function BinVector({ id, size, name }: { id: string; size: string; name: string }) {
@@ -27,7 +27,7 @@ export function BinVector({ id, size, name }: { id: string; size: string; name: 
       className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-[1.04]"
       preserveAspectRatio="xMidYMid meet"
     >
-      <title id={`${rawId}-title`}>{`${size} ${name} skip bin illustration`}</title>
+      <title id={`${rawId}-title`}>{`${size} — ${name} illustration`}</title>
       <desc id={`${rawId}-description`}>Scalable green vector showing the relative size of this skip bin.</desc>
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">

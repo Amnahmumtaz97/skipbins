@@ -1,4 +1,4 @@
-import { acceptedWaste, formatBinSize, getBinBySizeOrId } from "@/lib/data/skip-bins";
+import { acceptedWaste, formatBinLabel, formatHirePeriod, getBinBySizeOrId } from "@/lib/data/skip-bins";
 import { formatCurrency } from "@/lib/booking-utils";
 import type { BookingFormState } from "@/types/skip-bin";
 
@@ -12,11 +12,13 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
       <div className="mb-3.5 rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-white px-[18px]">
         <SummaryRow label="Location" value={location || "—"} />
         <SummaryRow label="Waste type" value={waste?.label ?? "—"} />
-        <SummaryRow label="Bin size" value={bin ? formatBinSize(bin.size) : "—"} />
+        <SummaryRow label="Bin size" value={bin ? formatBinLabel(bin.id) : "—"} />
         <SummaryRow
           label="Delivery date"
-          value={[form.deliveryDate, form.hirePeriod].filter(Boolean).join(" · ") || "—"}
+          value={form.deliveryDate || "—"}
         />
+        <SummaryRow label="Pickup date" value={form.pickupDate || "—"} />
+        <SummaryRow label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
         <SummaryRow
           label="Contact"
           value={[form.fullName, form.phone].filter(Boolean).join(" · ") || "—"}
@@ -26,9 +28,9 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
 
       <div className="rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-[#F6F2E7] p-[18px]">
         <p className="mb-2.5 text-[15px] font-semibold text-[#0B3B24]">Price summary</p>
-        <PriceRow label="Bin size" value={bin ? bin.size : "—"} />
+        <PriceRow label="Bin size" value={bin ? formatBinLabel(bin.id) : "—"} />
         <PriceRow label="Waste type" value={waste?.label ?? "—"} />
-        <PriceRow label="Hire period" value={form.hirePeriod || "—"} />
+        <PriceRow label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
         <PriceRow label="Delivery & pickup" value={total !== null ? "Included in quote" : "Awaiting quote"} />
         <div className="mt-1.5 flex justify-between border-t border-[#E8E1CF] pt-3 text-[14.5px] font-bold text-[#0B3B24]">
           <span>Total</span>

@@ -9,6 +9,7 @@ export type BookingRecord = {
   binSize: string;
   wasteType: string;
   deliveryDate: string;
+  pickupDate: string;
   hirePeriod: string;
   fullName: string;
   email: string;
@@ -29,6 +30,7 @@ export type StoredBooking = {
   postcode: string;
   waste_type: string;
   delivery_date: string;
+  pickup_date: string;
   hire_period: string;
   full_name: string;
   email: string;
@@ -92,6 +94,7 @@ function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
     postcode: data.address,
     waste_type: data.wasteType,
     delivery_date: data.deliveryDate,
+    pickup_date: data.pickupDate,
     hire_period: data.hirePeriod,
     full_name: data.fullName.trim(),
     email: data.email.trim(),
@@ -160,7 +163,7 @@ export async function markBookingPaid(lookup: { id?: string; stripeSessionId?: s
     if (lookup.stripeSessionId) query = query.eq("stripe_session_id", lookup.stripeSessionId);
     else if (lookup.id) query = query.eq("id", lookup.id);
     else return null;
-    const { data, error } = await query.select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, hire_period, full_name, email, phone, street_address, placement, access, notes").maybeSingle();
+    const { data, error } = await query.select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes").maybeSingle();
     if (!error && data) return data as StoredBooking;
     if (error && process.env.NODE_ENV === "production") throw error;
   }
@@ -181,7 +184,7 @@ export async function getBookingByCheckoutSession(sessionId: string) {
   if (client) {
     const { data, error } = await client
       .from("bookings")
-      .select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, hire_period, full_name, email, phone, street_address, placement, access, notes")
+      .select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes")
       .eq("stripe_session_id", sessionId)
       .maybeSingle();
     if (!error && data) return data as StoredBooking;

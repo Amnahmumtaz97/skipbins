@@ -50,7 +50,7 @@ export function PostcodeField({ value, onChange, error }: {
     <div className="relative mt-1.5">
     <input id={id} name="postcode" value={text} onChange={(e) => { setText(e.target.value); onChange(e.target.value); setActive(-1); setFocused(true); }}
       autoComplete="off" maxLength={60}
-      required placeholder="e.g. Brisbane or 4000" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
+      required placeholder="e.g. Melbourne or 3000" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
       role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-results`}
       aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}

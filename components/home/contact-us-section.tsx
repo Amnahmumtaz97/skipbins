@@ -159,7 +159,7 @@ export function ContactUsSection({ contact }: { contact: ContactInfo }) {
         {/* Contact Info Box */}
         <div className="space-y-6">
           <div className="rounded-2xl border border-white/70 bg-[#F4F7EC]/92 p-6 shadow-sm backdrop-blur-md sm:p-8">
-            <h3 className="text-lg font-bold text-[#0B3B24]">Why choose SkipBins?</h3>
+            <h3 className="text-lg font-bold text-[#0B3B24]">Why choose Premium Skip Bin Hire?</h3>
             <ul className="mt-4 space-y-3">
               <li className="flex items-start gap-3 text-sm text-[#405347]">
                 <span className="mt-1 inline-block h-2 w-2 rounded-full bg-[#65A30D]" />

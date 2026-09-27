@@ -1,5 +1,5 @@
 import { isValidAuPhone, isValidEmail } from "@/lib/booking-utils";
-import { getBinBySizeOrId, getWasteById, placements } from "@/lib/data/skip-bins";
+import { formatBinLabel, getBinBySizeOrId, getWasteById, placements } from "@/lib/data/skip-bins";
 import { attachCheckoutSession, createPendingBooking } from "@/lib/server/booking-service";
 import { lookupQuote, validateQuote } from "@/lib/server/quote-service";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -12,8 +12,8 @@ export async function POST(request: Request) {
   let stage = "validation";
   try {
     const data = await readJson(request);
-    if (!data.deliveryDate || !data.hirePeriod) throw new InputError("Please select delivery and rental dates.");
-    const input = validateQuote({ postcode: data.address, size: data.binSize, waste: data.wasteType, date: data.deliveryDate, hirePeriod: data.hirePeriod });
+    if (!data.deliveryDate || !data.pickupDate || !data.hirePeriod) throw new InputError("Please select delivery, pickup and rental dates.");
+    const input = validateQuote({ postcode: data.address, size: data.binSize, waste: data.wasteType, date: data.deliveryDate, pickupDate: data.pickupDate, hirePeriod: data.hirePeriod });
     for (const [key, max] of Object.entries({ fullName: 120, email: 254, phone: 30, streetAddress: 240, access: 1000, notes: 2000 })) {
       const value = data[key];
       if (typeof value !== "string" || value.length > max || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) throw new InputError("Please check your contact and delivery details.");
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
       binSize: String(data.binSize),
       wasteType: String(data.wasteType),
       deliveryDate: String(data.deliveryDate),
+      pickupDate: String(data.pickupDate),
       hirePeriod: String(data.hirePeriod),
       fullName: data.fullName as string,
       email: data.email as string,
@@ -60,14 +61,14 @@ export async function POST(request: Request) {
           currency: "aud",
           unit_amount: amountCents,
           product_data: {
-            name: bin ? `${bin.name} — ${bin.size}` : `Skip bin ${input.size}`,
+            name: bin ? formatBinLabel(bin.id) : `Skip bin ${input.size}`,
             description: [waste?.label, input.hirePeriod].filter(Boolean).join(" · "),
           },
         },
       }],
       metadata: { bookingId: booking.id },
       success_url: `${origin}/book/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/book?cancelled=1`,
+      cancel_url: `${origin}/booking?cancelled=1`,
     });
     if (!session.url) throw new Error("Stripe did not return a checkout URL");
     stage = "booking-session-attachment";

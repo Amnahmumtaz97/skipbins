@@ -5,6 +5,7 @@ create table if not exists public.bookings (
   postcode text not null,
   waste_type text not null,
   delivery_date date not null,
+  pickup_date date not null,
   hire_period text not null,
   full_name text not null,
   email text not null,
@@ -17,6 +18,7 @@ create table if not exists public.bookings (
 );
 
 alter table public.bookings add column if not exists reference text;
+alter table public.bookings add column if not exists pickup_date date;
 alter table public.bookings add column if not exists hire_period text;
 alter table public.bookings add column if not exists full_name text;
 alter table public.bookings add column if not exists email text;

@@ -1,5 +1,5 @@
 import { Check, MapPin, Calendar, User, Trash2, Package } from "lucide-react";
-import { acceptedWaste, bins } from "@/lib/data/skip-bins";
+import { acceptedWaste, bins, formatBinLabel, formatHirePeriod } from "@/lib/data/skip-bins";
 import { formatCurrency } from "@/lib/booking-utils";
 import type { BookingFormState } from "@/types/skip-bin";
 
@@ -44,7 +44,7 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
     {
       icon: <Package size={13} />,
       label: "Bin size",
-      value: bin ? `${bin.name} — ${bin.size}` : "Not selected yet",
+      value: bin ? formatBinLabel(bin.id) : "Not selected yet",
       done: Boolean(bin),
     },
     {
@@ -65,10 +65,10 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
       icon: <Calendar size={13} />,
       label: "Delivery",
       value:
-        form.deliveryDate || form.hirePeriod
-          ? [form.deliveryDate, form.hirePeriod].filter(Boolean).join(" · ")
+        form.deliveryDate || form.pickupDate || form.hirePeriod
+          ? [form.deliveryDate, form.pickupDate ? `Pickup ${form.pickupDate}` : "", formatHirePeriod(form.hirePeriod)].filter(Boolean).join(" · ")
           : "Not selected yet",
-      done: Boolean(form.deliveryDate && form.hirePeriod),
+      done: Boolean(form.deliveryDate && form.pickupDate && form.hirePeriod),
     },
     {
       icon: <User size={13} />,
@@ -120,7 +120,7 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
           </p>
         ) : (
           <p className="mt-1 text-[11px] text-[#5B6B60]">
-            Includes delivery and pickup. Extended hire adds 40%.
+            Includes standard 10-day hire, delivery and pickup.
           </p>
         )}
       </div>

@@ -5,8 +5,8 @@ import { Navbar } from "@/components/home/navbar";
 import { contactInfo } from "@/lib/data/skip-bins";
 
 export const metadata: Metadata = {
-  title: "Contact Us | SkipBins",
-  description: "Contact SkipBins for local skip bin hire support in Sydney.",
+  title: "Contact Us | Premium Skip Bin Hire",
+  description: "Contact Premium Skip Bin Hire for local skip bin hire support in Sydney.",
 };
 
 export default function Page() {
@@ -28,9 +28,9 @@ export default function Page() {
         <ContactUsSection contact={contactInfo} />
         <footer className="mx-auto flex max-w-[1400px] flex-col gap-3 border-t border-[#dce4d4] bg-[#F4F7EC]/75 px-5 py-8 text-sm text-[#405347] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-12">
           <span className="font-extrabold text-[#0B3B24]">
-            SkipBins<span className="text-[#65A30D]">.</span>
+            Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
           </span>
-          <span>© 2026 SkipBins Australia · Waste less, live more.</span>
+          <span>© 2026 Premium Skip Bin Hire Australia · Waste less, live more.</span>
         </footer>
       </div>
     </main>

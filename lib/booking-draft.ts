@@ -35,6 +35,7 @@ export function loadBookingDraft(): BookingFormState | null {
       placement: (placement as BookingFormState["placement"]) ?? "",
       access: String(parsed.access ?? ""),
       deliveryDate: String(parsed.deliveryDate ?? ""),
+      pickupDate: String(parsed.pickupDate ?? ""),
       binSize: String(parsed.binSize ?? ""),
       wasteType: String(parsed.wasteType ?? ""),
       hirePeriod: (hirePeriod as BookingFormState["hirePeriod"]) ?? "",

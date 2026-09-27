@@ -3,7 +3,7 @@ export type SkipBin = {
   size: string;
   name: string;
   description: string;
-  capacity: string;
+  dimensions: string;
   recommendedFor: string;
   price: string;
   features: string[];
@@ -29,7 +29,7 @@ export type WasteCategory = {
   notAccepted: string[];
 };
 
-export type HirePeriod = "Standard (7 days)" | "Extended (14 days)" | "Long-term (ask us)";
+export type HirePeriod = "Standard (7 days)" | "Extended (14 days)";
 
 export type BinPlacement = "Driveway" | "Street / verge" | "On-site (private property)";
 
@@ -42,6 +42,7 @@ export type BookingFormState = {
   placement: BinPlacement | "";
   access: string;
   deliveryDate: string;
+  pickupDate: string;
   binSize: string;
   wasteType: string;
   hirePeriod: HirePeriod | "";

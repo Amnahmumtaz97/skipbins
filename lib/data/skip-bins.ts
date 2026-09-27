@@ -13,63 +13,63 @@ export const bins: SkipBin[] = [
   {
     id: "2m3",
     size: "2m³",
-    name: "Mini Skip",
+    name: "SKIP BIN",
     description: "Perfect for small clear-outs, garden tidy-ups and weekend projects.",
-    capacity: "Approx. ~2 trailer loads",
+    dimensions: "1.8m × 1.5m × 0.9m",
     recommendedFor: "Garage cleanout, small garden waste, minor renovation scraps",
     price: "$149",
-    features: ["Up to 7 days rental", "General household waste", "Fast delivery", "Eco-friendly disposal"],
+    features: ["Standard 10-day hire", "General household waste", "Fast delivery", "Eco-friendly disposal"],
   },
   {
     id: "3m3",
     size: "3m³",
-    name: "Compact Skip",
+    name: "SKIP BIN",
     description: "A step up for larger garden jobs and small bathroom or kitchen tidy-ups.",
-    capacity: "Approx. ~3 trailer loads",
+    dimensions: "2.4m × 1.5m × 0.9m",
     recommendedFor: "Bathroom reno, kitchen cleanout, backyard clear-up",
     price: "$179",
-    features: ["Up to 7 days rental", "Home renovation projects", "Fast delivery", "Eco-friendly disposal"],
+    features: ["Standard 10-day hire", "Home renovation projects", "Fast delivery", "Eco-friendly disposal"],
   },
   {
-    id: "4.5m3",
-    size: "4.5m³",
-    name: "Medium Skip",
+    id: "4m3",
+    size: "4m³",
+    name: "SKIP BIN",
     description: "A smart fit for kitchens, bathrooms and medium home renovations.",
-    capacity: "Approx. ~4–5 trailer loads",
+    dimensions: "3.2m × 1.5m × 0.9m",
     recommendedFor: "Kitchen and bathroom renovations, mixed household waste",
     price: "$219",
-    features: ["Up to 7 days rental", "Home renovation projects", "Fast delivery", "Free replacement if needed"],
+    features: ["Standard 10-day hire", "Home renovation projects", "Fast delivery", "Free replacement if needed"],
   },
   {
     id: "6m3",
     size: "6m³",
-    name: "Large Skip",
+    name: "SKIP BIN",
     description: "Room for larger renovations, building waste and bulky clean-ups.",
-    capacity: "Approx. ~6 trailer loads",
+    dimensions: "3.6m × 1.5m × 1.2m",
     recommendedFor: "Full house clear-out, major renovation, roofing and flooring",
     price: "$249",
-    features: ["Up to 7 days rental", "Construction waste", "Fast delivery", "Bulk disposal available"],
+    features: ["Standard 10-day hire", "Construction waste", "Fast delivery", "Bulk disposal available"],
     popular: true,
+  },
+  {
+    id: "8m3",
+    size: "8m³",
+    name: "SKIP BIN",
+    description: "Our large-capacity bin for major construction jobs and full property clear-outs.",
+    dimensions: "3.7m × 1.6m × 1.4m",
+    recommendedFor: "Large construction, commercial sites, multi-room renovations",
+    price: "$329",
+    features: ["Standard 10-day hire", "Major projects", "Fast delivery", "Commercial ready"],
   },
   {
     id: "9m3",
     size: "9m³",
-    name: "Extra Large Skip",
-    description: "Our large-capacity bin for major construction jobs and full property clear-outs.",
-    capacity: "Approx. ~9 trailer loads",
-    recommendedFor: "Large construction, commercial sites, multi-room renovations",
-    price: "$329",
-    features: ["Up to 7 days rental", "Major projects", "Fast delivery", "Commercial ready"],
-  },
-  {
-    id: "12m3",
-    size: "12m³",
-    name: "Super Skip",
+    name: "SKIP BIN",
     description: "Our biggest bin for large commercial sites and heavy construction waste.",
-    capacity: "Approx. ~12 trailer loads",
+    dimensions: "4.0m × 1.6m × 1.5m",
     recommendedFor: "Commercial demolitions, large builds, multi-dwelling projects",
     price: "$399",
-    features: ["Up to 7 days rental", "Heavy construction waste", "Fast delivery", "Commercial ready"],
+    features: ["Standard 10-day hire", "Heavy construction waste", "Fast delivery", "Commercial ready"],
   },
 ];
 
@@ -110,15 +110,6 @@ export const acceptedWaste: WasteCategory[] = [
     ],
   },
   {
-    id: "cleanfill",
-    label: "Cleanfill / Hardfill",
-    description: "Price based strictly on cleanfill only",
-    icon: "block",
-    swatch: "#AD8B57",
-    acceptedItems: ["Concrete", "Bricks & rock", "Ceramic tiles"],
-    notAccepted: ["Asbestos or hazardous waste", "General waste", "Garden waste or food waste", "Sand, soil or clay"],
-  },
-  {
     id: "green",
     label: "Green Garden Waste",
     description: "Price based strictly on green garden waste only",
@@ -138,14 +129,20 @@ export const acceptedWaste: WasteCategory[] = [
   },
 ];
 
-export const hirePeriods: HirePeriod[] = ["Standard (7 days)", "Extended (14 days)", "Long-term (ask us)"];
+export const hirePeriods: HirePeriod[] = ["Standard (7 days)", "Extended (14 days)"];
+
+export function formatHirePeriod(value?: string | null) {
+  if (value === "Standard (7 days)") return "Standard Hire: 10 Days";
+  if (value === "Extended (14 days)") return "Extended hire: up to 14 days";
+  return value ?? "";
+}
 
 export const placements: BinPlacement[] = ["Driveway", "Street / verge", "On-site (private property)"];
 
 export const heroSlides: HeroSlide[] = [
   { image: images.hero, alt: "Green skip bin filled with garden waste outdoors", label: "Green garden clean-up" },
   { image: images.medium, alt: "Green waste collection skip bin ready for a renovation", label: "Responsible renovation waste" },
-  { image: images.difference, alt: "Green skip bin supporting a cleaner outdoor space", label: "Cleaner spaces, greener future" },
+  { image: images.difference, alt: "Green skip bin supporting a cleaner outdoor space", label: "Skip more, spend less" },
 ];
 
 export const differenceItems = [
@@ -168,7 +165,7 @@ export const faqItems = [
   {
     id: "duration",
     question: "How long can I keep a skip bin?",
-    answer: "Standard rental period is 7 days. Extended periods are available for ongoing projects. Contact us for flexible options.",
+    answer: "Standard hire is 10 days. Extended hire is available for ongoing projects, up to 14 days.",
   },
   {
     id: "overfill",
@@ -193,10 +190,10 @@ export const faqItems = [
 ];
 
 export const contactInfo = {
-  email: "hello@skipbins.example",
+  email: "hello@premiumskipbinhire.example",
   phone: "1300 SKIP BIN",
   hours: "Monday - Friday: 7am - 6pm, Saturday: 8am - 4pm",
-  address: "SkipBins Distribution Center, Sydney NSW 2000",
+  address: "Premium Skip Bin Hire Distribution Center, Sydney NSW 2000",
 };
 
 function normalizeBinKey(value: string) {
@@ -215,6 +212,11 @@ export function getBinBySizeOrId(value?: string | null) {
 
 export function formatBinSize(value: string) {
   return getBinBySizeOrId(value)?.size ?? value;
+}
+
+export function formatBinLabel(value: string) {
+  const bin = getBinBySizeOrId(value);
+  return bin ? `${bin.size} — ${bin.name}` : value;
 }
 
 export function getWasteById(value?: string | null) {

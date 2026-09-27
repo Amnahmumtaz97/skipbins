@@ -15,6 +15,7 @@ require.extensions['.ts'] = (mod, filename) => mod._compile(ts.transpileModule(f
 
 const { isValidPostcode } = require('../lib/postcode.ts');
 const { validateQuote } = require('../lib/server/quote-service.ts');
+const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
@@ -31,9 +32,16 @@ test('location searches accept suburbs and partial postcodes while rejecting emp
   for (const value of ['0800', '4000', '400', '40000', 'Brisbane', 'Mount Gravatt', '4000 ']) assert.equal(isValidPostcode(value), true);
   for (const value of ['', ' ', '90', '４０００', 4000, null, "' OR 1=1", '<script>']) assert.equal(isValidPostcode(value), false);
 });
-test('catalogue allowlists and real calendar dates are required', () => {
+test('catalogue allowlists, pickup order and non-Sunday dates are required', () => {
   assert.equal(validateQuote(valid).postcode, '0800');
-  for (const changes of [{size:'8m3'}, {waste:'asbestos'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {hirePeriod:'forever'}]) assert.throws(() => validateQuote({...valid,...changes}));
+  for (const changes of [{size:'10m3'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-03',pickupDate:'2099-01-03'}, {date:'2099-01-03',pickupDate:'2099-01-11'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
+});
+test('bin catalogue uses the approved names and centralized dimensions', () => {
+  assert.deepEqual(bins.map((bin) => bin.size), ['2m³', '3m³', '4m³', '6m³', '8m³', '9m³']);
+  for (const bin of bins) {
+    assert.equal(formatBinLabel(bin.id), `${bin.size} — SKIP BIN`);
+    assert.match(bin.dimensions, /^\d(?:\.\d)?m × \d(?:\.\d)?m × \d(?:\.\d)?m$/);
+  }
 });
 test('quote route rejects invalid JSON, body shape, size and cross-origin requests', async () => {
   assert.equal((await quotes.POST(request({...valid, postcode:''}))).status, 400);
@@ -65,7 +73,7 @@ test('contact validates input and cannot acknowledge an undelivered message', as
 });
 test('booking validates all inputs and never returns a simulated reference', async () => {
   assert.equal((await bookings.POST(request({}))).status, 400);
-  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
+  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-03',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
   const response = await bookings.POST(request(body));
   assert.ok(response.status === 400 || response.status === 503);

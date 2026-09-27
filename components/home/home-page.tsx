@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { ArrowRight, Calendar, Check, CircleHelp, Leaf, Loader2 } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, Calendar, Check, CircleHelp, Leaf, Loader2, Recycle, ShieldCheck, Truck } from "lucide-react";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { isValidPostcode, postcodeError } from "@/lib/postcode";
 import { BinSizesSection } from "@/components/home/bin-sizes-section";
@@ -23,12 +23,13 @@ import {
   bins,
   differenceItems,
   faqItems,
+  formatBinLabel,
   heroSlides,
   images,
 
 
 } from "@/lib/data/skip-bins";
-import { todayIsoDate } from "@/lib/booking-utils";
+import { addDaysIso, isSundayIso, todayIsoDate } from "@/lib/booking-utils";
 import { clearBookingDraft } from "@/lib/booking-draft";
 
 type QuoteState = {
@@ -36,9 +37,17 @@ type QuoteState = {
   postcode: string;
   waste: string;
   date: string;
+  pickupDate: string;
 };
 
-const emptyQuote: QuoteState = { size: "", postcode: "", waste: "", date: "" };
+const emptyQuote: QuoteState = { size: "", postcode: "", waste: "", date: "", pickupDate: "" };
+
+const heroBenefits = [
+  { icon: BadgeDollarSign, title: "All-Inclusive Pricing", detail: "No Hidden Fees" },
+  { icon: Truck, title: "Same Day Delivery", detail: "Fast & Flexible Service" },
+  { icon: ShieldCheck, title: "Permit Help", detail: "We Handle Councils" },
+  { icon: Recycle, title: "Responsible Recycling", detail: "More Recovery, Less Landfill" },
+];
 
 export function HomePage() {
   const router = useRouter();
@@ -47,7 +56,11 @@ export function HomePage() {
   const [loading, setLoading] = useState(false);
 
   const updateQuote = (field: keyof QuoteState, value: string) => {
-    setQuote((current) => ({ ...current, [field]: value }));
+    setQuote((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "date" && current.pickupDate && (!value || current.pickupDate <= value) ? { pickupDate: "" } : {}),
+    }));
     setQuoteErrors((current) => {
       const next = { ...current };
       delete next[field];
@@ -62,8 +75,10 @@ export function HomePage() {
     if (!quote.size) nextErrors.size = "Please select a bin size.";
     if (!isValidPostcode(quote.postcode)) nextErrors.postcode = postcodeError;
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
-    if (!quote.date) nextErrors.date = "Please select a delivery date.";
-    else if (quote.date < todayIsoDate()) nextErrors.date = "Please select a delivery date.";
+    if (!quote.date || quote.date < todayIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date.";
+    if (!quote.pickupDate || quote.pickupDate <= quote.date || isSundayIso(quote.pickupDate)) {
+      nextErrors.pickupDate = "Please select a pickup date after delivery.";
+    }
 
     setQuoteErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -75,8 +90,9 @@ export function HomePage() {
       location: quote.postcode.trim(),
       waste: quote.waste,
       date: quote.date,
+      pickup: quote.pickupDate,
     });
-    router.push(`/book?${params.toString()}`);
+    router.push(`/booking?${params.toString()}`);
     setLoading(false);
   };
 
@@ -91,22 +107,25 @@ export function HomePage() {
         <div className="relative z-10 grid items-center gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-16">
           <div className="max-w-xl py-8 pl-2 sm:py-12 sm:pl-6 lg:py-20 lg:pl-12">
             <h1 className="text-[clamp(2.5rem,5vw,5rem)] font-black leading-[0.96] tracking-[-0.065em] text-[#0B3B24]">
-              Skip the mess,
+              Skip more,
               <br />
-              not the <span className="text-[#65A30D]">planet.</span>
+              spend <span className="text-[#65A30D]">less.</span>
             </h1>
-            <p className="mt-6 max-w-md text-base leading-7 text-[#405347] sm:mt-8 sm:text-lg">
+            <p className="mt-6 max-w-md text-base leading-7 text-white sm:mt-8 sm:text-lg">
               Reliable skip bin hire for homes, businesses, and a cleaner tomorrow.
             </p>
+            <p className="mt-2 max-w-md text-sm font-bold leading-6 text-white">
+              Where Premium Service Meets <span className="text-[#B7E36D]">Affordable Prices.</span>
+            </p>
             <Link
-              href="/book"
+              href="/booking"
               className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0B3B24] px-6 py-4 font-bold text-white shadow-sm transition-colors hover:bg-[#14532D] sm:w-auto"
             >
               <Calendar size={18} />
               Book a Bin Now
               <ArrowRight size={18} />
             </Link>
-            <p className="mt-6 flex items-center gap-2 text-xs font-semibold text-[#405347] sm:mt-7 sm:text-sm">
+            <p className="mt-6 flex items-center gap-2 text-xs font-semibold text-white sm:mt-7 sm:text-sm">
               <Leaf size={17} className="shrink-0 text-[#65A30D]" />
               Eco-friendly disposal. Responsible recycling.
             </p>
@@ -131,32 +150,46 @@ export function HomePage() {
                 </div>
               </div>
 
-              <fieldset disabled={loading} className="grid min-w-0 grid-cols-1 items-start gap-4 @min-[380px]:grid-cols-2">
-                <StyledSelect
-                  label="Bin size"
-                  name="bin-size"
-                  placeholder="Select a size"
-                  value={quote.size}
-                  onChange={(value) => updateQuote("size", value)}
-                  error={quoteErrors.size}
-                  options={bins.map((bin) => ({ value: bin.id, label: `${bin.size} - ${bin.name}` }))}
-                />
-                <PostcodeField value={quote.postcode} onChange={(value) => updateQuote("postcode", value)} error={quoteErrors.postcode} />
-                <StyledSelect
-                  label="Waste type"
-                  name="waste-type"
-                  placeholder="Choose waste type"
-                  value={quote.waste}
-                  onChange={(value) => updateQuote("waste", value)}
-                  error={quoteErrors.waste}
-                  options={acceptedWaste.map((item) => ({ value: item.id, label: item.label }))}
-                />
+              <fieldset disabled={loading} className="grid min-w-0 grid-cols-2 items-start gap-4">
+                <div className="col-span-2">
+                  <StyledSelect
+                    label="Bin size"
+                    name="bin-size"
+                    placeholder="Select a size"
+                    value={quote.size}
+                    onChange={(value) => updateQuote("size", value)}
+                    error={quoteErrors.size}
+                    options={bins.map((bin) => ({ value: bin.id, label: formatBinLabel(bin.id) }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <StyledSelect
+                    label="Waste type"
+                    name="waste-type"
+                    placeholder="Choose waste type"
+                    value={quote.waste}
+                    onChange={(value) => updateQuote("waste", value)}
+                    error={quoteErrors.waste}
+                    options={acceptedWaste.map((item) => ({ value: item.id, label: item.label }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <PostcodeField value={quote.postcode} onChange={(value) => updateQuote("postcode", value)} error={quoteErrors.postcode} />
+                </div>
                 <DatePicker
                   label="Delivery date"
                   value={quote.date}
                   min={todayIsoDate()}
                   error={quoteErrors.date}
                   onChange={(value) => updateQuote("date", value)}
+                />
+                <DatePicker
+                  label="Pickup date"
+                  name="pickup-date"
+                  value={quote.pickupDate}
+                  min={addDaysIso(quote.date || todayIsoDate(), 1)}
+                  error={quoteErrors.pickupDate}
+                  onChange={(value) => updateQuote("pickupDate", value)}
                 />
               </fieldset>
               <button
@@ -171,6 +204,34 @@ export function HomePage() {
             </form>
           </div>
         </div>
+
+      </section>
+
+      <section id="service-benefits" aria-label="Service benefits" className="w-full overflow-hidden bg-[#0B3B24]">
+        <div className="benefits-marquee-track flex w-max">
+          {[0, 1].map((copy) => (
+            <div
+              key={copy}
+              className="benefits-marquee-group flex shrink-0"
+              aria-hidden={copy === 1 ? "true" : undefined}
+            >
+              {heroBenefits.map(({ icon: Icon, title, detail }) => (
+                <div
+                  key={`${copy}-${title}`}
+                  className="benefits-marquee-item flex min-w-[250px] flex-1 items-center gap-3 border-r border-white/10 px-6 py-4 sm:min-w-[280px] sm:px-8"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#65A30D] text-white">
+                    <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 whitespace-nowrap">
+                    <strong className="block text-sm font-extrabold leading-5 text-white">{title}</strong>
+                    <span className="block text-xs leading-5 text-white/70">{detail}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </section>
 
       <BinSizesSection bins={bins} />
@@ -182,10 +243,10 @@ export function HomePage() {
       >
         <div className="mb-10 text-center">
           <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-[#65A30D]">
-            The SkipBins difference
+            The Premium Skip Bin Hire difference
           </p>
           <h2 className="text-4xl font-black leading-tight tracking-[-0.05em] text-[#0B3B24] sm:text-5xl">
-            Why choose SkipBins?
+            Why choose Premium Skip Bin Hire?
           </h2>
         </div>
 
@@ -241,7 +302,7 @@ export function HomePage() {
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/book"
+              href="/booking"
               className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-7 py-4 font-bold text-white transition hover:bg-[#14532D]"
             >
               Start your booking
@@ -259,9 +320,9 @@ export function HomePage() {
 
       <footer className="mx-auto flex max-w-[1400px] flex-col gap-3 border-t border-[#dce4d4] px-5 py-8 text-sm text-[#405347] sm:flex-row sm:items-center sm:justify-between sm:px-12">
         <span className="font-extrabold text-[#0B3B24]">
-          SkipBins<span className="text-[#65A30D]">.</span>
+          Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
         </span>
-        <span>© 2026 SkipBins Australia · Waste less, live more.</span>
+        <span>© 2026 Premium Skip Bin Hire Australia · Waste less, live more.</span>
       </footer>
     </main>
   );

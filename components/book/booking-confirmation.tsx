@@ -15,7 +15,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/booking-utils";
-import { formatBinSize, getBinBySizeOrId, getWasteById } from "@/lib/data/skip-bins";
+import { formatBinLabel, formatHirePeriod, getBinBySizeOrId, getWasteById } from "@/lib/data/skip-bins";
 import type { StoredBooking } from "@/lib/server/booking-service";
 
 export function BookingConfirmation({ booking }: { booking: StoredBooking }) {
@@ -53,9 +53,10 @@ export function BookingConfirmation({ booking }: { booking: StoredBooking }) {
             <SectionHeading icon={<Truck size={19} />} title="Delivery details" subtitle="Everything our delivery team needs" />
             <dl className="grid sm:grid-cols-2">
               <Detail icon={<CalendarDays size={18} />} label="Delivery date" value={formatDeliveryDate(booking.delivery_date)} />
-              <Detail icon={<Clock3 size={18} />} label="Hire period" value={booking.hire_period} alternate />
+              <Detail icon={<CalendarDays size={18} />} label="Pickup date" value={booking.pickup_date ? formatDeliveryDate(booking.pickup_date) : "To be confirmed"} alternate />
+              <Detail icon={<Clock3 size={18} />} label="Hire period" value={formatHirePeriod(booking.hire_period)} />
               <Detail icon={<MapPin size={18} />} label="Delivery address" value={deliveryAddress} />
-              <Detail icon={<PackageCheck size={18} />} label="Placement" value={booking.placement || "To be confirmed"} alternate />
+              <Detail icon={<PackageCheck size={18} />} label="Placement" value={booking.placement || "To be confirmed"} full />
             </dl>
             {booking.access || booking.notes ? (
               <div className="border-t border-[#EEE9DC] bg-[#FAF8F1] px-5 py-4 sm:px-6">
@@ -87,7 +88,7 @@ export function BookingConfirmation({ booking }: { booking: StoredBooking }) {
             <ol className="mt-5 grid gap-4 sm:grid-cols-3">
               <NextStep number="1" text={`A receipt and booking confirmation will be sent to ${booking.email}.`} />
               <NextStep number="2" text="Our team will review access details and contact you if anything needs confirming." />
-              <NextStep number="3" text={`Your ${bin?.name?.toLowerCase() ?? "skip bin"} will arrive on ${formatDeliveryDate(booking.delivery_date, true)}.`} />
+              <NextStep number="3" text={`Your skip bin will arrive on ${formatDeliveryDate(booking.delivery_date, true)}.`} />
             </ol>
           </section>
         </div>
@@ -105,13 +106,13 @@ export function BookingConfirmation({ booking }: { booking: StoredBooking }) {
               <div className="flex items-start gap-4">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#DDECCB] text-[#14532D]"><Recycle size={23} /></span>
                 <div>
-                  <p className="text-[15px] font-bold text-[#16241C]">{bin?.name ?? "Skip bin"}</p>
-                  <p className="mt-0.5 text-[13px] text-[#647067]">{formatBinSize(booking.bin_size)} · {waste?.label ?? booking.waste_type}</p>
+                  <p className="text-[15px] font-bold text-[#16241C]">{bin ? formatBinLabel(bin.id) : booking.bin_size}</p>
+                  <p className="mt-0.5 text-[13px] text-[#647067]">{waste?.label ?? booking.waste_type}</p>
                 </div>
               </div>
 
               <dl className="mt-5 space-y-3 border-t border-[#EEE9DC] pt-5 text-[13px]">
-                <SummaryLine label="Hire period" value={booking.hire_period} />
+                <SummaryLine label="Hire period" value={formatHirePeriod(booking.hire_period)} />
                 <SummaryLine label="Delivery & pickup" value="Included" />
                 <SummaryLine label="Payment" value="Processed by Stripe" />
               </dl>

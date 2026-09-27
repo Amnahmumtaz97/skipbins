@@ -3,7 +3,7 @@ import type { WasteCategory } from "@/types/skip-bin";
 
 export function WhatWeAcceptSection({ accepted }: { accepted: WasteCategory[] }) {
   return (
-    <section id="what-we-accept" className="mx-auto w-full max-w-[1400px] space-y-10 px-5 py-20 sm:px-8 lg:py-28">
+    <section id="what-we-accept" className="mx-auto w-full max-w-[1400px] space-y-8 px-5 py-16 sm:px-8 sm:py-20 lg:space-y-10 lg:py-24">
       <div className="text-center">
         <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-[#65A30D]">Responsible disposal</p>
         <h2 className="text-4xl font-black leading-tight tracking-[-0.05em] text-[#0B3B24] sm:text-5xl">
@@ -15,13 +15,13 @@ export function WhatWeAcceptSection({ accepted }: { accepted: WasteCategory[] })
         </p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-6">
         {accepted.map((item) => {
           const Icon = wasteIcon(item.icon);
           return (
             <article
               key={item.id}
-              className="accept-card relative flex flex-col items-center overflow-hidden rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-white pb-6 pt-8 text-center shadow-[0_14px_26px_rgba(0,0,0,0.04)]"
+              className="accept-card relative flex flex-col items-center overflow-hidden rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-white px-1 pb-5 pt-7 text-center shadow-[0_14px_26px_rgba(0,0,0,0.04)] sm:pb-6 sm:pt-8"
             >
               {/* Blob overlay scales up on hover */}
               <span className="ac-overlay pointer-events-none absolute left-1/2 top-16 h-[110px] w-[110px] -translate-x-1/2 rounded-full bg-[#65A30D] opacity-[0.12]" />

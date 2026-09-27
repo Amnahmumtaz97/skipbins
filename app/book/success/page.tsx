@@ -7,8 +7,8 @@ import { getBookingByCheckoutSession, markBookingPaid } from "@/lib/server/booki
 import { getStripe } from "@/lib/server/stripe";
 
 export const metadata: Metadata = {
-  title: "Booking confirmed | SkipBins",
-  description: "Your SkipBins payment and booking details.",
+  title: "Booking confirmed | Premium Skip Bin Hire",
+  description: "Your Premium Skip Bin Hire payment and booking details.",
 };
 
 function firstParam(value: string | string[] | undefined) {
@@ -41,7 +41,7 @@ function UnconfirmedBooking() {
         If you completed checkout, wait a moment and refresh this page. You won&apos;t be charged twice. If you cancelled, your booking is still saved so you can try again.
       </p>
       <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-        <Link href="/book" className="inline-flex items-center justify-center rounded-full bg-[#0B3B24] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#14532D]">Return to booking</Link>
+        <Link href="/booking" className="inline-flex items-center justify-center rounded-full bg-[#0B3B24] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#14532D]">Return to booking</Link>
         <Link href="/contact" className="inline-flex items-center justify-center rounded-full border-[1.5px] border-[#D3D9D0] px-6 py-3 text-sm font-bold text-[#0B3B24] transition hover:bg-[#F6F2E7]">Contact support</Link>
       </div>
     </div>

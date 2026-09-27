@@ -9,7 +9,7 @@ export function isQuoteServiceUnavailable(error: unknown) {
   return error instanceof QuoteLookupError && (error.status === 0 || error.status >= 500);
 }
 
-export async function requestQuote(input: { postcode: string; size: string; waste: string; date?: string; hirePeriod?: string }) {
+export async function requestQuote(input: { postcode: string; size: string; waste: string; date?: string; pickupDate?: string; hirePeriod?: string }) {
   let response: Response;
   try {
     response = await fetch("/api/quotes", {

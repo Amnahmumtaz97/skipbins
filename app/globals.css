@@ -36,6 +36,34 @@ a {
   text-decoration: none;
 }
 
+:where(
+  a[href],
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  label[for],
+  input[type="button"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="range"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="link"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="switch"]:not([aria-disabled="true"]),
+  [role="checkbox"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"])
+) {
+  cursor: pointer;
+}
+
+:where(button:disabled, select:disabled, input:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
 @keyframes fadeStep {
   from {
     opacity: 0;
@@ -173,3 +201,75 @@ a {
   color: #0B3B24 !important;
 }
 
+/* ── Hero benefits marquee ────────────────────────────────── */
+@keyframes benefits-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes welcome-offer-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.welcome-offer-modal {
+  animation: welcome-offer-in 220ms ease-out both;
+}
+
+.benefits-marquee-track {
+  animation: benefits-marquee 32s linear infinite;
+  will-change: transform;
+}
+
+.benefits-marquee-group {
+  min-width: 100vw;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-offer-modal {
+    animation: none;
+  }
+
+  .benefits-marquee-track {
+    width: 100%;
+    animation: none;
+    transform: none;
+  }
+
+  .benefits-marquee-group {
+    display: grid;
+    width: 100%;
+    min-width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .benefits-marquee-group[aria-hidden="true"] {
+    display: none;
+  }
+
+  .benefits-marquee-item {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 1023px) {
+  .benefits-marquee-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (max-width: 639px) {
+  .benefits-marquee-group {
+    grid-template-columns: 1fr;
+  }
+}

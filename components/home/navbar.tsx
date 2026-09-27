@@ -60,9 +60,9 @@ export function Navbar() {
               <Leaf size={17} strokeWidth={2.5} />
             </span>
             <span>
-              SkipBins<span className="text-[#65A30D]">.</span>
+              Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
               <small className="ml-1 block text-[7px] font-semibold tracking-[0.03em] text-[#405347]">
-                CLEANER SPACES, GREENER FUTURE
+                SKIP MORE, SPEND LESS
               </small>
             </span>
           </Link>
@@ -75,7 +75,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/book"
+            href="/booking"
             className="hidden items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#14532D] sm:flex"
           >
             <Calendar size={16} />

@@ -19,11 +19,11 @@ export function BookingProgress({ current, maxReached, onSelect }: BookingProgre
   const fill = ((current - 1) / (STEPS.length - 1)) * 100;
 
   return (
-    <div className="relative mb-8 pt-0.5">
-      <div className="absolute left-[19px] right-[19px] top-[19px] h-[3px] bg-[#DDECCB]" />
+    <div className="relative mb-5 pt-0.5">
+      <div className="absolute left-[16px] right-[16px] top-[16px] h-0.5 bg-[#DDECCB]" />
       <div
-        className="absolute left-[19px] top-[19px] h-[3px] bg-gradient-to-r from-[#14532D] to-[#65A30D] transition-[width] duration-300"
-        style={{ width: `calc((100% - 38px) * ${fill / 100})` }}
+        className="absolute left-[16px] top-[16px] h-0.5 bg-gradient-to-r from-[#14532D] to-[#65A30D] transition-[width] duration-300"
+        style={{ width: `calc((100% - 32px) * ${fill / 100})` }}
       />
       <ol className="relative z-[2] flex justify-between">
         {STEPS.map((step) => {
@@ -33,12 +33,12 @@ export function BookingProgress({ current, maxReached, onSelect }: BookingProgre
           const labelClass = done || active ? "font-bold text-[#0B3B24]" : "text-[#405347]";
 
           return (
-            <li key={step.id} className="flex flex-1 flex-col items-center gap-2">
+            <li key={step.id} className="flex flex-1 flex-col items-center gap-1.5">
               <button
                 type="button"
                 disabled={!reachable}
                 onClick={() => reachable && onSelect(step.id)}
-                className={`flex h-[38px] w-[38px] items-center justify-center rounded-full text-sm font-semibold transition ${
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition ${
                   done
                     ? "bg-[#4d7c0f] text-white"
                     : active
@@ -50,7 +50,7 @@ export function BookingProgress({ current, maxReached, onSelect }: BookingProgre
               >
                 {done ? <Check size={16} strokeWidth={2.6} /> : step.id}
               </button>
-              <span className={`max-w-[70px] text-center text-[11px] leading-tight sm:max-w-none ${labelClass}`}>
+              <span className={`max-w-[58px] text-center text-[10px] leading-tight sm:max-w-none sm:text-[11px] ${labelClass}`}>
                 {step.label}
               </span>
             </li>
