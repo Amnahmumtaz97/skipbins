@@ -3,6 +3,7 @@ import { hirePeriods, placements } from "@/lib/data/skip-bins";
 
 const draftKey = "skipbins-booking-draft";
 const awaitingKey = "skipbins-awaiting-payment";
+const checkoutClientSecretKey = "skipbins-checkout-client-secret";
 
 export function saveBookingDraft(form: BookingFormState) {
   sessionStorage.setItem(draftKey, JSON.stringify(form));
@@ -13,9 +14,18 @@ export function isAwaitingPayment() {
   return sessionStorage.getItem(awaitingKey) === "1";
 }
 
+export function saveCheckoutClientSecret(clientSecret: string) {
+  sessionStorage.setItem(checkoutClientSecretKey, clientSecret);
+}
+
+export function loadCheckoutClientSecret() {
+  return sessionStorage.getItem(checkoutClientSecretKey);
+}
+
 export function clearBookingDraft() {
   sessionStorage.removeItem(draftKey);
   sessionStorage.removeItem(awaitingKey);
+  sessionStorage.removeItem(checkoutClientSecretKey);
 }
 
 export function loadBookingDraft(): BookingFormState | null {

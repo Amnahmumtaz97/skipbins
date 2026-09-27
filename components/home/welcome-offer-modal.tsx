@@ -77,22 +77,15 @@ export function WelcomeOfferModal() {
           <X size={18} strokeWidth={2.5} />
         </button>
 
-        <div className="relative flex min-h-44 items-center justify-center overflow-hidden bg-[#EEF5E5] px-5 pt-5 md:min-h-[510px] md:px-8">
-          <div className="absolute -left-16 -top-16 h-48 w-48 rounded-full bg-[#DDECCB]" />
-          <div className="absolute -bottom-20 -right-16 h-56 w-56 rounded-full bg-[#C6DAB0]/70" />
-          <div className="relative z-[1] h-44 w-full max-w-[440px] md:h-[330px]">
-            <Image
-              src="/images/bin-6m3.png"
-              alt="Realistic green steel skip bin"
-              fill
-              priority
-              sizes="(max-width: 767px) 90vw, 42vw"
-              className="object-contain drop-shadow-[0_22px_24px_rgba(11,59,36,0.22)]"
-            />
-          </div>
-          <div className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#0B3B24]/85 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
-            Cleaner projects start here
-          </div>
+        <div className="relative min-h-52 overflow-hidden bg-[#0B3B24] md:min-h-[510px]">
+          <Image
+            src="/images/promotion-offer-50-off-2026.png"
+            alt="Premium Skip Bin Hire promotional offer"
+            fill
+            priority
+            sizes="(max-width: 767px) 100vw, 42vw"
+            className="object-cover"
+          />
         </div>
 
         <div className="flex flex-col justify-center px-6 py-7 sm:px-9 sm:py-9 md:px-11">

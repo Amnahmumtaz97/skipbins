@@ -1,5 +1,5 @@
 import { isValidAuPhone, isValidEmail } from "@/lib/booking-utils";
-import { formatBinLabel, getBinBySizeOrId, getWasteById, placements } from "@/lib/data/skip-bins";
+import { formatHirePeriod, getBinBySizeOrId, getWasteById, placements } from "@/lib/data/skip-bins";
 import { attachCheckoutSession, createPendingBooking } from "@/lib/server/booking-service";
 import { lookupQuote, validateQuote } from "@/lib/server/quote-service";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -50,9 +50,17 @@ export async function POST(request: Request) {
     const origin = new URL(request.url).origin;
     const bin = getBinBySizeOrId(input.size);
     const waste = getWasteById(input.waste);
+    const binImageUrl = bin ? publicCheckoutAsset(origin, bin.image) : undefined;
+    const productDescription = [
+      waste?.label,
+      formatHirePeriod(input.hirePeriod),
+      `Delivery ${formatCheckoutDate(String(data.deliveryDate))}`,
+      `Postcode ${input.postcode}`,
+    ].filter(Boolean).join(" • ");
     stage = "stripe-session";
     const session = await getStripe().checkout.sessions.create({
       mode: "payment",
+      ui_mode: "elements",
       currency: "aud",
       customer_email: (data.email as string).trim(),
       line_items: [{
@@ -61,19 +69,22 @@ export async function POST(request: Request) {
           currency: "aud",
           unit_amount: amountCents,
           product_data: {
-            name: bin ? formatBinLabel(bin.id) : `Skip bin ${input.size}`,
-            description: [waste?.label, input.hirePeriod].filter(Boolean).join(" · "),
+            name: bin ? `${bin.size} Skip Bin Hire` : `Skip Bin Hire — ${input.size}`,
+            description: productDescription,
+            ...(binImageUrl ? { images: [binImageUrl] } : {}),
           },
         },
       }],
       metadata: { bookingId: booking.id },
-      success_url: `${origin}/book/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/booking?cancelled=1`,
+      return_url: `${origin}/book/success?session_id={CHECKOUT_SESSION_ID}`,
     });
-    if (!session.url) throw new Error("Stripe did not return a checkout URL");
+    if (!session.client_secret) throw new Error("Stripe did not return a checkout client secret");
     stage = "booking-session-attachment";
     await attachCheckoutSession(booking.id, session.id);
-    return Response.json({ checkoutUrl: session.url }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(
+      { clientSecret: session.client_secret },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     if (!(error instanceof InputError)) {
       console.error("[bookings] Checkout request failed", {
@@ -83,4 +94,20 @@ export async function POST(request: Request) {
     }
     return apiError(error);
   }
+}
+
+function publicCheckoutAsset(origin: string, path: string) {
+  try {
+    const url = new URL(path, origin);
+    if (url.protocol !== "https:") return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function formatCheckoutDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }

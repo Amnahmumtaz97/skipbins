@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarClock, Check, CircleAlert, Leaf, Loader2 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
@@ -28,7 +29,7 @@ import {
   todayIsoDate,
 } from "@/lib/booking-utils";
 import { quoteTotal } from "@/lib/pricing";
-import { isAwaitingPayment, loadBookingDraft, saveBookingDraft } from "@/lib/booking-draft";
+import { isAwaitingPayment, loadBookingDraft, saveBookingDraft, saveCheckoutClientSecret } from "@/lib/booking-draft";
 import type { BinPlacement, BookingFormState } from "@/types/skip-bin";
 
 type BookingPageProps = {
@@ -90,6 +91,7 @@ const intros = [
 ];
 
 export function BookingPage({ initialSize, initialLocation, initialWaste, initialDate, initialPickupDate, cancelled }: BookingPageProps) {
+  const router = useRouter();
   const [form, setForm] = useState<BookingFormState>(() =>
     initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate, initialPickupDate }),
   );
@@ -232,9 +234,10 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
       const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form), signal: AbortSignal.timeout(20000) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "We couldn't confirm your booking. Please try again.");
-      if (typeof result.checkoutUrl === "string" && result.checkoutUrl.startsWith("https://")) {
+      if (typeof result.clientSecret === "string" && result.clientSecret.startsWith("cs_")) {
         saveBookingDraft(form);
-        window.location.assign(result.checkoutUrl);
+        saveCheckoutClientSecret(result.clientSecret);
+        router.push("/checkout");
         return;
       }
       throw new Error("We couldn't start payment. Please try again.");
