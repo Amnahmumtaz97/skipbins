@@ -14,6 +14,7 @@ export const bins: SkipBin[] = [
     id: "2m3",
     size: "2m³",
     name: "SKIP BIN",
+    image: "/images/bin-2m3.png",
     description: "Perfect for small clear-outs, garden tidy-ups and weekend projects.",
     dimensions: "1.8m × 1.5m × 0.9m",
     recommendedFor: "Garage cleanout, small garden waste, minor renovation scraps",
@@ -24,6 +25,7 @@ export const bins: SkipBin[] = [
     id: "3m3",
     size: "3m³",
     name: "SKIP BIN",
+    image: "/images/bin-3m3.png",
     description: "A step up for larger garden jobs and small bathroom or kitchen tidy-ups.",
     dimensions: "2.4m × 1.5m × 0.9m",
     recommendedFor: "Bathroom reno, kitchen cleanout, backyard clear-up",
@@ -34,6 +36,7 @@ export const bins: SkipBin[] = [
     id: "4m3",
     size: "4m³",
     name: "SKIP BIN",
+    image: "/images/bin-4m3.png",
     description: "A smart fit for kitchens, bathrooms and medium home renovations.",
     dimensions: "3.2m × 1.5m × 0.9m",
     recommendedFor: "Kitchen and bathroom renovations, mixed household waste",
@@ -44,6 +47,7 @@ export const bins: SkipBin[] = [
     id: "6m3",
     size: "6m³",
     name: "SKIP BIN",
+    image: "/images/bin-6m3.png",
     description: "Room for larger renovations, building waste and bulky clean-ups.",
     dimensions: "3.6m × 1.5m × 1.2m",
     recommendedFor: "Full house clear-out, major renovation, roofing and flooring",
@@ -55,6 +59,7 @@ export const bins: SkipBin[] = [
     id: "8m3",
     size: "8m³",
     name: "SKIP BIN",
+    image: "/images/bin-8m3.png",
     description: "Our large-capacity bin for major construction jobs and full property clear-outs.",
     dimensions: "3.7m × 1.6m × 1.4m",
     recommendedFor: "Large construction, commercial sites, multi-room renovations",
@@ -65,6 +70,7 @@ export const bins: SkipBin[] = [
     id: "9m3",
     size: "9m³",
     name: "SKIP BIN",
+    image: "/images/bin-9m3.png",
     description: "Our biggest bin for large commercial sites and heavy construction waste.",
     dimensions: "4.0m × 1.6m × 1.5m",
     recommendedFor: "Commercial demolitions, large builds, multi-dwelling projects",
@@ -137,7 +143,7 @@ export function formatHirePeriod(value?: string | null) {
   return value ?? "";
 }
 
-export const placements: BinPlacement[] = ["Driveway", "Street / verge", "On-site (private property)"];
+export const placements: BinPlacement[] = ["Driveway", "Road", "Nature Strip"];
 
 export const heroSlides: HeroSlide[] = [
   { image: images.hero, alt: "Green skip bin filled with garden waste outdoors", label: "Green garden clean-up" },

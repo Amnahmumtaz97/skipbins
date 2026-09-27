@@ -22,6 +22,7 @@ const bookings = require('../app/api/bookings/route.ts');
 const stripeWebhook = require('../app/api/stripe/webhook/route.ts');
 const contact = require('../app/api/contact/route.ts');
 const postcodes = require('../app/api/postcodes/route.ts');
+const addresses = require('../app/api/addresses/route.ts');
 const { NextRequest } = require('next/server');
 const valid = { postcode: '0800', size: '2m3', waste: 'green' };
 const request = (body, headers = {}) => new Request('https://skipbins.test/api/quotes', {
@@ -75,6 +76,12 @@ test('booking validates all inputs and never returns a simulated reference', asy
   assert.equal((await bookings.POST(request({}))).status, 400);
   const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-03',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
+  const missingPlacement = await bookings.POST(request({...body,placement:''}));
+  assert.equal(missingPlacement.status, 400);
+  assert.match((await missingPlacement.json()).error, /placement/i);
+  const invalidPlacement = await bookings.POST(request({...body,placement:'Footpath'}));
+  assert.equal(invalidPlacement.status, 400);
+  assert.match((await invalidPlacement.json()).error, /placement/i);
   const response = await bookings.POST(request(body));
   assert.ok(response.status === 400 || response.status === 503);
   const data = await response.json();
@@ -87,7 +94,7 @@ test('stripe webhook rejects missing signatures', async () => {
   }));
   assert.equal(response.status, 400);
 });
-test('postcode endpoint rejects unsafe queries and preserves 0800 from provider', async () => {
+test('postcode endpoint rejects unsafe queries and returns only Victorian localities', async () => {
   const shortResponse = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=90'));
   assert.equal(shortResponse.status, 400);
   assert.match((await shortResponse.json()).error, /at least 3 characters/i);
@@ -97,14 +104,74 @@ test('postcode endpoint rejects unsafe queries and preserves 0800 from provider'
   process.env.AUSPOST_API_KEY = 'test-only';
   global.fetch = async (url, options) => {
     assert.ok(url.startsWith('https://digitalapi.auspost.com.au/'));
+    assert.equal(new URL(url).searchParams.get('state'), 'VIC');
     assert.equal(options.redirect, 'error');
-    return Response.json({ localities: { locality: { postcode:800, location:'DARWIN',state:'NT' } } });
+    return Response.json({ localities: { locality: [
+      { postcode:3000, location:'MELBOURNE',state:'VIC' },
+      { postcode:800, location:'DARWIN',state:'NT' },
+    ] } });
   };
   try {
-    const response = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=0800'));
-    assert.equal((await response.json())[0].postcode,'0800');
+    const response = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=Melbourne'));
+    assert.deepEqual(await response.json(), [{ postcode:'3000', suburb:'MELBOURNE', state:'VIC' }]);
   } finally {
     global.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.AUSPOST_API_KEY; else process.env.AUSPOST_API_KEY = originalKey;
+  }
+});
+test('address endpoint requires a street and postcode and keeps only that Victorian postcode', async () => {
+  const shortResponse = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=&postcode=3121'));
+  assert.equal(shortResponse.status, 400);
+  assert.match((await shortResponse.json()).error, /street address/i);
+  assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=%3Cscript%3E&postcode=3121'))).status, 400);
+  assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george'))).status, 400);
+  assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=312'))).status, 400);
+
+  const originalFetch = global.fetch;
+  const originalKey = process.env.GEOSCAPE_API_KEY;
+  delete process.env.GEOSCAPE_API_KEY;
+  assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'))).status, 503);
+
+  process.env.GEOSCAPE_API_KEY = 'test-only';
+  global.fetch = async () => new Response('{"error":{"code":"PPSS-0029"}}', { status: 401 });
+  const denied = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'));
+  assert.equal(denied.status, 503);
+  assert.match((await denied.json()).error, /Predictive API/i);
+
+  global.fetch = async (url, options) => {
+    assert.ok(String(url).startsWith('https://api.psma.com.au/v1/predictive/address'));
+    const params = new URL(url).searchParams;
+    assert.equal(params.get('query'), '12 george');
+    assert.equal(params.get('stateTerritory'), 'VIC');
+    assert.equal(options.headers.Authorization, 'test-only');
+    assert.equal(options.redirect, 'error');
+    return Response.json({ suggest: [
+      { address: '12 GEORGE ST, RICHMOND VIC 3121' },
+      { address: 'UNIT 2, 12 GEORGE ST, RICHMOND VIC 3121' },
+      { address: '12 GEORGE ST, SYDNEY NSW 2000' },
+      { address: '12 GEORGE ST, FITZROY VIC 3065' },
+      { address: 'NOT AN ADDRESS' },
+      { address: 3121 },
+    ] });
+  };
+  try {
+    const response = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'));
+    assert.deepEqual(await response.json(), [
+      { street: '12 GEORGE ST', label: '12 GEORGE ST, RICHMOND VIC 3121' },
+      { street: 'UNIT 2, 12 GEORGE ST', label: 'UNIT 2, 12 GEORGE ST, RICHMOND VIC 3121' },
+    ]);
+    global.fetch = async (url) => {
+      const query = new URL(url).searchParams.get('query');
+      if (query === '248 sw') return Response.json({ suggest: [{ address: '248 SWAN ST, RICHMOND VIC 3121' }, { address: '248 SWANSTON ST, MELBOURNE VIC 3000' }] });
+      if (query === '248') return Response.json({ suggest: [{ address: '248 ADDERLEY ST, WEST MELBOURNE VIC 3003' }] });
+      return Response.json({ suggest: [] });
+    };
+    const numberOnly = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=248&postcode=3121'));
+    assert.deepEqual(await numberOnly.json(), [
+      { street: '248 SWAN ST', label: '248 SWAN ST, RICHMOND VIC 3121' },
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.GEOSCAPE_API_KEY; else process.env.GEOSCAPE_API_KEY = originalKey;
   }
 });

@@ -101,51 +101,6 @@ a {
   outline: none;
 }
 
-.bin-card-overlay {
-  transform: translateY(100%);
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.group:hover .bin-card-overlay,
-.bin-card-media:focus-within .bin-card-overlay {
-  transform: translateY(0);
-}
-
-.bin-card-reveal {
-  opacity: 0;
-  transform: translateY(16px);
-  transition:
-    opacity 0.4s ease,
-    transform 0.4s ease;
-}
-
-.group:hover .bin-card-reveal,
-.bin-card-media:focus-within .bin-card-reveal {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.bin-card-reveal-title {
-  transition-delay: 80ms;
-}
-
-.bin-card-reveal-desc {
-  transition-delay: 150ms;
-}
-
-.bin-card-reveal-cta {
-  transition-delay: 230ms;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bin-card-overlay,
-  .bin-card-reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-}
-
 /* ── What We Accept cards ─────────────────────────────────── */
 .accept-card {
   transition: transform 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out;

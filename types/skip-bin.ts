@@ -2,6 +2,7 @@ export type SkipBin = {
   id: string;
   size: string;
   name: string;
+  image: string;
   description: string;
   dimensions: string;
   recommendedFor: string;
@@ -31,7 +32,7 @@ export type WasteCategory = {
 
 export type HirePeriod = "Standard (7 days)" | "Extended (14 days)";
 
-export type BinPlacement = "Driveway" | "Street / verge" | "On-site (private property)";
+export type BinPlacement = "Driveway" | "Road" | "Nature Strip";
 
 export type BookingFormState = {
   fullName: string;

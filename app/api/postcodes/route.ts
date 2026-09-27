@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `${AUSPOST_URL}?q=${encodeURIComponent(query)}&excludepostboxflag=true`;
+    const url = `${AUSPOST_URL}?q=${encodeURIComponent(query)}&state=VIC&excludepostboxflag=true`;
     const res = await fetch(url, {
       headers: { "auth-key": apiKey },
       signal: AbortSignal.timeout(8000),
@@ -55,11 +55,13 @@ export async function GET(request: NextRequest) {
     const raw = data.localities?.locality;
     const localities: AusPostLocality[] = !raw ? [] : Array.isArray(raw) ? raw : [raw];
 
-    const results = localities.map((loc) => ({
-      postcode: String(loc.postcode).padStart(4, "0"),
-      suburb: loc.location,
-      state: loc.state,
-    }));
+    const results = localities
+      .filter((loc) => loc.state.toUpperCase() === "VIC")
+      .map((loc) => ({
+        postcode: String(loc.postcode).padStart(4, "0"),
+        suburb: loc.location,
+        state: "VIC",
+      }));
 
     return Response.json(results);
   } catch {

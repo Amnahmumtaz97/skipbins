@@ -100,7 +100,7 @@ export function HomePage() {
     <main className="min-h-screen overflow-x-hidden bg-[#F4F7EC] text-[#172018]">
       <Navbar />
 
-      <section className="relative min-h-[720px] w-full overflow-hidden px-4 pb-10 pt-28 sm:min-h-[760px] sm:px-8 sm:pb-14 sm:pt-32 lg:min-h-[780px] lg:px-10 lg:pb-20 lg:pt-36">
+      <section className="relative min-h-[700px] w-full overflow-hidden px-4 pb-10 pt-28 sm:min-h-[740px] sm:px-8 sm:pb-14 sm:pt-32 lg:min-h-[760px] lg:px-10 lg:pb-20 lg:pt-36">
         <HeroCarousel slides={heroSlides} />
         <div className="absolute inset-0 bg-gradient-to-r from-[#DDECCB]/62 via-[#14532D]/32 to-[#0B3B24]/48" />
 
@@ -112,10 +112,7 @@ export function HomePage() {
               spend <span className="text-[#65A30D]">less.</span>
             </h1>
             <p className="mt-6 max-w-md text-base leading-7 text-white sm:mt-8 sm:text-lg">
-              Reliable skip bin hire for homes, businesses, and a cleaner tomorrow.
-            </p>
-            <p className="mt-2 max-w-md text-sm font-bold leading-6 text-white">
-              Where Premium Service Meets <span className="text-[#B7E36D]">Affordable Prices.</span>
+              Where Premium Service Meets Affordable Prices.
             </p>
             <Link
               href="/booking"

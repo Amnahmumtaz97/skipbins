@@ -3,11 +3,12 @@
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarClock, Check, Leaf, Loader2 } from "lucide-react";
+import { ArrowRight, CalendarClock, Check, CircleAlert, Leaf, Loader2 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
 import { BookingLiveSummary } from "@/components/book/booking-live-summary";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
+import { AddressField } from "@/components/book/address-field";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { DatePicker } from "@/components/ui/date-picker";
 import { isValidPostcode, postcodeError } from "@/lib/postcode";
@@ -63,7 +64,7 @@ function initialBookingForm({ initialSize, initialLocation, initialWaste, initia
 function isStepComplete(currentStep: number, form: BookingFormState) {
   if (currentStep === 1) return acceptedWaste.some((waste) => waste.id === form.wasteType);
   if (currentStep === 2) return bins.some((bin) => bin.id === form.binSize);
-  if (currentStep === 3) return isValidPostcode(form.address);
+  if (currentStep === 3) return isValidPostcode(form.address) && placements.some((option) => option === form.placement);
   if (currentStep === 4) return Boolean(form.deliveryDate && form.deliveryDate >= todayIsoDate() && !isSundayIso(form.deliveryDate) && form.pickupDate && form.pickupDate > form.deliveryDate && !isSundayIso(form.pickupDate) && form.hirePeriod);
   if (currentStep === 5)
     return Boolean(form.streetAddress.trim() && form.fullName.trim() && isValidEmail(form.email) && isValidAuPhone(form.phone));
@@ -137,10 +138,12 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
       ...current,
       [field]: value,
       ...(field === "deliveryDate" && current.pickupDate && (!value || current.pickupDate <= value) ? { pickupDate: "" } : {}),
+      ...(field === "address" && value !== current.address ? { streetAddress: "" } : {}),
     }));
     setErrors((current) => {
       const next = { ...current };
       delete next[field];
+      if (field === "address") delete next.streetAddress;
       return next;
     });
   };
@@ -150,7 +153,10 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
 
     if (currentStep === 2 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
     if (currentStep === 1 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
-    if (currentStep === 3 && !isValidPostcode(form.address)) nextErrors.address = postcodeError;
+    if (currentStep === 3) {
+      if (!isValidPostcode(form.address)) nextErrors.address = postcodeError;
+      if (!placements.some((option) => option === form.placement)) nextErrors.placement = "Please choose where the bin should be placed.";
+    }
     if (currentStep === 4) {
       if (!form.deliveryDate || form.deliveryDate < todayIsoDate() || isSundayIso(form.deliveryDate)) nextErrors.deliveryDate = "Please select a delivery date.";
       if (!form.pickupDate || form.pickupDate <= form.deliveryDate || isSundayIso(form.pickupDate)) nextErrors.pickupDate = "Please select a pickup date after delivery.";
@@ -299,46 +305,55 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
                         error={errors.address}
                       />
                     </div>
-                    <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
-                      Delivery address
-                      <input
-                        value={form.streetAddress}
-                        onChange={(event) => updateField("streetAddress", event.target.value)}
-                        placeholder="Street address"
-                        className={inputClass()}
-                      />
-                      <ValidationMessage message={errors.streetAddress} />
-                    </label>
+                    <AddressField
+                      value={form.streetAddress}
+                      postcode={form.address}
+                      onChange={(value) => updateField("streetAddress", value)}
+                      error={errors.streetAddress}
+                    />
                   </div>
                   <div>
-                    <p className="mb-1.5 text-[13px] font-semibold text-[#0B3B24]">Where should the bin be placed?</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <p id="bin-placement-label" className="mb-1.5 text-[13px] font-semibold text-[#0B3B24]">Where should the bin be placed?</p>
+                    <div role="group" aria-labelledby="bin-placement-label" className="flex flex-wrap gap-1.5">
                       {placements.map((option) => (
                         <button
                           key={option}
                           type="button"
+                          aria-pressed={form.placement === option}
                           onClick={() => updateField("placement", option as BinPlacement)}
                           className={`rounded-full border-[1.5px] px-3.5 py-2 text-[13px] font-semibold ${
                             form.placement === option
                               ? "border-[#0B3B24] bg-[#0B3B24] text-white"
-                              : "border-[#E8E1CF] bg-white text-[#5B6B60]"
+                              : errors.placement
+                                ? "border-red-500 bg-white text-[#5B6B60]"
+                                : "border-[#E8E1CF] bg-white text-[#5B6B60]"
                           }`}
                         >
                           {option}
                         </button>
                       ))}
                     </div>
-                    <p className="mt-1.5 text-[11.5px] leading-4 text-[#5B6B60]">
-                      Placing a bin on the street may require council approval in some areas — check with your local council
-                      if unsure.
-                    </p>
+                    <ValidationMessage message={errors.placement} />
+                    {form.placement === "Road" || form.placement === "Nature Strip" ? (
+                      <div
+                        role="status"
+                        className="mt-3 flex items-start gap-2.5 rounded-xl border border-[#C6DAB0] bg-[#EEF5E5] px-3.5 py-3 text-[#0B3B24]"
+                      >
+                        <CircleAlert size={18} className="mt-0.5 shrink-0 text-[#65A30D]" aria-hidden="true" />
+                        <p className="text-[12px] leading-5">
+                          <span className="font-extrabold">Important Info:</span> A permit will be required from council to
+                          place the bin on a road or nature strip. We will collect the permit fees when the bin is dropped
+                          off. One of our office staff members will reach out.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                   <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                     Access notes
                     <textarea
                       value={form.access}
                       onChange={(event) => updateField("access", event.target.value)}
-                      placeholder="Tell us about the 2.75m-wide access, placement area, gates, or other restrictions."
+                      placeholder="Please make sure the access to the drop-off location is a minimum of 2.75m wide."
                       className={`${inputClass()} min-h-16 resize-y`}
                     />
                     <span className="text-xs font-medium text-[#5B6B60]">Optional</span>
@@ -384,10 +399,13 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
 
               {step === 5 ? (
                 <div className="space-y-3">
-                  <label className="block text-sm font-semibold text-[#0B3B24]">Delivery address
-                    <input autoComplete="street-address" value={form.streetAddress} onChange={(event) => updateField("streetAddress", event.target.value)} className={inputClass(errors.streetAddress)} required maxLength={240} />
-                    <ValidationMessage message={errors.streetAddress} />
-                  </label>
+                  <AddressField
+                    required
+                    value={form.streetAddress}
+                    postcode={form.address}
+                    onChange={(value) => updateField("streetAddress", value)}
+                    error={errors.streetAddress}
+                  />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                       Full name

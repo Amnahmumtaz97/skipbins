@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       if (typeof value !== "string" || value.length > max || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) throw new InputError("Please check your contact and delivery details.");
     }
     if (!(data.fullName as string).trim() || !(data.streetAddress as string).trim() || !isValidEmail(data.email as string) || !isValidAuPhone(data.phone as string)) throw new InputError("Please enter a name, delivery address, valid email and Australian phone number.");
-    if (typeof data.placement !== "string" || (data.placement !== "" && !placements.some((placement) => placement === data.placement))) throw new InputError("Please choose a valid bin placement.");
+    if (typeof data.placement !== "string" || !placements.some((placement) => placement === data.placement)) throw new InputError("Please choose a valid bin placement.");
 
     const quote = await lookupQuote(input);
     if (!quote.serviceable || quote.total == null || !Number.isFinite(quote.total) || quote.total <= 0) {

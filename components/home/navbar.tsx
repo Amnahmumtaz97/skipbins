@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, Leaf, Menu, X } from "lucide-react";
+import { Calendar, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const links = ["Bin Sizes", "What We Accept", "FAQs", "Contact Us"];
@@ -56,8 +57,15 @@ export function Navbar() {
       <div className="relative flex items-center justify-between">
         <div className="flex flex-col items-start gap-2">
           <Link href="/" className="flex items-center gap-2 text-xl font-extrabold tracking-[-0.06em] text-[#0B3B24]">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#65A30D]">
-              <Leaf size={17} strokeWidth={2.5} />
+            <span className="relative h-10 w-10 shrink-0 overflow-hidden" aria-hidden="true">
+              <Image
+                src="/images/premium-skip-bin-logo.png"
+                alt=""
+                width={112}
+                height={42}
+                priority
+                className="absolute left-1/2 top-1/2 h-[42px] w-[112px] max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
+              />
             </span>
             <span>
               Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>

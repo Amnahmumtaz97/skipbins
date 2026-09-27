@@ -4,9 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check, Copy, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { images } from "@/lib/data/skip-bins";
 
-const storageKey = "premium-skip-bin-welcome-offer-seen-v1";
+const storageKey = "premium-skip-bin-welcome-offer-seen-v3";
 const offerCode = "FIRST50";
 
 export function WelcomeOfferModal() {
@@ -78,15 +77,19 @@ export function WelcomeOfferModal() {
           <X size={18} strokeWidth={2.5} />
         </button>
 
-        <div className="relative min-h-44 overflow-hidden md:min-h-[510px]">
-          <Image
-            src={images.large}
-            alt="Premium green skip bin ready for delivery"
-            fill
-            className="object-cover"
-            sizes="(max-width: 767px) 100vw, 42vw"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0B3B24]/75 via-transparent to-transparent" />
+        <div className="relative flex min-h-44 items-center justify-center overflow-hidden bg-[#EEF5E5] px-5 pt-5 md:min-h-[510px] md:px-8">
+          <div className="absolute -left-16 -top-16 h-48 w-48 rounded-full bg-[#DDECCB]" />
+          <div className="absolute -bottom-20 -right-16 h-56 w-56 rounded-full bg-[#C6DAB0]/70" />
+          <div className="relative z-[1] h-44 w-full max-w-[440px] md:h-[330px]">
+            <Image
+              src="/images/bin-6m3.png"
+              alt="Realistic green steel skip bin"
+              fill
+              priority
+              sizes="(max-width: 767px) 90vw, 42vw"
+              className="object-contain drop-shadow-[0_22px_24px_rgba(11,59,36,0.22)]"
+            />
+          </div>
           <div className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#0B3B24]/85 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
             Cleaner projects start here
           </div>
@@ -95,10 +98,10 @@ export function WelcomeOfferModal() {
         <div className="flex flex-col justify-center px-6 py-7 sm:px-9 sm:py-9 md:px-11">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-[#65A30D]">Welcome offer</p>
           <h2 id="welcome-offer-title" className="mt-2 text-[clamp(1.9rem,4vw,3.15rem)] font-black leading-[1.02] tracking-[-0.055em] text-[#0B3B24]">
-            Get <span className="text-[#65A30D]">50% Off</span> Your First Skip Bin
+            <span className="text-[#65A30D]">$50 Off</span> Till the End of 2026
           </h2>
           <p className="mt-4 text-[14px] leading-6 text-[#405347] sm:text-[15px]">
-            Premium skip bin hire at a better price. Book your first bin online and enjoy 50% off.
+            Premium skip bin hire at a better price. Book your first bin online and save $50 until the end of 2026.
           </p>
 
           <Link
