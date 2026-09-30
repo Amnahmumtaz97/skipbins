@@ -71,14 +71,6 @@ button.selection-card:not(:disabled) {
   cursor: text;
 }
 
-button.selection-card:not(:disabled) {
-  cursor: default;
-}
-
-.selection-card-copy {
-  cursor: text;
-}
-
 @keyframes fadeStep {
   from {
     opacity: 0;
