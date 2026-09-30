@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { ArrowRight, BadgeDollarSign, Calendar, Check, CircleHelp, Leaf, Loader2, Recycle, ShieldCheck, Truck } from "lucide-react";
 import { PostcodeField } from "@/components/book/postcode-field";
-import { isValidPostcode, postcodeError } from "@/lib/postcode";
+import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
 import { BinSizesSection } from "@/components/home/bin-sizes-section";
 import { DifferenceSlider } from "@/components/home/difference-slider";
 import { HeroCarousel } from "@/components/home/hero-carousel";
@@ -35,12 +35,13 @@ import { clearBookingDraft } from "@/lib/booking-draft";
 type QuoteState = {
   size: string;
   postcode: string;
+  postcodeLabel: string;
   waste: string;
   date: string;
   pickupDate: string;
 };
 
-const emptyQuote: QuoteState = { size: "", postcode: "", waste: "", date: "", pickupDate: "" };
+const emptyQuote: QuoteState = { size: "", postcode: "", postcodeLabel: "", waste: "", date: "", pickupDate: "" };
 
 const heroBenefits = [
   { icon: BadgeDollarSign, title: "All-Inclusive Pricing", detail: "No Hidden Fees" },
@@ -68,12 +69,21 @@ export function HomePage() {
     });
   };
 
+  const updatePostcode = (value: string, label: string) => {
+    setQuote((current) => ({ ...current, postcode: value, postcodeLabel: label }));
+    setQuoteErrors((current) => {
+      const next = { ...current };
+      delete next.postcode;
+      return next;
+    });
+  };
+
   const handleQuoteSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (loading) return;
     const nextErrors: Partial<QuoteState> = {};
     if (!quote.size) nextErrors.size = "Please select a bin size.";
-    if (!isValidPostcode(quote.postcode)) nextErrors.postcode = postcodeError;
+    if (!isResolvedPostcode(quote.postcode)) nextErrors.postcode = postcodeSelectionError;
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
     if (!quote.date || quote.date < todayIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date.";
     if (!quote.pickupDate || quote.pickupDate <= quote.date || isSundayIso(quote.pickupDate)) {
@@ -88,6 +98,7 @@ export function HomePage() {
     const params = new URLSearchParams({
       size: quote.size,
       location: quote.postcode.trim(),
+      locationLabel: quote.postcodeLabel.trim(),
       waste: quote.waste,
       date: quote.date,
       pickup: quote.pickupDate,
@@ -171,7 +182,12 @@ export function HomePage() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <PostcodeField value={quote.postcode} onChange={(value) => updateQuote("postcode", value)} error={quoteErrors.postcode} />
+                  <PostcodeField
+                    value={quote.postcode}
+                    displayValue={quote.postcodeLabel}
+                    onChange={updatePostcode}
+                    error={quoteErrors.postcode}
+                  />
                 </div>
                 <DatePicker
                   label="Delivery date"

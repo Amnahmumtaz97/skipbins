@@ -307,7 +307,7 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
         <BookingDetail icon={Recycle} label="Waste type" value={waste?.label ?? draft.wasteType} />
         <BookingDetail icon={Clock3} label="Hire period" value={formatHirePeriod(draft.hirePeriod)} />
         <BookingDetail icon={CalendarDays} label="Delivery" value={formatDate(draft.deliveryDate)} />
-        <BookingDetail icon={MapPin} label="Delivery postcode" value={draft.address} />
+        <BookingDetail icon={MapPin} label="Delivery location" value={draft.locationLabel || draft.address} />
       </dl>
       <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5">
         <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST · No hidden fees</p></div>

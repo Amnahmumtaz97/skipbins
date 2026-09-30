@@ -6,30 +6,38 @@ import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
 import { isValidPostcode } from "@/lib/postcode";
 
-export function PostcodeField({ value, onChange, error }: {
-  value: string; onChange: (value: string) => void; error?: string;
+export function PostcodeField({ value, displayValue, onChange, error }: {
+  value: string;
+  displayValue?: string;
+  onChange: (value: string, label: string) => void;
+  error?: string;
 }) {
   const id = useId();
-  const [text, setText] = useState(value);
+  const [text, setText] = useState(displayValue || value);
+  const [selectedText, setSelectedText] = useState<string | null>(displayValue && displayValue !== value ? displayValue : null);
   const [lookup, setLookup] = useState<{ query: string; results: { postcode: string; suburb: string; state: string }[]; error?: string } | null>(null);
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const valid = isValidPostcode(text);
   const current = lookup?.query === text ? lookup : null;
-  const loading = valid && !current;
+  const chosen = selectedText === text;
+  const loading = valid && !chosen && !current;
   const results = current?.results ?? [];
   const open = focused && results.length > 0;
   const trimmedLength = text.trim().length;
 
   const selectResult = (result: { postcode: string; suburb: string; state: string }) => {
-    setText(`${result.suburb}, ${result.state} ${result.postcode}`);
-    onChange(result.postcode);
+    const label = `${result.suburb}, ${result.state} ${result.postcode}`;
+    setText(label);
+    setSelectedText(label);
+    onChange(result.postcode, label);
     setFocused(false);
     setActive(-1);
   };
 
   useEffect(() => {
     if (!isValidPostcode(text)) return;
+    if (selectedText === text) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -43,12 +51,12 @@ export function PostcodeField({ value, onChange, error }: {
       }
     }, 300);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [text]);
+  }, [selectedText, text]);
 
   return <div className="flex min-w-0 flex-col text-xs font-bold text-[#14532D]">
     <label htmlFor={id} className="block h-5 leading-5">Suburb or postcode</label>
     <div className="relative mt-1.5">
-    <input id={id} name="postcode" value={text} onChange={(e) => { setText(e.target.value); onChange(e.target.value); setActive(-1); setFocused(true); }}
+    <input id={id} name="postcode" value={text} onChange={(e) => { setText(e.target.value); setSelectedText(null); onChange(e.target.value, e.target.value); setActive(-1); setFocused(true); }}
       autoComplete="off" maxLength={60}
       required placeholder="e.g. Melbourne or 3000" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
       role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-results`}

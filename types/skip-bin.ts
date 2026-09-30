@@ -39,6 +39,7 @@ export type BookingFormState = {
   email: string;
   phone: string;
   address: string;
+  locationLabel: string;
   streetAddress: string;
   placement: BinPlacement | "";
   access: string;

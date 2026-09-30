@@ -5,7 +5,7 @@ import type { BookingFormState } from "@/types/skip-bin";
 export function BookingSummary({ form, total }: { form: BookingFormState; total: number | null }) {
   const bin = getBinBySizeOrId(form.binSize);
   const waste = acceptedWaste.find((item) => item.id === form.wasteType);
-  const location = [form.address, form.placement].filter(Boolean).join(" · ");
+  const location = [form.locationLabel || form.address, form.placement].filter(Boolean).join(" · ");
 
   return (
     <div>

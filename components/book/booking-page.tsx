@@ -12,7 +12,7 @@ import { BookingSummary } from "@/components/book/booking-summary";
 import { AddressField } from "@/components/book/address-field";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { DatePicker } from "@/components/ui/date-picker";
-import { isValidPostcode, postcodeError } from "@/lib/postcode";
+import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
 import { isQuoteServiceUnavailable, requestQuote } from "@/lib/quote-client";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
@@ -35,6 +35,7 @@ import type { BinPlacement, BookingFormState } from "@/types/skip-bin";
 type BookingPageProps = {
   initialSize?: string;
   initialLocation?: string;
+  initialLocationLabel?: string;
   initialWaste?: string;
   initialDate?: string;
   initialPickupDate?: string;
@@ -43,13 +44,14 @@ type BookingPageProps = {
 
 type FieldKey = keyof BookingFormState;
 
-function initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate, initialPickupDate }: Omit<BookingPageProps, "cancelled">): BookingFormState {
+function initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate }: Omit<BookingPageProps, "cancelled">): BookingFormState {
   const deliveryDate = initialDate && initialDate >= todayIsoDate() && !isSundayIso(initialDate) ? initialDate : "";
   return {
     fullName: "",
     email: "",
     phone: "",
     address: initialLocation?.trim() ?? "",
+    locationLabel: initialLocationLabel?.trim() || initialLocation?.trim() || "",
     streetAddress: "",
     placement: "",
     access: "",
@@ -65,7 +67,7 @@ function initialBookingForm({ initialSize, initialLocation, initialWaste, initia
 function isStepComplete(currentStep: number, form: BookingFormState) {
   if (currentStep === 1) return acceptedWaste.some((waste) => waste.id === form.wasteType);
   if (currentStep === 2) return bins.some((bin) => bin.id === form.binSize);
-  if (currentStep === 3) return isValidPostcode(form.address) && placements.some((option) => option === form.placement);
+  if (currentStep === 3) return isResolvedPostcode(form.address) && placements.some((option) => option === form.placement);
   if (currentStep === 4) return Boolean(form.deliveryDate && form.deliveryDate >= todayIsoDate() && !isSundayIso(form.deliveryDate) && form.pickupDate && form.pickupDate > form.deliveryDate && !isSundayIso(form.pickupDate) && form.hirePeriod);
   if (currentStep === 5)
     return Boolean(form.streetAddress.trim() && form.fullName.trim() && isValidEmail(form.email) && isValidAuPhone(form.phone));
@@ -90,15 +92,15 @@ const intros = [
   "Check everything looks right before you confirm your booking.",
 ];
 
-export function BookingPage({ initialSize, initialLocation, initialWaste, initialDate, initialPickupDate, cancelled }: BookingPageProps) {
+export function BookingPage({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate, cancelled }: BookingPageProps) {
   const router = useRouter();
   const [form, setForm] = useState<BookingFormState>(() =>
-    initialBookingForm({ initialSize, initialLocation, initialWaste, initialDate, initialPickupDate }),
+    initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate }),
   );
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
   const [step, setStep] = useState(1);
   const [maxReached, setMaxReached] = useState(1);
-  const [bookingReference, setBookingReference] = useState("");
+  const [bookingReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState(
     cancelled ? "Payment was cancelled. Your booking is not confirmed." : "",
@@ -114,12 +116,17 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     const draft = loadBookingDraft();
     if (!draft) return;
     restoredDraft.current = true;
-    setForm(draft);
-    setStep(6);
-    setMaxReached(6);
-    stepWasComplete.current = true;
-    if (cancelled) setRequestError("Payment was cancelled. Your booking is not confirmed.");
-    window.scrollTo(0, 0);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setForm(draft);
+      setStep(6);
+      setMaxReached(6);
+      stepWasComplete.current = true;
+      if (cancelled) setRequestError("Payment was cancelled. Your booking is not confirmed.");
+      window.scrollTo(0, 0);
+    });
+    return () => { active = false; };
   }, [cancelled]);
 
   useEffect(() => {
@@ -150,13 +157,30 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
     });
   };
 
+  const updatePostcode = (value: string, label: string) => {
+    setRequestError("");
+    setMaxReached(step);
+    setForm((current) => ({
+      ...current,
+      address: value,
+      locationLabel: label,
+      ...(value !== current.address ? { streetAddress: "" } : {}),
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.address;
+      delete next.streetAddress;
+      return next;
+    });
+  };
+
   const validateStep = (currentStep: number) => {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
 
     if (currentStep === 2 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
     if (currentStep === 1 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
     if (currentStep === 3) {
-      if (!isValidPostcode(form.address)) nextErrors.address = postcodeError;
+      if (!isResolvedPostcode(form.address)) nextErrors.address = postcodeSelectionError;
       if (!placements.some((option) => option === form.placement)) nextErrors.placement = "Please choose where the bin should be placed.";
     }
     if (currentStep === 4) {
@@ -304,7 +328,8 @@ export function BookingPage({ initialSize, initialLocation, initialWaste, initia
                     <div>
                       <PostcodeField
                         value={form.address}
-                        onChange={(value) => updateField("address", value)}
+                        displayValue={form.locationLabel}
+                        onChange={updatePostcode}
                         error={errors.address}
                       />
                     </div>

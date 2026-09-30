@@ -13,7 +13,7 @@ require.extensions['.ts'] = (mod, filename) => mod._compile(ts.transpileModule(f
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText, filename);
 
-const { isValidPostcode } = require('../lib/postcode.ts');
+const { isResolvedPostcode, isValidPostcode } = require('../lib/postcode.ts');
 const { validateQuote } = require('../lib/server/quote-service.ts');
 const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
@@ -88,6 +88,10 @@ test('booking validates all inputs and never returns a simulated reference', asy
   const data = await response.json();
   assert.equal(data.reference, undefined);
   assert.equal(data.checkoutUrl, undefined);
+});
+test('a booking location is resolved only after a four-digit postcode is selected', () => {
+  assert.equal(isResolvedPostcode('3000'), true);
+  for (const value of ['Melbourne', 'MELBOURNE, VIC 3000', '300', '30000', '', null]) assert.equal(isResolvedPostcode(value), false);
 });
 test('pending bookings leave the unique Stripe session ID unset until Stripe creates it', async () => {
   const originalNodeEnv = process.env.NODE_ENV;

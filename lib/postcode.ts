@@ -3,4 +3,9 @@ export function isValidPostcode(value: unknown): value is string {
   return typeof value === "string" && /^[a-zA-Z0-9 '\-]{3,60}$/.test(value.trim());
 }
 
+export function isResolvedPostcode(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}$/.test(value);
+}
+
 export const postcodeError = "Enter at least 3 characters of a suburb or postcode.";
+export const postcodeSelectionError = "Select a suburb and postcode from the suggestions.";

@@ -21,6 +21,7 @@ export default async function BookingRoute({
     <BookingPage
       initialSize={firstParam(params.size)}
       initialLocation={firstParam(params.location)}
+      initialLocationLabel={firstParam(params.locationLabel)}
       initialWaste={firstParam(params.waste)}
       initialDate={firstParam(params.date)}
       initialPickupDate={firstParam(params.pickup)}

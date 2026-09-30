@@ -57,7 +57,7 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
       icon: <MapPin size={13} />,
       label: "Location",
       value: form.address.trim()
-        ? [form.address, form.placement].filter(Boolean).join(" · ")
+        ? [form.locationLabel || form.address, form.placement].filter(Boolean).join(" · ")
         : "Not entered yet",
       done: Boolean(form.address.trim()),
     },
