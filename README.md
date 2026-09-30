@@ -58,7 +58,14 @@ payments), then redeploy:
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY` (preferred) or `SUPABASE_SERVICE_ROLE_KEY` (legacy)
 - `STRIPE_SECRET_KEY`
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `GEOSCAPE_API_KEY`
+
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is embedded into the browser bundle at
+build time, so a new deployment is required after adding or changing it.
+`GEOSCAPE_API_KEY` is read by `/api/addresses` at request time. Make sure the
+key has the Predictive API enabled in Geoscape Hub.
 
 The server secret is required because checkout creation updates the booking with
 its Stripe Checkout session ID. The public key can insert bookings under the

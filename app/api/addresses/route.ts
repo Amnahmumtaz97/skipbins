@@ -25,6 +25,7 @@ async function geoscapeSuggest(apiKey: string, query: string) {
   const url = `${GEOSCAPE_URL}?query=${encodeURIComponent(query)}&stateTerritory=VIC&maxNumberOfResults=20`;
   const res = await fetch(url, {
     headers: { Authorization: apiKey },
+    cache: "no-store",
     signal: AbortSignal.timeout(8000),
     redirect: "error",
   });
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Choose a Victorian postcode before searching for a street." }, { status: 400 });
   }
 
-  const apiKey = process.env.GEOSCAPE_API_KEY;
+  const apiKey = process.env.GEOSCAPE_API_KEY?.trim();
   if (!apiKey) {
     return Response.json({ error: "Address search is temporarily unavailable. Please try again later." }, { status: 503 });
   }
@@ -99,10 +100,7 @@ export async function GET(request: NextRequest) {
     const inPostcode = (address: string) => address.toUpperCase().endsWith(`VIC ${postcode}`);
     let labels = first.addresses.filter(inPostcode);
     if (labels.length === 0 && /^\d+[a-z]?$/i.test(query)) {
-      const widened = await addressesInPostcode(apiKey, query, postcode);
-      labels = widened.length > 0 ? widened : first.addresses;
-    } else if (labels.length === 0) {
-      labels = first.addresses;
+      labels = await addressesInPostcode(apiKey, query, postcode);
     }
 
     const results = labels.flatMap((label) => {
@@ -110,7 +108,7 @@ export async function GET(request: NextRequest) {
       return parsed ? [{ street: parsed.street, label: parsed.label }] : [];
     }).slice(0, 20);
 
-    return Response.json(results);
+    return Response.json(results, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Address search is temporarily unavailable. Please try again later." }, { status: 503 });
   }

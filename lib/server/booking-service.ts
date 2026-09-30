@@ -83,6 +83,11 @@ function supabase(): SupabaseClient | null {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+function databaseError(operation: string, error: { code?: string; message?: string }) {
+  const code = error.code ? ` (${error.code})` : "";
+  return new Error(`${operation}${code}: ${error.message || "Unknown database error"}`);
+}
+
 function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
   return {
     id: randomUUID(),
@@ -127,7 +132,7 @@ export async function createPendingBooking(data: BookingRecord, amountCents: num
       if (process.env.NODE_ENV !== "production") await persistLocally(row);
       return { id: row.id, reference: row.reference };
     }
-    if (process.env.NODE_ENV === "production") throw error;
+    if (process.env.NODE_ENV === "production") throw databaseError("Could not create booking", error);
   }
 
   await persistLocally(row);
@@ -143,7 +148,7 @@ export async function attachCheckoutSession(bookingId: string, sessionId: string
       .eq("id", bookingId)
       .select("id")
       .maybeSingle();
-    if (error && process.env.NODE_ENV === "production") throw error;
+    if (error && process.env.NODE_ENV === "production") throw databaseError("Could not attach Stripe session", error);
     if (data) return;
   }
   const existing = await readLocal();
@@ -165,7 +170,7 @@ export async function markBookingPaid(lookup: { id?: string; stripeSessionId?: s
     else return null;
     const { data, error } = await query.select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes").maybeSingle();
     if (!error && data) return data as StoredBooking;
-    if (error && process.env.NODE_ENV === "production") throw error;
+    if (error && process.env.NODE_ENV === "production") throw databaseError("Could not mark booking paid", error);
   }
 
   const existing = await readLocal();

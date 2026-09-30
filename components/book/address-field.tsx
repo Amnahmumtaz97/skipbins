@@ -39,10 +39,7 @@ export function AddressField({ value, onChange, postcode, error, required }: {
 
   useEffect(() => {
     if (!postcodeReady || !searchable(value)) return;
-    if (selectedStreet === value) {
-      setLookup({ query: value, results: [] });
-      return;
-    }
+    if (selectedStreet === value) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {

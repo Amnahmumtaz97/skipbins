@@ -160,6 +160,12 @@ test('address endpoint requires a street and postcode and keeps only that Victor
       { street: '12 GEORGE ST', label: '12 GEORGE ST, RICHMOND VIC 3121' },
       { street: 'UNIT 2, 12 GEORGE ST', label: 'UNIT 2, 12 GEORGE ST, RICHMOND VIC 3121' },
     ]);
+    global.fetch = async () => Response.json({ suggest: [
+      { address: '12 GEORGE ST, FITZROY VIC 3065' },
+      { address: '12 GEORGE ST, SYDNEY NSW 2000' },
+    ] });
+    const wrongPostcode = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'));
+    assert.deepEqual(await wrongPostcode.json(), []);
     global.fetch = async (url) => {
       const query = new URL(url).searchParams.get('query');
       if (query === '248 sw') return Response.json({ suggest: [{ address: '248 SWAN ST, RICHMOND VIC 3121' }, { address: '248 SWANSTON ST, MELBOURNE VIC 3000' }] });
