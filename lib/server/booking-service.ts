@@ -25,7 +25,7 @@ export type StoredBooking = {
   reference: string;
   status: "pending" | "paid";
   amount_cents: number;
-  stripe_session_id: string;
+  stripe_session_id: string | null;
   bin_size: string;
   postcode: string;
   waste_type: string;
@@ -94,7 +94,7 @@ function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
     reference: newReference(),
     status: "pending",
     amount_cents: amountCents,
-    stripe_session_id: "",
+    stripe_session_id: null,
     bin_size: data.binSize,
     postcode: data.address,
     waste_type: data.wasteType,

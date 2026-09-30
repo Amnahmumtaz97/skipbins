@@ -17,6 +17,7 @@ const { isValidPostcode } = require('../lib/postcode.ts');
 const { validateQuote } = require('../lib/server/quote-service.ts');
 const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
+const { createPendingBooking } = require('../lib/server/booking-service.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
 const stripeWebhook = require('../app/api/stripe/webhook/route.ts');
@@ -87,6 +88,32 @@ test('booking validates all inputs and never returns a simulated reference', asy
   const data = await response.json();
   assert.equal(data.reference, undefined);
   assert.equal(data.checkoutUrl, undefined);
+});
+test('pending bookings leave the unique Stripe session ID unset until Stripe creates it', async () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalPublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const originalSecretKey = process.env.SUPABASE_SECRET_KEY;
+  process.env.NODE_ENV = 'production';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.SUPABASE_SECRET_KEY = 'test-secret';
+  delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const originalFetch = global.fetch;
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    const row = Array.isArray(body) ? body[0] : body;
+    assert.equal(row.stripe_session_id, null);
+    return new Response('', { status: 201 });
+  };
+  try {
+    await createPendingBooking({ address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-03',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' }, 14900);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalPublishableKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalPublishableKey;
+    if (originalSecretKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = originalSecretKey;
+  }
 });
 test('stripe webhook rejects missing signatures', async () => {
   const response = await stripeWebhook.POST(new Request('https://skipbins.test/api/stripe/webhook', {
