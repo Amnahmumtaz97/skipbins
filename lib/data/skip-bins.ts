@@ -135,10 +135,10 @@ export const acceptedWaste: WasteCategory[] = [
   },
 ];
 
-export const hirePeriods: HirePeriod[] = ["Standard (7 days)", "Extended (14 days)"];
+export const hirePeriods: HirePeriod[] = ["Standard (10 days)", "Extended (14 days)"];
 
 export function formatHirePeriod(value?: string | null) {
-  if (value === "Standard (7 days)") return "Standard Hire: 10 Days";
+  if (value === "Standard (10 days)" || value === "Standard (7 days)") return "Standard Hire: 10 Days";
   if (value === "Extended (14 days)") return "Extended hire: up to 14 days";
   return value ?? "";
 }

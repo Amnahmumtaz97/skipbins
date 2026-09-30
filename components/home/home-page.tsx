@@ -29,7 +29,7 @@ import {
 
 
 } from "@/lib/data/skip-bins";
-import { addDaysIso, isSundayIso, todayIsoDate } from "@/lib/booking-utils";
+import { isSundayIso, maxPickupDate, standardPickupDate, tomorrowIsoDate } from "@/lib/booking-utils";
 import { clearBookingDraft } from "@/lib/booking-draft";
 
 type QuoteState = {
@@ -60,7 +60,7 @@ export function HomePage() {
     setQuote((current) => ({
       ...current,
       [field]: value,
-      ...(field === "date" && current.pickupDate && (!value || current.pickupDate <= value) ? { pickupDate: "" } : {}),
+      ...(field === "date" ? { pickupDate: value ? standardPickupDate(value) : "" } : {}),
     }));
     setQuoteErrors((current) => {
       const next = { ...current };
@@ -85,9 +85,9 @@ export function HomePage() {
     if (!quote.size) nextErrors.size = "Please select a bin size.";
     if (!isResolvedPostcode(quote.postcode)) nextErrors.postcode = postcodeSelectionError;
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
-    if (!quote.date || quote.date < todayIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date.";
-    if (!quote.pickupDate || quote.pickupDate <= quote.date || isSundayIso(quote.pickupDate)) {
-      nextErrors.pickupDate = "Please select a pickup date after delivery.";
+    if (!quote.date || quote.date < tomorrowIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date from tomorrow onward.";
+    if (!quote.date || !quote.pickupDate || quote.pickupDate < standardPickupDate(quote.date) || quote.pickupDate > maxPickupDate(quote.date) || isSundayIso(quote.pickupDate)) {
+      nextErrors.pickupDate = "Pickup must be 10 to 14 days after delivery.";
     }
 
     setQuoteErrors(nextErrors);
@@ -192,7 +192,7 @@ export function HomePage() {
                 <DatePicker
                   label="Delivery date"
                   value={quote.date}
-                  min={todayIsoDate()}
+                  min={tomorrowIsoDate()}
                   error={quoteErrors.date}
                   onChange={(value) => updateQuote("date", value)}
                 />
@@ -200,7 +200,8 @@ export function HomePage() {
                   label="Pickup date"
                   name="pickup-date"
                   value={quote.pickupDate}
-                  min={addDaysIso(quote.date || todayIsoDate(), 1)}
+                  min={quote.date ? standardPickupDate(quote.date) : tomorrowIsoDate()}
+                  max={quote.date ? maxPickupDate(quote.date) : undefined}
                   error={quoteErrors.pickupDate}
                   onChange={(value) => updateQuote("pickupDate", value)}
                 />

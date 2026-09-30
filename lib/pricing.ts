@@ -2,7 +2,7 @@ import { getBinBySizeOrId } from "@/lib/data/skip-bins";
 import type { HirePeriod } from "@/types/skip-bin";
 
 const hireUplift: Record<HirePeriod, number> = {
-  "Standard (7 days)": 0,
+  "Standard (10 days)": 0,
   "Extended (14 days)": 0.4,
 };
 

@@ -34,9 +34,11 @@ test('location searches accept suburbs and partial postcodes while rejecting emp
   for (const value of ['0800', '4000', '400', '40000', 'Brisbane', 'Mount Gravatt', '4000 ']) assert.equal(isValidPostcode(value), true);
   for (const value of ['', ' ', '90', '４０００', 4000, null, "' OR 1=1", '<script>']) assert.equal(isValidPostcode(value), false);
 });
-test('catalogue allowlists, pickup order and non-Sunday dates are required', () => {
+test('catalogue allowlists, next-day delivery and 10-to-14-day pickup rules are required', () => {
   assert.equal(validateQuote(valid).postcode, '0800');
-  for (const changes of [{size:'10m3'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-03',pickupDate:'2099-01-03'}, {date:'2099-01-03',pickupDate:'2099-01-11'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
+  for (const changes of [{size:'10m3'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-01',pickupDate:'2099-01-03'}, {date:'2099-01-01',pickupDate:'2099-01-16'}, {date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Extended (14 days)'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
+  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)'}).pickupDate, '2099-01-12');
+  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-15',hirePeriod:'Extended (14 days)'}).pickupDate, '2099-01-15');
 });
 test('bin catalogue uses the approved names and centralized dimensions', () => {
   assert.deepEqual(bins.map((bin) => bin.size), ['2m³', '3m³', '4m³', '6m³', '8m³', '9m³']);
@@ -75,7 +77,7 @@ test('contact validates input and cannot acknowledge an undelivered message', as
 });
 test('booking validates all inputs and never returns a simulated reference', async () => {
   assert.equal((await bookings.POST(request({}))).status, 400);
-  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-03',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
+  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
   const missingPlacement = await bookings.POST(request({...body,placement:''}));
   assert.equal(missingPlacement.status, 400);
@@ -110,7 +112,7 @@ test('pending bookings leave the unique Stripe session ID unset until Stripe cre
     return new Response('', { status: 201 });
   };
   try {
-    await createPendingBooking({ address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-03',hirePeriod:'Standard (7 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' }, 14900);
+    await createPendingBooking({ address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' }, 14900);
   } finally {
     global.fetch = originalFetch;
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;

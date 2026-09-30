@@ -32,7 +32,8 @@ export function loadBookingDraft(): BookingFormState | null {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(draftKey) ?? "") as Partial<BookingFormState>;
     if (!parsed || typeof parsed !== "object") return null;
-    const hirePeriod = parsed.hirePeriod;
+    const savedHirePeriod = parsed.hirePeriod as string | undefined;
+    const hirePeriod = savedHirePeriod === "Standard (7 days)" ? "Standard (10 days)" : savedHirePeriod;
     const placement = parsed.placement;
     if (hirePeriod && !hirePeriods.includes(hirePeriod as HirePeriod)) return null;
     if (placement && !placements.includes(placement as (typeof placements)[number])) return null;

@@ -20,13 +20,14 @@ import { WasteTypeSelector } from "@/components/book/waste-type-selector";
 import { Navbar } from "@/components/home/navbar";
 import { acceptedWaste, bins, placements } from "@/lib/data/skip-bins";
 import {
-  addDaysIso,
   isSundayIso,
   isValidAuPhone,
   isValidEmail,
+  maxPickupDate,
   resolveBinId,
   resolveWasteId,
-  todayIsoDate,
+  standardPickupDate,
+  tomorrowIsoDate,
 } from "@/lib/booking-utils";
 import { quoteTotal } from "@/lib/pricing";
 import { isAwaitingPayment, loadBookingDraft, saveBookingDraft, saveCheckoutClientSecret } from "@/lib/booking-draft";
@@ -45,7 +46,16 @@ type BookingPageProps = {
 type FieldKey = keyof BookingFormState;
 
 function initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate }: Omit<BookingPageProps, "cancelled">): BookingFormState {
-  const deliveryDate = initialDate && initialDate >= todayIsoDate() && !isSundayIso(initialDate) ? initialDate : "";
+  const deliveryDate = initialDate && initialDate >= tomorrowIsoDate() && !isSundayIso(initialDate) ? initialDate : "";
+  const standardPickup = deliveryDate ? standardPickupDate(deliveryDate) : "";
+  const pickupDate = deliveryDate
+    ? initialPickupDate
+      && initialPickupDate >= standardPickup
+      && initialPickupDate <= maxPickupDate(deliveryDate)
+      && !isSundayIso(initialPickupDate)
+        ? initialPickupDate
+        : standardPickup
+    : "";
   return {
     fullName: "",
     email: "",
@@ -56,10 +66,10 @@ function initialBookingForm({ initialSize, initialLocation, initialLocationLabel
     placement: "",
     access: "",
     deliveryDate,
-    pickupDate: deliveryDate && initialPickupDate && initialPickupDate > deliveryDate && !isSundayIso(initialPickupDate) ? initialPickupDate : "",
+    pickupDate,
     binSize: resolveBinId(initialSize),
     wasteType: resolveWasteId(initialWaste),
-    hirePeriod: "Standard (7 days)",
+    hirePeriod: pickupDate && pickupDate !== standardPickup ? "Extended (14 days)" : "Standard (10 days)",
     notes: "",
   };
 }
@@ -126,7 +136,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     setForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "deliveryDate" && current.pickupDate && (!value || current.pickupDate <= value) ? { pickupDate: "" } : {}),
       ...(field === "address" && value !== current.address ? { streetAddress: "" } : {}),
     }));
     setErrors((current) => {
@@ -160,6 +169,38 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     updateField("streetAddress", value);
   };
 
+  const updateDeliveryDate = (value: string) => {
+    setRequestError("");
+    setMaxReached(step);
+    setForm((current) => ({
+      ...current,
+      deliveryDate: value,
+      pickupDate: value ? standardPickupDate(value) : "",
+      hirePeriod: "Standard (10 days)",
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.deliveryDate;
+      delete next.pickupDate;
+      return next;
+    });
+  };
+
+  const updatePickupDate = (value: string) => {
+    setRequestError("");
+    setMaxReached(step);
+    setForm((current) => ({
+      ...current,
+      pickupDate: value,
+      hirePeriod: value && value !== standardPickupDate(current.deliveryDate) ? "Extended (14 days)" : "Standard (10 days)",
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.pickupDate;
+      return next;
+    });
+  };
+
   const validateStep = (currentStep: number) => {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
 
@@ -171,8 +212,14 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
       if (!placements.some((option) => option === form.placement)) nextErrors.placement = "Please choose where the bin should be placed.";
     }
     if (currentStep === 4) {
-      if (!form.deliveryDate || form.deliveryDate < todayIsoDate() || isSundayIso(form.deliveryDate)) nextErrors.deliveryDate = "Please select a delivery date.";
-      if (!form.pickupDate || form.pickupDate <= form.deliveryDate || isSundayIso(form.pickupDate)) nextErrors.pickupDate = "Please select a pickup date after delivery.";
+      if (!form.deliveryDate || form.deliveryDate < tomorrowIsoDate() || isSundayIso(form.deliveryDate)) nextErrors.deliveryDate = "Please select a delivery date from tomorrow onward.";
+      if (
+        !form.deliveryDate
+        || !form.pickupDate
+        || form.pickupDate < standardPickupDate(form.deliveryDate)
+        || form.pickupDate > maxPickupDate(form.deliveryDate)
+        || isSundayIso(form.pickupDate)
+      ) nextErrors.pickupDate = "Pickup must be 10 to 14 days after delivery.";
     }
     if (currentStep === 5) {
       if (!form.fullName.trim()) nextErrors.fullName = "Please enter your full name.";
@@ -409,18 +456,19 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       compact
                       label="Delivery date"
                       value={form.deliveryDate}
-                      min={todayIsoDate()}
+                      min={tomorrowIsoDate()}
                       error={errors.deliveryDate}
-                      onChange={(value) => updateField("deliveryDate", value)}
+                      onChange={updateDeliveryDate}
                     />
                     <DatePicker
                       compact
                       label="Pickup date"
                       name="pickup-date"
                       value={form.pickupDate}
-                      min={addDaysIso(form.deliveryDate || todayIsoDate(), 1)}
+                      min={form.deliveryDate ? standardPickupDate(form.deliveryDate) : tomorrowIsoDate()}
+                      max={form.deliveryDate ? maxPickupDate(form.deliveryDate) : undefined}
                       error={errors.pickupDate}
-                      onChange={(value) => updateField("pickupDate", value)}
+                      onChange={updatePickupDate}
                     />
                   </div>
                   <div className="flex items-start gap-3 rounded-2xl border border-[#C6DAB0] bg-[#EEF5E5] px-4 py-3.5">
@@ -429,9 +477,11 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                     </span>
                     <div className="min-w-0">
                       <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-[#5B6B60]">Rental Period</p>
-                      <p className="mt-0.5 text-[14px] font-bold text-[#0B3B24]">Standard Hire: 10 Days</p>
+                      <p className="mt-0.5 text-[14px] font-bold text-[#0B3B24]">
+                        {form.hirePeriod === "Extended (14 days)" ? "Extended Hire" : "Standard Hire: 10 Days"}
+                      </p>
                       <p className="mt-0.5 text-[12px] leading-5 text-[#526159]">
-                        Extended hire available <span className="font-bold text-[#0B3B24]">up to 14 days</span>
+                        Pickup is set to 10 days automatically. You can extend it <span className="font-bold text-[#0B3B24]">up to 14 days</span>.
                       </p>
                     </div>
                   </div>

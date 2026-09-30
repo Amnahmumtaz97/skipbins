@@ -2,11 +2,12 @@ import { acceptedWaste, getBinBySizeOrId } from "@/lib/data/skip-bins";
 
 
 export function todayIsoDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 export function isSundayIso(value: string) {
@@ -21,6 +22,19 @@ export function addDaysIso(value: string, days: number) {
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   date.setDate(date.getDate() + days);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function tomorrowIsoDate() {
+  return addDaysIso(todayIsoDate(), 1);
+}
+
+export function standardPickupDate(deliveryDate: string) {
+  const tenthDay = addDaysIso(deliveryDate, 10);
+  return isSundayIso(tenthDay) ? addDaysIso(tenthDay, 1) : tenthDay;
+}
+
+export function maxPickupDate(deliveryDate: string) {
+  return addDaysIso(deliveryDate, 14);
 }
 
 

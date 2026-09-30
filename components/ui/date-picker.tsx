@@ -14,6 +14,7 @@ type DatePickerProps = {
   value: string;
   onChange: (value: string) => void;
   min?: string;
+  max?: string;
   error?: string;
   compact?: boolean;
 };
@@ -38,7 +39,7 @@ function displayDate(value: string) {
   return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
-export function DatePicker({ label, name = "delivery-date", value, onChange, min, error, compact }: DatePickerProps) {
+export function DatePicker({ label, name = "delivery-date", value, onChange, min, max, error, compact }: DatePickerProps) {
   const minDate = min ?? todayIsoDate();
   const today = todayIsoDate();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -113,7 +114,7 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
   };
 
   const pick = (iso: string) => {
-    if (iso < minDate || isSundayIso(iso)) return;
+    if (iso < minDate || (max && iso > max) || isSundayIso(iso)) return;
     onChange(iso);
     setOpen(false);
   };
@@ -155,7 +156,7 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
               </span>
             ))}
             {days.map((cell) => {
-              const disabled = cell.iso < minDate || isSundayIso(cell.iso);
+              const disabled = cell.iso < minDate || Boolean(max && cell.iso > max) || isSundayIso(cell.iso);
               const selectedDay = cell.iso === value;
               const isToday = cell.iso === today;
               return (
