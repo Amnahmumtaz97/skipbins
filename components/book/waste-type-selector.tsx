@@ -28,7 +28,7 @@ export function WasteTypeSelector({ accepted, value, onChange, error }: WasteTyp
               type="button"
               aria-pressed={selected}
               onClick={() => onChange(item.id)}
-              className={`relative flex min-h-[82px] cursor-default items-start gap-3 rounded-2xl border-[1.5px] bg-white p-3.5 text-left transition hover:-translate-y-0.5 ${
+              className={`selection-card relative flex min-h-[82px] cursor-default items-start gap-3 rounded-2xl border-[1.5px] bg-white p-3.5 text-left transition hover:-translate-y-0.5 ${
                 selected ? "border-[#4d7c0f] shadow-[0_0_0_1px_#4d7c0f]" : error ? "border-red-500" : "border-[#E8E1CF]"
               }`}
             >
@@ -38,7 +38,7 @@ export function WasteTypeSelector({ accepted, value, onChange, error }: WasteTyp
               >
                 <Icon size={18} />
               </span>
-              <span className="min-w-0 flex-1 cursor-text">
+              <span className="selection-card-copy min-w-0 flex-1 cursor-text">
                 <span className="block pr-5 text-[14px] font-bold text-[#16241C]">{item.label}</span>
                 <span className="mt-0.5 block text-[12px] leading-4 text-[#5B6B60]">{item.description}</span>
               </span>
