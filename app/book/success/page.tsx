@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { BookingConfirmation } from "@/components/book/booking-confirmation";
+import { BookingOrderConfirmation } from "@/components/book/booking-order-confirmation";
 import { ClearBookingDraft } from "@/components/book/clear-booking-draft";
 import { Navbar } from "@/components/home/navbar";
 import { getBookingByCheckoutSession, markBookingPaid } from "@/lib/server/booking-service";
@@ -26,7 +26,7 @@ export default async function BookingSuccessPage({ searchParams }: PageProps<"/b
       <div aria-hidden="true" className="pointer-events-none absolute -left-40 top-[34rem] h-96 w-96 rounded-full bg-[#E9E3C9]/80 blur-3xl" />
       {booking?.status === "paid" ? <ClearBookingDraft /> : null}
       <div className="relative mx-auto w-full max-w-[1120px] px-5 pb-20 pt-32 sm:px-6 sm:pt-36 lg:px-8">
-        {booking?.status === "paid" ? <BookingConfirmation booking={booking} /> : <UnconfirmedBooking />}
+        {booking?.status === "paid" ? <BookingOrderConfirmation booking={booking} /> : <UnconfirmedBooking />}
       </div>
     </main>
   );

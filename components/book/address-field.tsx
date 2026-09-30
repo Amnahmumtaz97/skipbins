@@ -9,8 +9,13 @@ type AddressSuggestion = { street: string; label: string };
 
 const searchable = (value: string) => /^[a-zA-Z0-9 '/,.#-]{1,80}$/.test(value.trim());
 
-export function AddressField({ value, onChange, postcode, error, required }: {
-  value: string; onChange: (value: string) => void; postcode: string; error?: string; required?: boolean;
+export function AddressField({ value, onChange, onSelectionChange, postcode, error, required }: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelectionChange: (selected: boolean) => void;
+  postcode: string;
+  error?: string;
+  required?: boolean;
 }) {
   const id = useId();
   const [selectedStreet, setSelectedStreet] = useState<string | null>(null);
@@ -33,6 +38,7 @@ export function AddressField({ value, onChange, postcode, error, required }: {
   const selectResult = (result: AddressSuggestion) => {
     setSelectedStreet(result.street);
     onChange(result.street);
+    onSelectionChange(true);
     setFocused(false);
     setActive(-1);
   };
@@ -58,7 +64,7 @@ export function AddressField({ value, onChange, postcode, error, required }: {
   return <div className="flex min-w-0 flex-col text-xs font-bold text-[#14532D]">
     <label htmlFor={id} className="block h-5 leading-5">Delivery address</label>
     <div className="relative mt-1.5">
-    <input id={id} name="street-address" value={value} onChange={(event) => { setSelectedStreet(null); onChange(event.target.value); setActive(-1); setFocused(true); }}
+    <input id={id} name="street-address" value={value} onChange={(event) => { setSelectedStreet(null); onSelectionChange(false); onChange(event.target.value); setActive(-1); setFocused(true); }}
       autoComplete="off" maxLength={240} required={required} placeholder="Street address" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
       role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-results`}
       aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}

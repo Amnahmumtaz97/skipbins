@@ -64,19 +64,9 @@ function initialBookingForm({ initialSize, initialLocation, initialLocationLabel
   };
 }
 
-function isStepComplete(currentStep: number, form: BookingFormState) {
-  if (currentStep === 1) return acceptedWaste.some((waste) => waste.id === form.wasteType);
-  if (currentStep === 2) return bins.some((bin) => bin.id === form.binSize);
-  if (currentStep === 3) return isResolvedPostcode(form.address) && placements.some((option) => option === form.placement);
-  if (currentStep === 4) return Boolean(form.deliveryDate && form.deliveryDate >= todayIsoDate() && !isSundayIso(form.deliveryDate) && form.pickupDate && form.pickupDate > form.deliveryDate && !isSundayIso(form.pickupDate) && form.hirePeriod);
-  if (currentStep === 5)
-    return Boolean(form.streetAddress.trim() && form.fullName.trim() && isValidEmail(form.email) && isValidAuPhone(form.phone));
-  return false;
-}
-
 const titles = [
-  "What are you throwing away?",
   "Choose your bin size",
+  "What are you throwing away?",
   "Where do you need it delivered?",
   "When should we deliver and collect?",
   "Your details",
@@ -84,8 +74,8 @@ const titles = [
 ];
 
 const intros = [
-  "Choose the waste stream that best matches your load — pricing is calculated from your selection, so an accurate match keeps your quote correct.",
   "General sizing guide below — if you're not sure, our size guide or support team can help confirm the right fit.",
+  "Choose the waste stream that best matches your load — pricing is calculated from your selection, so an accurate match keeps your quote correct.",
   "We use your suburb or postcode to check service availability and calculate accurate pricing for your area.",
   "Choose your delivery and pickup dates. Flexible rental periods are available.",
   "We'll use this to confirm your booking and coordinate delivery with you.",
@@ -98,6 +88,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate }),
   );
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  const [addressConfirmed, setAddressConfirmed] = useState(false);
   const [step, setStep] = useState(1);
   const [maxReached, setMaxReached] = useState(1);
   const [bookingReference] = useState("");
@@ -106,8 +97,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     cancelled ? "Payment was cancelled. Your booking is not confirmed." : "",
   );
   const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod);
-  const actionsRef = useRef<HTMLDivElement>(null);
-  const stepWasComplete = useRef(isStepComplete(step, form));
   const restoredDraft = useRef(false);
 
   useEffect(() => {
@@ -120,27 +109,18 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     queueMicrotask(() => {
       if (!active) return;
       setForm(draft);
+      setAddressConfirmed(Boolean(draft.streetAddress.trim()));
       setStep(6);
       setMaxReached(6);
-      stepWasComplete.current = true;
       if (cancelled) setRequestError("Payment was cancelled. Your booking is not confirmed.");
       window.scrollTo(0, 0);
     });
     return () => { active = false; };
   }, [cancelled]);
 
-  useEffect(() => {
-    const complete = isStepComplete(step, form);
-    const becameComplete = complete && !stepWasComplete.current;
-    stepWasComplete.current = complete;
-    if (!becameComplete) return;
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    actionsRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "end" });
-  }, [form, step]);
-
   const updateField = <K extends FieldKey>(field: K, value: BookingFormState[K]) => {
     setRequestError("");
-    if (["binSize", "wasteType", "address", "deliveryDate", "pickupDate", "hirePeriod"].includes(field)) {
+    if (["binSize", "wasteType", "address", "streetAddress", "deliveryDate", "pickupDate", "hirePeriod"].includes(field)) {
       setMaxReached(step);
     }
     setForm((current) => ({
@@ -160,6 +140,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
   const updatePostcode = (value: string, label: string) => {
     setRequestError("");
     setMaxReached(step);
+    setAddressConfirmed(false);
     setForm((current) => ({
       ...current,
       address: value,
@@ -174,13 +155,19 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     });
   };
 
+  const updateStreetAddress = (value: string, confirmed = false) => {
+    setAddressConfirmed(confirmed);
+    updateField("streetAddress", value);
+  };
+
   const validateStep = (currentStep: number) => {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
 
-    if (currentStep === 2 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
-    if (currentStep === 1 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
+    if (currentStep === 1 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
+    if (currentStep === 2 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
     if (currentStep === 3) {
       if (!isResolvedPostcode(form.address)) nextErrors.address = postcodeSelectionError;
+      if (!form.streetAddress.trim() || !addressConfirmed) nextErrors.streetAddress = "Select a delivery address from the suggestions.";
       if (!placements.some((option) => option === form.placement)) nextErrors.placement = "Please choose where the bin should be placed.";
     }
     if (currentStep === 4) {
@@ -188,7 +175,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
       if (!form.pickupDate || form.pickupDate <= form.deliveryDate || isSundayIso(form.pickupDate)) nextErrors.pickupDate = "Please select a pickup date after delivery.";
     }
     if (currentStep === 5) {
-      if (!form.streetAddress.trim()) nextErrors.streetAddress = "Please enter your delivery address.";
       if (!form.fullName.trim()) nextErrors.fullName = "Please enter your full name.";
       if (!form.email.trim()) nextErrors.email = "Please enter a valid email address.";
       else if (!isValidEmail(form.email)) nextErrors.email = "Please enter a valid email address.";
@@ -205,7 +191,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     if (nextStep < 1 || nextStep > maxReached) return;
     setErrors({});
     setStep(nextStep);
-    stepWasComplete.current = isStepComplete(nextStep, form);
   };
 
   const handleContinue = async () => {
@@ -227,7 +212,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     const nextStep = Math.min(step + 1, 6);
     setMaxReached((current) => Math.max(current, nextStep));
     setStep(nextStep);
-    stepWasComplete.current = isStepComplete(nextStep, form);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -236,7 +220,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     setErrors({});
     setStep((current) => {
       const nextStep = Math.max(1, current - 1);
-      stepWasComplete.current = isStepComplete(nextStep, form);
       return nextStep;
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -308,12 +291,40 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
         ) : (
           <form onSubmit={handleSubmit} noValidate>
             <fieldset disabled={submitting} className="min-w-0">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1CF] pb-4">
+              {step === 1 ? (
+                <Link
+                  href="/"
+                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
+                >
+                  Back
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
+                >
+                  Back
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
+              >
+                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Pay now" : "Next step"}
+                {step === 6 ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} />}
+              </button>
+            </div>
+            <ValidationMessage message={requestError} />
             <div key={step} className="animate-[fadeStep_280ms_ease]">
-              {step === 2 ? (
+              {step === 1 ? (
                 <BinSelector value={form.binSize} onChange={(value) => updateField("binSize", value)} error={errors.binSize} />
               ) : null}
 
-              {step === 1 ? (
+              {step === 2 ? (
                 <WasteTypeSelector
                   accepted={acceptedWaste}
                   value={form.wasteType}
@@ -334,9 +345,11 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       />
                     </div>
                     <AddressField
+                      required
                       value={form.streetAddress}
                       postcode={form.address}
-                      onChange={(value) => updateField("streetAddress", value)}
+                      onChange={(value) => updateStreetAddress(value)}
+                      onSelectionChange={(confirmed) => setAddressConfirmed(confirmed)}
                       error={errors.streetAddress}
                     />
                   </div>
@@ -427,13 +440,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
 
               {step === 5 ? (
                 <div className="space-y-3">
-                  <AddressField
-                    required
-                    value={form.streetAddress}
-                    postcode={form.address}
-                    onChange={(value) => updateField("streetAddress", value)}
-                    error={errors.streetAddress}
-                  />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                       Full name
@@ -491,34 +497,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
               ) : null}
             </div>
 
-            <ValidationMessage message={requestError} />
-            <div ref={actionsRef} className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1CF] pt-4 scroll-mb-6">
-              {step === 1 ? (
-                <Link
-                  href="/"
-                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
-                >
-                  Back
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
-                >
-                  Back
-                </button>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
-              >
-                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Pay now" : "Next step"}
-                {step === 6 ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} />}
-              </button>
-            </div>
             </fieldset>
           </form>
         )}
