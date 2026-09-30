@@ -77,7 +77,7 @@ export function BinSizeCard({ bin, selected, onSelect }: BinSizeCardProps) {
         ) : null}
       </button>
 
-      <div className="flex flex-1 flex-col px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+      <div className="flex flex-1 cursor-text flex-col px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
         <h3 className={`text-xl font-black leading-tight tracking-[-0.035em] ${popular ? "text-white" : "text-[#0B3B24]"}`}>
           {formatBinLabel(bin.id)}
         </h3>

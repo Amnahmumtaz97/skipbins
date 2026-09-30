@@ -32,15 +32,15 @@ export function WhatWeAcceptSection({ accepted }: { accepted: WasteCategory[] })
                 <Icon size={28} className="ac-icon relative z-10 text-[#65A30D]" />
               </span>
 
-              <h3 className="relative z-10 px-3 text-[14.5px] font-bold leading-snug text-[#0B3B24]">
+              <h3 className="relative z-10 cursor-text px-3 text-[14.5px] font-bold leading-snug text-[#0B3B24]">
                 {item.label}
               </h3>
 
-              <p className="relative z-10 mt-1 px-4 text-[12px] leading-snug text-[#5B6B60]">
+              <p className="relative z-10 mt-1 cursor-text px-4 text-[12px] leading-snug text-[#5B6B60]">
                 {item.description}
               </p>
 
-              <ul className="relative z-10 mt-4 w-full space-y-1.5 px-5 text-left">
+              <ul className="relative z-10 mt-4 w-full cursor-text space-y-1.5 px-5 text-left">
                 {item.acceptedItems.map((bullet) => (
                   <li key={bullet} className="flex items-start gap-2 text-[12px] text-[#16241C]">
                     <span className="mt-[3px] h-2 w-2 shrink-0 rounded-full bg-[#65A30D]" />
