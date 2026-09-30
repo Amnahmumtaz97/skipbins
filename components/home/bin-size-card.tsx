@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check, Ruler } from "lucide-react";
@@ -8,8 +6,6 @@ import type { SkipBin } from "@/types/skip-bin";
 
 type BinSizeCardProps = {
   bin: SkipBin;
-  selected: boolean;
-  onSelect: () => void;
 };
 
 const relativeImageSize: Record<string, string> = {
@@ -21,7 +17,7 @@ const relativeImageSize: Record<string, string> = {
   "9m3": "h-[88%] w-[96%]",
 };
 
-export function BinSizeCard({ bin, selected, onSelect }: BinSizeCardProps) {
+export function BinSizeCard({ bin }: BinSizeCardProps) {
   const highlights = bin.recommendedFor
     .split(",")
     .map((item) => item.trim())
@@ -32,20 +28,12 @@ export function BinSizeCard({ bin, selected, onSelect }: BinSizeCardProps) {
   return (
     <article
       className={`group relative flex h-full flex-col overflow-hidden rounded-[1.65rem] border transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1.5 hover:border-[#9BC96D] hover:shadow-[0_24px_60px_rgba(11,59,36,0.14)] ${
-        selected
-          ? `${popular ? "bg-[#0B3B24]" : "bg-white"} border-[#65A30D] shadow-[0_18px_48px_rgba(101,163,13,0.18)] ring-2 ring-[#65A30D]/20`
-          : popular
-            ? "border-[#65A30D] bg-[#0B3B24] shadow-[0_18px_48px_rgba(11,59,36,0.2)]"
-            : "border-[#DDE6D5] bg-white shadow-[0_10px_32px_rgba(23,32,24,0.06)]"
+        popular
+          ? "border-[#65A30D] bg-[#0B3B24] shadow-[0_18px_48px_rgba(11,59,36,0.2)]"
+          : "border-[#DDE6D5] bg-white shadow-[0_10px_32px_rgba(23,32,24,0.06)]"
       }`}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-label={`Select ${formatBinLabel(bin.id)}`}
-        aria-pressed={selected}
-        className="relative block h-48 w-full overflow-hidden bg-gradient-to-br from-[#F6F9F0] via-[#EEF5E5] to-[#DDECCB] sm:h-52"
-      >
+      <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-[#F6F9F0] via-[#EEF5E5] to-[#DDECCB] sm:h-52">
         <span className="absolute -right-10 -top-12 h-36 w-36 rounded-full bg-[#9BC96D]/25 blur-2xl transition-transform duration-700 group-hover:scale-150" />
         <span className="absolute bottom-4 left-1/2 h-5 w-3/5 -translate-x-1/2 rounded-full bg-[#0B3B24]/15 blur-lg transition-all duration-500 group-hover:w-2/3 group-hover:bg-[#0B3B24]/20" />
         <span
@@ -70,12 +58,7 @@ export function BinSizeCard({ bin, selected, onSelect }: BinSizeCardProps) {
           </span>
         ) : null}
 
-        {selected ? (
-          <span className="absolute bottom-4 right-4 z-[2] flex items-center gap-1.5 rounded-full bg-[#0B3B24] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-white shadow-md">
-            <Check size={13} strokeWidth={3} /> Selected
-          </span>
-        ) : null}
-      </button>
+      </div>
 
       <div className="flex flex-1 cursor-text flex-col px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
         <h3 className={`text-xl font-black leading-tight tracking-[-0.035em] ${popular ? "text-white" : "text-[#0B3B24]"}`}>

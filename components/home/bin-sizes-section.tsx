@@ -1,12 +1,7 @@
-"use client";
-
-import { useState } from "react";
 import { BinSizeCard } from "@/components/home/bin-size-card";
 import type { SkipBin } from "@/types/skip-bin";
 
 export function BinSizesSection({ bins }: { bins: SkipBin[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
   return (
     <section id="bin-sizes" className="mx-auto w-full max-w-[1400px] space-y-7 px-5 py-14 sm:px-8 lg:py-20">
       <div className="text-center">
@@ -21,14 +16,7 @@ export function BinSizesSection({ bins }: { bins: SkipBin[] }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
-        {bins.map((bin) => (
-          <BinSizeCard
-            key={bin.id}
-            bin={bin}
-            selected={selectedId === bin.id}
-            onSelect={() => setSelectedId(bin.id)}
-          />
-        ))}
+        {bins.map((bin) => <BinSizeCard key={bin.id} bin={bin} />)}
       </div>
     </section>
   );
