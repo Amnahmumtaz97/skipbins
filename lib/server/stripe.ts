@@ -9,3 +9,11 @@ export function getStripe() {
   if (!key) throw new Error("Stripe is not configured");
   return new Stripe(key);
 }
+
+export function getTestStripe() {
+  const key = process.env.STRIPE_TEST_SECRET_KEY?.trim() || stripeSecret();
+  if (!key.startsWith("sk_test_")) {
+    throw new Error("Stripe test mode is not configured");
+  }
+  return new Stripe(key);
+}

@@ -17,10 +17,12 @@ const { isResolvedPostcode, isValidPostcode } = require('../lib/postcode.ts');
 const { validateQuote } = require('../lib/server/quote-service.ts');
 const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { emptyBookingExtras } = require('../lib/data/booking-extras.ts');
+const { adminStripeTestAmountCents, adminStripeTestAmountLabel } = require('../lib/data/admin-stripe-test.ts');
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const { createPendingBooking } = require('../lib/server/booking-service.ts');
 const { isAdminUser } = require('../lib/server/admin-auth.ts');
+const { getTestStripe } = require('../lib/server/stripe.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
 const stripeWebhook = require('../app/api/stripe/webhook/route.ts');
@@ -150,6 +152,22 @@ test('admin access requires a trusted app role or configured email', () => {
     assert.equal(isAdminUser({ email:'staff@example.com', app_metadata:{ roles:['support','admin'] } }), true);
   } finally {
     if (original === undefined) delete process.env.ADMIN_EMAILS; else process.env.ADMIN_EMAILS = original;
+  }
+});
+test('admin Stripe diagnostic uses an accepted one-dollar AUD test amount', () => {
+  assert.equal(adminStripeTestAmountCents, 100);
+  assert.equal(adminStripeTestAmountLabel, 'A$1.00');
+});
+test('admin Stripe diagnostic refuses live secret keys', () => {
+  const originalTest = process.env.STRIPE_TEST_SECRET_KEY;
+  const originalDefault = process.env.STRIPE_SECRET_KEY;
+  delete process.env.STRIPE_TEST_SECRET_KEY;
+  process.env.STRIPE_SECRET_KEY = 'sk_live_never_use_for_admin_test';
+  try {
+    assert.throws(() => getTestStripe(), /test mode is not configured/i);
+  } finally {
+    if (originalTest === undefined) delete process.env.STRIPE_TEST_SECRET_KEY; else process.env.STRIPE_TEST_SECRET_KEY = originalTest;
+    if (originalDefault === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = originalDefault;
   }
 });
 test('postcode endpoint rejects unsafe queries and returns only Victorian localities', async () => {

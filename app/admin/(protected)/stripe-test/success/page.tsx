@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { getStripe } from "@/lib/server/stripe";
 import { createClient } from "@/lib/supabase/server";
+import { adminStripeTestAmountLabel } from "@/lib/data/admin-stripe-test";
 
 export const metadata: Metadata = { title: "Stripe test result | Admin" };
 
@@ -30,7 +31,7 @@ export default async function StripeTestSuccessPage({ searchParams }: { searchPa
     <div className="mx-auto max-w-xl rounded-[24px] border border-[#DCE4D8] bg-white p-7 text-center shadow-[0_18px_55px_rgba(22,36,28,0.08)] sm:p-9">
       {paid ? <CheckCircle2 className="mx-auto h-12 w-12 text-[#2F7D22]" /> : <CircleAlert className="mx-auto h-12 w-12 text-[#B26A17]" />}
       <h1 className="mt-5 text-[28px] font-extrabold tracking-[-0.04em] text-[#0B3B24]">{paid ? "Stripe test payment succeeded" : "Payment is not confirmed"}</h1>
-      <p className="mt-3 text-[14px] leading-6 text-[#5B6B60]">{paid ? `${bin} was charged A$0.50 successfully. No customer booking was created.` : "Stripe has not reported this admin test payment as paid."}</p>
+      <p className="mt-3 text-[14px] leading-6 text-[#5B6B60]">{paid ? `${bin} was charged ${adminStripeTestAmountLabel} successfully. No customer booking was created.` : "Stripe has not reported this admin test payment as paid."}</p>
       {paid && reference ? <p className="mt-5 break-all rounded-xl bg-[#F6F2E7] px-4 py-3 font-mono text-[11px] text-[#5B6B60]">{reference}</p> : null}
       <Link href="/admin/stripe-test" className="mt-6 inline-flex rounded-xl bg-[#0B3B24] px-5 py-3 text-[13px] font-extrabold text-white transition hover:bg-[#14532D]">Run another test</Link>
     </div>

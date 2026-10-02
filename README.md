@@ -58,6 +58,7 @@ payments), then redeploy:
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY` (preferred) or `SUPABASE_SERVICE_ROLE_KEY` (legacy)
 - `STRIPE_SECRET_KEY`
+- `STRIPE_TEST_SECRET_KEY` (test-mode secret used only by the admin diagnostic)
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin`)
@@ -80,6 +81,8 @@ Configure the Stripe webhook endpoint as
 
 Create the admin user in **Supabase > Authentication > Users**, add the same
 email to the server-only `ADMIN_EMAILS` environment variable, and visit
-`/admin`. The Stripe test tool uses Stripe's minimum A$0.50 AUD charge and does
-not create a row in the bookings table. A user with `app_metadata.role` set to
-`admin` is also accepted.
+`/admin`. The Stripe test tool uses an A$1.00 test-mode charge, safely above the
+account's converted settlement-currency minimum, and does not create a row in
+the bookings table. A user with `app_metadata.role` set to `admin` is also
+accepted. Set `STRIPE_TEST_SECRET_KEY` to an `sk_test_` key; when omitted, the
+tool only falls back to `STRIPE_SECRET_KEY` if that key is also in test mode.

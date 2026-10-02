@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, CreditCard, LoaderCircle, ShieldCheck } from "lucide-react";
 import { bins } from "@/lib/data/skip-bins";
+import { adminStripeTestAmountLabel } from "@/lib/data/admin-stripe-test";
 
 export function StripeTestTool({ cancelled }: { cancelled: boolean }) {
   const [selectedBin, setSelectedBin] = useState(bins[0]?.id ?? "2m3");
@@ -72,8 +73,8 @@ export function StripeTestTool({ cancelled }: { cancelled: boolean }) {
         <div className="mt-6 flex flex-col gap-5 rounded-2xl bg-[#0B3B24] p-5 text-white sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#A3E635]">Actual test charge</p>
-            <p className="mt-1 text-[29px] font-extrabold tracking-[-0.04em]">A$0.50</p>
-            <p className="mt-1 text-[11px] text-white/65">Stripe&apos;s minimum AUD charge · No booking will be created</p>
+            <p className="mt-1 text-[29px] font-extrabold tracking-[-0.04em]">{adminStripeTestAmountLabel}</p>
+            <p className="mt-1 text-[11px] text-white/65">Safe amount above this account&apos;s converted minimum · No booking will be created</p>
           </div>
           <button
             type="button"
@@ -82,7 +83,7 @@ export function StripeTestTool({ cancelled }: { cancelled: boolean }) {
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#A3E635] px-6 text-[14px] font-extrabold text-[#0B3B24] transition hover:bg-[#B7ED4E] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-            {loading ? "Opening Stripe…" : "Pay A$0.50 with Stripe"}
+            {loading ? "Opening Stripe…" : `Pay ${adminStripeTestAmountLabel} with Stripe`}
           </button>
         </div>
         {error ? <p role="alert" className="mt-4 rounded-xl bg-[#FFF3F1] px-4 py-3 text-[13px] font-medium text-[#8E2F23]">{error}</p> : null}
