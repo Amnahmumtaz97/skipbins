@@ -349,33 +349,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
         ) : (
           <form onSubmit={handleSubmit} noValidate>
             <fieldset disabled={submitting} className="min-w-0">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#E8E1CF] pb-4">
-              {step === 1 ? (
-                <Link
-                  href="/"
-                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
-                >
-                  Back
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
-                >
-                  Back
-                </button>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
-              >
-                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Pay now" : "Next step"}
-                {step === 6 ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} />}
-              </button>
-            </div>
             <ValidationMessage message={requestError} />
             <div key={step} className="animate-[fadeStep_280ms_ease]">
               {step === 1 ? (
@@ -557,6 +530,34 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                   </p>
                 </div>
               ) : null}
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1CF] pt-4">
+              {step === 1 ? (
+                <Link
+                  href="/"
+                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
+                >
+                  Back
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
+                >
+                  Back
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
+              >
+                {submitting ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : step === 6 ? "Pay now" : "Next step"}
+                {step === 6 ? <Check size={14} strokeWidth={2.6} /> : <ArrowRight size={14} />}
+              </button>
             </div>
 
             </fieldset>
