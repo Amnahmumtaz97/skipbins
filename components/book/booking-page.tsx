@@ -21,6 +21,7 @@ import { WasteTypeSelector } from "@/components/book/waste-type-selector";
 import { Navbar } from "@/components/home/navbar";
 import { acceptedWaste, bins, placements } from "@/lib/data/skip-bins";
 import { emptyBookingExtras, type BookingExtraId } from "@/lib/data/booking-extras";
+import { selectedAddressLocationError } from "@/lib/address-validation";
 import {
   isSundayIso,
   isValidAuPhone,
@@ -65,6 +66,7 @@ function initialBookingForm({ initialSize, initialLocation, initialLocationLabel
     address: initialLocation?.trim() ?? "",
     locationLabel: initialLocationLabel?.trim() || initialLocation?.trim() || "",
     streetAddress: "",
+    deliveryAddressLabel: "",
     placement: "",
     access: "",
     deliveryDate,
@@ -122,7 +124,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     queueMicrotask(() => {
       if (!active) return;
       setForm(draft);
-      setAddressConfirmed(Boolean(draft.streetAddress.trim()));
+      setAddressConfirmed(Boolean(draft.streetAddress.trim() && draft.deliveryAddressLabel.trim()));
       setStep(6);
       setMaxReached(6);
       if (cancelled) setRequestError("Payment was cancelled. Your booking is not confirmed.");
@@ -139,7 +141,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     setForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "address" && value !== current.address ? { streetAddress: "" } : {}),
+      ...(field === "address" && value !== current.address ? { streetAddress: "", deliveryAddressLabel: "" } : {}),
     }));
     setErrors((current) => {
       const next = { ...current };
@@ -157,7 +159,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
       ...current,
       address: value,
       locationLabel: label,
-      ...(value !== current.address ? { streetAddress: "" } : {}),
+      ...(value !== current.address ? { streetAddress: "", deliveryAddressLabel: "" } : {}),
     }));
     setErrors((current) => {
       const next = { ...current };
@@ -167,9 +169,16 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     });
   };
 
-  const updateStreetAddress = (value: string, confirmed = false) => {
-    setAddressConfirmed(confirmed);
-    updateField("streetAddress", value);
+  const updateStreetAddress = (value: string, selectedLabel = "") => {
+    setRequestError("");
+    setMaxReached(step);
+    setAddressConfirmed(Boolean(selectedLabel));
+    setForm((current) => ({ ...current, streetAddress: value, deliveryAddressLabel: selectedLabel }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.streetAddress;
+      return next;
+    });
   };
 
   const updateDeliveryDate = (value: string) => {
@@ -220,6 +229,10 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     if (currentStep === 3) {
       if (!isResolvedPostcode(form.address)) nextErrors.address = postcodeSelectionError;
       if (!form.streetAddress.trim() || !addressConfirmed) nextErrors.streetAddress = "Select a delivery address from the suggestions.";
+      else {
+        const locationError = selectedAddressLocationError(form.deliveryAddressLabel, form.address, form.locationLabel);
+        if (locationError) nextErrors.streetAddress = locationError;
+      }
       if (!placements.some((option) => option === form.placement)) nextErrors.placement = "Please choose where the bin should be placed.";
     }
     if (currentStep === 4) {
@@ -379,7 +392,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       required
                       value={form.streetAddress}
                       postcode={form.address}
-                      onChange={(value) => updateStreetAddress(value)}
+                      onChange={updateStreetAddress}
                       onSelectionChange={(confirmed) => setAddressConfirmed(confirmed)}
                       error={errors.streetAddress}
                     />

@@ -11,7 +11,7 @@ const searchable = (value: string) => /^[a-zA-Z0-9 '/,.#-]{1,80}$/.test(value.tr
 
 export function AddressField({ value, onChange, onSelectionChange, postcode, error, required }: {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, selectedLabel?: string) => void;
   onSelectionChange: (selected: boolean) => void;
   postcode: string;
   error?: string;
@@ -37,7 +37,7 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
 
   const selectResult = (result: AddressSuggestion) => {
     setSelectedStreet(result.street);
-    onChange(result.street);
+    onChange(result.street, result.label);
     onSelectionChange(true);
     setFocused(false);
     setActive(-1);

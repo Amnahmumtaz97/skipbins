@@ -17,6 +17,7 @@ const { isResolvedPostcode, isValidPostcode } = require('../lib/postcode.ts');
 const { validateQuote } = require('../lib/server/quote-service.ts');
 const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { emptyBookingExtras } = require('../lib/data/booking-extras.ts');
+const { selectedAddressLocationError } = require('../lib/address-validation.ts');
 const { adminStripeTestAmountCents, adminStripeTestAmountLabel } = require('../lib/data/admin-stripe-test.ts');
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
@@ -74,6 +75,13 @@ test('booking extras are priced from the server catalogue', () => {
   extras.mattressDisposal = 1;
   assert.equal(quoteTotal('2m3', 'Standard (10 days)', extras), 399);
 });
+test('selected delivery address must match the quoted postcode', () => {
+  assert.equal(selectedAddressLocationError('12 TEST ST, MELBOURNE VIC 3000', '3000', 'MELBOURNE, VIC 3000'), '');
+  assert.equal(
+    selectedAddressLocationError('12 TEST ST, LEUMEAH NSW 2560', '3000', 'MELBOURNE, VIC 3000'),
+    'This address is in LEUMEAH 2560, but your quote was for MELBOURNE 3000. Please check before continuing.',
+  );
+});
 test('rate quota cannot be bypassed with caller-controlled IPs and resets after one minute', () => {
   assert.equal(rateLimit('test-only', 2, 0), null);
   assert.equal(rateLimit('test-only', 2, 1), null);
@@ -88,7 +96,7 @@ test('contact validates input and cannot acknowledge an undelivered message', as
 });
 test('booking validates all inputs and never returns a simulated reference', async () => {
   assert.equal((await bookings.POST(request({}))).status, 400);
-  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
+  const body = {address:'0800',locationLabel:'DARWIN, NT 0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'1 Test Street',deliveryAddressLabel:'1 TEST STREET, DARWIN NT 0800',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
   const missingPlacement = await bookings.POST(request({...body,placement:''}));
   assert.equal(missingPlacement.status, 400);
@@ -99,6 +107,9 @@ test('booking validates all inputs and never returns a simulated reference', asy
   const invalidExtras = await bookings.POST(request({...body,extras:{excavatorTrack:999}}));
   assert.equal(invalidExtras.status, 400);
   assert.match((await invalidExtras.json()).error, /extras/i);
+  const mismatchedAddress = await bookings.POST(request({...body,address:'3000',locationLabel:'MELBOURNE, VIC 3000',deliveryAddressLabel:'1 TEST STREET, LEUMEAH NSW 2560'}));
+  assert.equal(mismatchedAddress.status, 400);
+  assert.equal((await mismatchedAddress.json()).error, 'This address is in LEUMEAH 2560, but your quote was for MELBOURNE 3000. Please check before continuing.');
   const response = await bookings.POST(request(body));
   assert.ok(response.status === 400 || response.status === 503);
   const data = await response.json();

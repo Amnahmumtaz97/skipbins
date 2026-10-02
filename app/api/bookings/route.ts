@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/server/rate-limit";
 import { apiError, InputError, readJson } from "@/lib/server/request";
 import { getStripe } from "@/lib/server/stripe";
 import { bookingExtrasTotal, normalizeBookingExtras, selectedBookingExtras } from "@/lib/data/booking-extras";
+import { selectedAddressLocationError } from "@/lib/address-validation";
 
 export async function POST(request: Request) {
   const limited = rateLimit("bookings", 10);
@@ -15,11 +16,13 @@ export async function POST(request: Request) {
     const data = await readJson(request);
     if (!data.deliveryDate || !data.pickupDate || !data.hirePeriod) throw new InputError("Please select delivery, pickup and rental dates.");
     const input = validateQuote({ postcode: data.address, size: data.binSize, waste: data.wasteType, date: data.deliveryDate, pickupDate: data.pickupDate, hirePeriod: data.hirePeriod });
-    for (const [key, max] of Object.entries({ fullName: 120, email: 254, phone: 30, streetAddress: 240, access: 1000, notes: 2000 })) {
+    for (const [key, max] of Object.entries({ fullName: 120, email: 254, phone: 30, streetAddress: 240, deliveryAddressLabel: 300, locationLabel: 120, access: 1000, notes: 2000 })) {
       const value = data[key];
       if (typeof value !== "string" || value.length > max || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) throw new InputError("Please check your contact and delivery details.");
     }
     if (!(data.fullName as string).trim() || !(data.streetAddress as string).trim() || !isValidEmail(data.email as string) || !isValidAuPhone(data.phone as string)) throw new InputError("Please enter a name, delivery address, valid email and Australian phone number.");
+    const addressLocationError = selectedAddressLocationError(data.deliveryAddressLabel as string, input.postcode, data.locationLabel as string);
+    if (addressLocationError) throw new InputError(addressLocationError);
     if (typeof data.placement !== "string" || !placements.some((placement) => placement === data.placement)) throw new InputError("Please choose a valid bin placement.");
     const extras = normalizeBookingExtras(data.extras);
     if (!extras) throw new InputError("Please check the selected disposal extras.");

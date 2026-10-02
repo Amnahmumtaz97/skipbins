@@ -47,6 +47,7 @@ export function loadBookingDraft(): BookingFormState | null {
       address: String(parsed.address ?? ""),
       locationLabel: String(parsed.locationLabel ?? parsed.address ?? ""),
       streetAddress: String(parsed.streetAddress ?? ""),
+      deliveryAddressLabel: String(parsed.deliveryAddressLabel ?? ""),
       placement: (placement as BookingFormState["placement"]) ?? "",
       access: String(parsed.access ?? ""),
       deliveryDate: String(parsed.deliveryDate ?? ""),

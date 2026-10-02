@@ -43,6 +43,7 @@ export type BookingFormState = {
   address: string;
   locationLabel: string;
   streetAddress: string;
+  deliveryAddressLabel: string;
   placement: BinPlacement | "";
   access: string;
   deliveryDate: string;
