@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarClock, Check, CircleAlert, Leaf, Loader2 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
-import { BookingLiveSummary } from "@/components/book/booking-live-summary";
 import { BookingExtras } from "@/components/book/booking-extras";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
@@ -335,9 +334,9 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
       <Navbar />
 
       <div className="mx-auto w-full max-w-[1100px] px-4 pb-14 pt-28 sm:px-6 sm:pt-32">
-        <div className="flex gap-7">
+        <div className="flex justify-center">
           {/* ---- main content ---- */}
-          <div className="min-w-0 flex-1 max-w-[720px]">
+          <div className={step === 6 && !confirmed ? "min-w-0 w-full max-w-[900px]" : "min-w-0 flex-1 max-w-[720px]"}>
         <div className="mb-3 flex items-baseline justify-between gap-4">
           <h1 className="m-0 text-[22px] font-semibold tracking-[-0.01em] text-[#0B3B24] sm:text-[27px]">
             {confirmed ? "You're all set" : titles[step - 1]}
@@ -581,15 +580,6 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
           </form>
         )}
           </div>
-
-          {/* ---- live summary sidebar ---- */}
-          {confirmed ? null : (
-            <aside className="hidden w-[320px] shrink-0 lg:block">
-              <div className="sticky top-36">
-                <BookingLiveSummary form={form} total={estimatedTotal} currentStep={step} />
-              </div>
-            </aside>
-          )}
         </div>
       </div>
 
