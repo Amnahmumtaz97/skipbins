@@ -43,7 +43,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 4. Never expose `SUPABASE_SECRET_KEY`, a legacy `service_role` key, or Stripe
    secret keys in a `NEXT_PUBLIC_` variable or browser code.
-5. Run `supabase/schema.sql` from the Supabase SQL Editor. It creates the bookings table and enables Row Level Security.
+5. Run `supabase/schema.sql` from the Supabase SQL Editor. It creates the customer and booking tables, links each booking to a customer, and enables Row Level Security. Run it again when updating an existing project; the migration statements are idempotent.
 6. Restart the dev server after changing environment variables.
 
 Use `lib/supabase/client.ts` for browser interactions and `lib/supabase/server.ts` for Server Components, Server Actions, or Route Handlers. For booking submission, validate the form in a server action or `app/api/bookings/route.ts`, then insert through the server client. Keep public reads and user-owned writes protected by explicit RLS policies.
@@ -69,9 +69,11 @@ build time, so a new deployment is required after adding or changing it.
 `GEOSCAPE_API_KEY` is read by `/api/addresses` at request time. Make sure the
 key has the Predictive API enabled in Geoscape Hub.
 
-The server secret is required because checkout creation updates the booking with
+The server secret is required because checkout creates or reuses a private
+customer record, stores its Stripe Customer ID, and updates the booking with
 its Stripe Checkout session ID. The public key can insert bookings under the
-included RLS policy, but it intentionally cannot update or read them.
+included RLS policy, but it intentionally cannot read customer records or
+update bookings.
 
 Configure the Stripe webhook endpoint as
 `https://your-domain.example/api/stripe/webhook` and subscribe it to

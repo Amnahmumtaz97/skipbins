@@ -5,6 +5,7 @@ import { lookupQuote, validateQuote } from "@/lib/server/quote-service";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { apiError, InputError, readJson } from "@/lib/server/request";
 import { getStripe } from "@/lib/server/stripe";
+import { ensureStripeCustomer, resolveCustomer } from "@/lib/server/customer-service";
 import { bookingExtrasTotal, normalizeBookingExtras, selectedBookingExtras } from "@/lib/data/booking-extras";
 import { selectedAddressLocationError } from "@/lib/address-validation";
 
@@ -38,6 +39,15 @@ export async function POST(request: Request) {
     const selectedExtras = selectedBookingExtras(extras);
     const extrasTotal = bookingExtrasTotal(extras);
     const amountCents = Math.round((quote.total + extrasTotal) * 100);
+    const stripe = getStripe();
+    const customerDetails = {
+      fullName: data.fullName as string,
+      email: data.email as string,
+      phone: data.phone as string,
+    };
+    stage = "customer-identity";
+    const customer = await resolveCustomer(customerDetails);
+    const stripeCustomerId = await ensureStripeCustomer(stripe, customer, customerDetails);
     stage = "booking-persistence";
     const booking = await createPendingBooking({
       address: String(data.address),
@@ -54,7 +64,7 @@ export async function POST(request: Request) {
       placement: data.placement,
       access: data.access as string,
       notes: data.notes as string,
-    }, amountCents);
+    }, amountCents, customer);
 
     const origin = new URL(request.url).origin;
     const bin = getBinBySizeOrId(input.size);
@@ -68,11 +78,11 @@ export async function POST(request: Request) {
       `Postcode ${input.postcode}`,
     ].filter(Boolean).join(" • ");
     stage = "stripe-session";
-    const session = await getStripe().checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       mode: "payment",
       ui_mode: "elements",
       currency: "aud",
-      customer_email: (data.email as string).trim(),
+      customer: stripeCustomerId,
       line_items: [{
         quantity: 1,
         price_data: {
@@ -94,7 +104,16 @@ export async function POST(request: Request) {
       }))],
       metadata: {
         bookingId: booking.id,
+        customerId: customer.id,
+        customerCode: customer.code,
         disposalExtras: selectedExtras.map((extra) => `${extra.id}:${extra.quantity}`).join(","),
+      },
+      payment_intent_data: {
+        metadata: {
+          bookingId: booking.id,
+          customerId: customer.id,
+          customerCode: customer.code,
+        },
       },
       return_url: `${origin}/book/success?session_id={CHECKOUT_SESSION_ID}`,
     });

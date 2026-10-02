@@ -54,8 +54,10 @@ async function paidBooking(sessionId?: string) {
     const session = await getStripe().checkout.sessions.retrieve(sessionId);
     if (session.payment_status !== "paid") return null;
     const bookingId = typeof session.metadata?.bookingId === "string" ? session.metadata.bookingId : undefined;
+    const customerCode = typeof session.metadata?.customerCode === "string" ? session.metadata.customerCode : undefined;
     const paid = await markBookingPaid({ id: bookingId, stripeSessionId: session.id });
-    return paid ?? (await getBookingByCheckoutSession(session.id));
+    const booking = paid ?? (await getBookingByCheckoutSession(session.id));
+    return booking ? { ...booking, customer_code: customerCode } : null;
   } catch {
     return getBookingByCheckoutSession(sessionId);
   }

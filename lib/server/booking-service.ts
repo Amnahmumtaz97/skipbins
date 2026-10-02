@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { selectedBookingExtras, type BookingExtraQuantities } from "@/lib/data/booking-extras";
+import type { CustomerIdentity } from "@/lib/server/customer-service";
 
 export type BookingRecord = {
   address: string;
@@ -41,6 +42,8 @@ export type StoredBooking = {
   placement: string;
   access: string;
   notes: string;
+  customer_id?: string | null;
+  customer_code?: string;
 };
 
 function writeKey() {
@@ -90,7 +93,7 @@ function databaseError(operation: string, error: { code?: string; message?: stri
   return new Error(`${operation}${code}: ${error.message || "Unknown database error"}`);
 }
 
-function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
+function fromRecord(data: BookingRecord, amountCents: number, customer?: CustomerIdentity): StoredBooking {
   const extras = selectedBookingExtras(data.extras);
   const extrasNote = extras.length
     ? `Paid disposal extras: ${extras.map((extra) => `${extra.label} x ${extra.quantity}`).join(", ")}`
@@ -114,6 +117,7 @@ function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
     placement: data.placement,
     access: data.access.trim(),
     notes: [extrasNote, data.notes.trim()].filter(Boolean).join("\n"),
+    ...(customer?.storage === "database" ? { customer_id: customer.id } : {}),
   };
 }
 
@@ -125,18 +129,28 @@ async function persistLocally(row: StoredBooking) {
   await writeLocal(existing);
 }
 
-export async function createPendingBooking(data: BookingRecord, amountCents: number) {
+export async function createPendingBooking(data: BookingRecord, amountCents: number, customer?: CustomerIdentity) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const key = writeKey();
   if (!url || !key) throw new Error("Booking provider is not configured");
 
-  const row = fromRecord(data, amountCents);
+  const row = fromRecord(data, amountCents, customer);
   const client = supabase();
   if (client) {
     const { error } = await client.from("bookings").insert(row);
     if (!error) {
       if (process.env.NODE_ENV !== "production") await persistLocally(row);
       return { id: row.id, reference: row.reference };
+    }
+    if (row.customer_id && ["42703", "PGRST204"].includes(error.code ?? "")) {
+      const legacyRow = { ...row };
+      delete legacyRow.customer_id;
+      const { error: legacyError } = await client.from("bookings").insert(legacyRow);
+      if (!legacyError) {
+        if (process.env.NODE_ENV !== "production") await persistLocally(row);
+        return { id: row.id, reference: row.reference };
+      }
+      if (process.env.NODE_ENV === "production") throw databaseError("Could not create booking", legacyError);
     }
     if (process.env.NODE_ENV === "production") throw databaseError("Could not create booking", error);
   }

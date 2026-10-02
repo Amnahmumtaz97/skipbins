@@ -22,6 +22,7 @@ const { adminStripeTestAmountCents, adminStripeTestAmountLabel } = require('../l
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const { createPendingBooking } = require('../lib/server/booking-service.ts');
+const { newCustomerCode, normalizeCustomerEmail } = require('../lib/server/customer-service.ts');
 const { isAdminUser } = require('../lib/server/admin-auth.ts');
 const { getTestStripe } = require('../lib/server/stripe.ts');
 const quotes = require('../app/api/quotes/route.ts');
@@ -68,6 +69,14 @@ test('quotes return catalogue bin prices and fail closed on invalid input', asyn
   assert.equal(data.total, 149);
   const extended = await quotes.POST(request({ ...valid, hirePeriod: 'Extended (14 days)' }));
   assert.equal((await extended.json()).total, 209);
+});
+test('customer identities use normalized emails and non-guessable public codes', () => {
+  assert.equal(normalizeCustomerEmail('  Customer.Name+Bins@Example.COM '), 'customer.name+bins@example.com');
+  const first = newCustomerCode();
+  const second = newCustomerCode();
+  assert.match(first, /^CUS-[A-F0-9]{12}$/);
+  assert.match(second, /^CUS-[A-F0-9]{12}$/);
+  assert.notEqual(first, second);
 });
 test('booking extras are priced from the server catalogue', () => {
   const extras = emptyBookingExtras();

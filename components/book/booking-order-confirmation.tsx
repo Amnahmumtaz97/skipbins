@@ -40,6 +40,11 @@ export function BookingOrderConfirmation({ booking }: { booking: StoredBooking }
           <div className="shrink-0 sm:text-right">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/50">Booking reference</p>
             <p className="mt-1 font-mono text-[17px] font-bold tracking-[0.04em]">{booking.reference}</p>
+            {booking.customer_code ? (
+              <p className="mt-1.5 text-[10px] font-semibold tracking-[0.06em] text-white/60">
+                Customer ID <span className="font-mono text-white/85">{booking.customer_code}</span>
+              </p>
+            ) : null}
           </div>
         </div>
       </header>
