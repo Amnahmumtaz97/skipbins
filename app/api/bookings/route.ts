@@ -60,6 +60,7 @@ export async function POST(request: Request) {
     const productDescription = [
       waste?.label,
       formatHirePeriod(input.hirePeriod),
+      "Free delivery & pickup",
       `Delivery ${formatCheckoutDate(String(data.deliveryDate))}`,
       `Postcode ${input.postcode}`,
     ].filter(Boolean).join(" • ");

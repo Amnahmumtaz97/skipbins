@@ -30,7 +30,8 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
             <p className="text-[15px] font-bold text-[#0B3B24]">{total !== null ? formatCurrency(total) : "Awaiting quote"}</p>
           </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[11.5px] text-[#5B6B60]">
-            <span>Bin hire, delivery &amp; pickup: {hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"}</span>
+            <span>Bin hire: {hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"}</span>
+            <span className="font-bold text-[#4D7C0F]">Free delivery &amp; pickup</span>
             {extras.map((extra) => (
               <span key={extra.id}>{extra.label} × {extra.quantity}: +{formatCurrency(extra.price * extra.quantity)}</span>
             ))}
@@ -61,7 +62,8 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
 
       <div className="border-t border-[#E8E1CF] py-[18px]">
         <p className="mb-2 text-[15px] font-semibold text-[#0B3B24]">Payment</p>
-        <PriceRow label="Bin hire, delivery & pickup" value={hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"} />
+        <PriceRow label="Bin hire" value={hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"} />
+        <PriceRow label="Delivery & pickup" value="FREE" />
         {extras.map((extra) => (
           <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={`+${formatCurrency(extra.price * extra.quantity)}`} />
         ))}

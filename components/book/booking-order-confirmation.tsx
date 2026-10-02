@@ -83,7 +83,7 @@ export function BookingOrderConfirmation({ booking }: { booking: StoredBooking }
         <div className="flex items-end justify-between gap-5 py-6">
           <div>
             <p className="text-[13px] font-bold text-[#0B3B24]">Total paid</p>
-            <p className="mt-0.5 text-[11px] text-[#7A847D]">AUD · GST, delivery and pickup included</p>
+            <p className="mt-0.5 text-[11px] text-[#7A847D]">AUD · GST included · Free delivery &amp; pickup</p>
           </div>
           <p className="text-[25px] font-bold tracking-[-0.03em] text-[#0B3B24]">{formatCurrency(booking.amount_cents / 100)}</p>
         </div>

@@ -22,6 +22,7 @@ import {
   PackagePlus,
   Recycle,
   ShieldCheck,
+  Truck,
 } from "lucide-react";
 import { loadBookingDraft, loadCheckoutClientSecret } from "@/lib/booking-draft";
 import { selectedBookingExtras } from "@/lib/data/booking-extras";
@@ -273,10 +274,14 @@ export function CheckoutPage() {
                 </div>
               )}
             </div>
+            <div className="mt-3 flex items-center justify-between gap-4 rounded-xl bg-[#EDF6E3] px-3.5 py-3 text-[12px] font-bold text-[#34620D]">
+              <span className="inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Delivery &amp; pickup</span>
+              <span>FREE</span>
+            </div>
             <div className="flex items-end justify-between gap-5 py-5">
               <div>
                 <p className="text-[15px] font-extrabold text-[#0B3B24]">Total due today</p>
-                <p className="mt-0.5 text-[11px] text-[#7C877F]">Includes GST</p>
+                <p className="mt-0.5 text-[11px] text-[#7C877F]">Includes GST · Free delivery &amp; pickup</p>
               </div>
               <strong className="text-[30px] font-extrabold tracking-[-0.035em] text-[#0B3B24] sm:text-[34px]">{amount}</strong>
             </div>
@@ -337,7 +342,7 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
         </div>
       ) : null}
       <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5">
-        <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST · No hidden fees</p></div>
+        <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST · Free delivery &amp; pickup</p></div>
         <strong className="text-[27px] font-extrabold tracking-[-0.03em]">{amount}</strong>
       </div>
     </div>

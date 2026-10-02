@@ -122,7 +122,7 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
           </p>
         ) : (
           <p className="mt-1 text-[11px] text-[#5B6B60]">
-            Includes hire, delivery and pickup{extraCount ? `, plus ${extraCount} disposal ${extraCount === 1 ? "extra" : "extras"}` : ""}.
+            Includes hire and <span className="font-bold text-[#4D7C0F]">free delivery &amp; pickup</span>{extraCount ? `, plus ${extraCount} disposal ${extraCount === 1 ? "extra" : "extras"}` : ""}.
           </p>
         )}
       </div>

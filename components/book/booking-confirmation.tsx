@@ -113,12 +113,12 @@ export function BookingConfirmation({ booking }: { booking: StoredBooking }) {
 
               <dl className="mt-5 space-y-3 border-t border-[#EEE9DC] pt-5 text-[13px]">
                 <SummaryLine label="Hire period" value={formatHirePeriod(booking.hire_period)} />
-                <SummaryLine label="Delivery & pickup" value="Included" />
+                <SummaryLine label="Delivery & pickup" value="FREE" />
                 <SummaryLine label="Payment" value="Processed by Stripe" />
               </dl>
 
               <div className="mt-5 flex items-end justify-between border-t border-[#EEE9DC] pt-5">
-                <div><p className="text-[13px] font-bold text-[#0B3B24]">Total paid</p><p className="mt-0.5 text-[11px] text-[#7A847D]">AUD · GST included</p></div>
+                <div><p className="text-[13px] font-bold text-[#0B3B24]">Total paid</p><p className="mt-0.5 text-[11px] text-[#7A847D]">AUD · GST included · Free delivery &amp; pickup</p></div>
                 <p className="text-[24px] font-bold tracking-[-0.03em] text-[#0B3B24]">{formatCurrency(booking.amount_cents / 100)}</p>
               </div>
 
