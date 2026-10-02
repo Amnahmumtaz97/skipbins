@@ -209,7 +209,7 @@ export function CheckoutPage() {
         </div>
       </section>
 
-      <section className="bg-[#FAF9F3] px-5 py-9 sm:px-9 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-[clamp(2.5rem,5vw,6rem)] lg:py-6">
+      <section className="bg-[#FAF9F3] px-5 py-9 sm:px-9 lg:h-dvh lg:min-h-0 lg:overflow-y-auto lg:px-[clamp(2.5rem,5vw,6rem)] lg:py-6 lg:[scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-[760px]">
           <div className="flex items-center justify-between gap-4">
             <Link href="/booking?cancelled=1" className="inline-flex items-center gap-2 text-[13px] font-bold text-[#5B6B60] transition hover:text-[#0B3B24]">
