@@ -30,7 +30,25 @@ import { formatHirePeriod, getBinBySizeOrId, getWasteById } from "@/lib/data/ski
 import type { BookingFormState } from "@/types/skip-bin";
 
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const stripePromise = publishableKey ? loadStripe(publishableKey) : Promise.resolve(null);
+
+async function loadStripeClient() {
+  if (!publishableKey) return null;
+  try {
+    return await loadStripe(publishableKey);
+  } catch {
+    // Stripe's loader resets after a failed script request, so one retry can
+    // recover from a transient local CDN, extension, or hot-reload failure.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      return await loadStripe(publishableKey);
+    } catch {
+      const local = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      throw new Error(local
+        ? "Stripe.js was blocked in this browser. Allow js.stripe.com for localhost, disable any ad or privacy blocker for this site, then refresh."
+        : "Secure payment could not load. Please refresh and try again.");
+    }
+  }
+}
 
 type StoredCheckout = {
   draft: BookingFormState;
@@ -94,7 +112,7 @@ export function CheckoutPage() {
 
     async function initializeCheckout() {
       try {
-        const stripe = await stripePromise;
+        const stripe = await loadStripeClient();
         if (!stripe) throw new Error("Stripe is not configured. Add the publishable key and try again.");
         if (!paymentMountRef.current || !expressMountRef.current || !active) return;
 
