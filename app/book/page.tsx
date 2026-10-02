@@ -18,6 +18,8 @@ export default async function Page({ searchParams }: PageProps<"/book">) {
       initialSize={firstParam(params.size)}
       initialLocation={firstParam(params.location)}
       initialLocationLabel={firstParam(params.locationLabel)}
+      initialStreetAddress={firstParam(params.streetAddress)}
+      initialDeliveryAddressLabel={firstParam(params.deliveryAddressLabel)}
       initialWaste={firstParam(params.waste)}
       initialDate={firstParam(params.date)}
       initialPickupDate={firstParam(params.pickup)}

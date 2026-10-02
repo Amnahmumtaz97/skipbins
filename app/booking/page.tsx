@@ -22,6 +22,8 @@ export default async function BookingRoute({
       initialSize={firstParam(params.size)}
       initialLocation={firstParam(params.location)}
       initialLocationLabel={firstParam(params.locationLabel)}
+      initialStreetAddress={firstParam(params.streetAddress)}
+      initialDeliveryAddressLabel={firstParam(params.deliveryAddressLabel)}
       initialWaste={firstParam(params.waste)}
       initialDate={firstParam(params.date)}
       initialPickupDate={firstParam(params.pickup)}

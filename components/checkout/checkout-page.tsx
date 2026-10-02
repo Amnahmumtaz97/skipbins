@@ -19,13 +19,11 @@ import {
   LoaderCircle,
   LockKeyhole,
   MapPin,
-  PackagePlus,
   Recycle,
   ShieldCheck,
   Truck,
 } from "lucide-react";
 import { loadBookingDraft, loadCheckoutClientSecret } from "@/lib/booking-draft";
-import { selectedBookingExtras } from "@/lib/data/booking-extras";
 import { formatHirePeriod, getBinBySizeOrId, getWasteById } from "@/lib/data/skip-bins";
 import type { BookingFormState } from "@/types/skip-bin";
 
@@ -198,6 +196,9 @@ export function CheckoutPage() {
   const { draft } = stored;
   const bin = getBinBySizeOrId(draft.binSize);
   const amount = session ? displayAudAmount(session.total.total.amount) : "A$—";
+  const lineItems = session?.lineItems.filter(
+    (item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index,
+  ) ?? [];
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#FAF9F3] text-[#16241C] lg:grid lg:h-dvh lg:min-h-0 lg:grid-cols-[minmax(390px,0.92fr)_minmax(620px,1.08fr)] lg:overflow-hidden">
@@ -270,9 +271,9 @@ export function CheckoutPage() {
               </div>
             ) : null}
 
-            <div className="mt-3 grid grid-cols-2 gap-x-5 border-y border-[#DCE2DA] py-1 text-[12px]">
-              {session?.lineItems.length ? session.lineItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-3 border-b border-[#E7EBE4] py-2 text-[#6C786F] last:border-b-0">
+            <div className={`mt-3 grid ${lineItems.length > 1 ? "grid-cols-2" : "grid-cols-1"} gap-x-5 border-y border-[#DCE2DA] py-1 text-[12px]`}>
+              {lineItems.length ? lineItems.map((item) => (
+                <div key={item.id} className="flex min-w-0 items-center justify-between gap-3 border-b border-[#E7EBE4] py-2 text-[#6C786F] last:border-b-0">
                   <span className="min-w-0">
                     {item.name}
                     {item.quantity > 1 ? <span className="ml-1 text-[#8B968F]">× {item.quantity}</span> : null}
@@ -293,7 +294,7 @@ export function CheckoutPage() {
             <div className="flex items-end justify-between gap-5 py-3">
               <div>
                 <p className="text-[15px] font-extrabold text-[#0B3B24]">Total due today</p>
-                <p className="mt-0.5 text-[11px] text-[#7C877F]">Includes GST · Free delivery &amp; pickup</p>
+                <p className="mt-0.5 text-[11px] text-[#7C877F]">Includes GST</p>
               </div>
               <strong className="text-[30px] font-extrabold tracking-[-0.035em] text-[#0B3B24] sm:text-[34px]">{amount}</strong>
             </div>
@@ -319,7 +320,6 @@ export function CheckoutPage() {
 function BookingCard({ draft, amount }: { draft: BookingFormState; amount: string }) {
   const bin = getBinBySizeOrId(draft.binSize);
   const waste = getWasteById(draft.wasteType);
-  const extras = selectedBookingExtras(draft.extras);
   return (
     <div className="relative z-10 mt-10 rounded-[26px] border border-white/25 bg-white/10 p-5 shadow-[0_24px_80px_rgba(0,34,19,0.22)] backdrop-blur-md sm:p-6 lg:mt-5 lg:p-4">
       <div className="flex items-center gap-5">
@@ -329,7 +329,6 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
         <div className="min-w-0">
           <span className="inline-flex rounded-full bg-[#C7F34A] px-2.5 py-1 text-[11px] font-extrabold text-[#0B3B24]">{bin?.size ?? draft.binSize}</span>
           <h2 className="mt-2 text-[20px] font-extrabold tracking-[-0.02em]">Skip Bin Hire</h2>
-          <p className="mt-1 text-[17px] font-extrabold text-[#A3E635]">{amount}</p>
         </div>
       </div>
       <div className="my-5 h-px bg-white/20 lg:my-3" />
@@ -339,22 +338,8 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
         <BookingDetail icon={CalendarDays} label="Delivery" value={formatDate(draft.deliveryDate)} />
         <BookingDetail icon={MapPin} label="Delivery location" value={draft.locationLabel || draft.address} />
       </dl>
-      {extras.length ? (
-        <div className="mt-5 border-t border-white/20 pt-4 lg:mt-3 lg:pt-3">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.06em] text-white/60">
-            <PackagePlus className="h-4 w-4 text-[#C7F34A]" /> Disposal extras
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {extras.map((extra) => (
-              <span key={extra.id} className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white">
-                {extra.label} × {extra.quantity}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
       <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5 lg:mt-3 lg:pt-3">
-        <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST · Free delivery &amp; pickup</p></div>
+        <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST</p></div>
         <strong className="text-[27px] font-extrabold tracking-[-0.03em]">{amount}</strong>
       </div>
     </div>

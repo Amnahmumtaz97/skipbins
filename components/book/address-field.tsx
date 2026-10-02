@@ -9,13 +9,14 @@ type AddressSuggestion = { street: string; label: string };
 
 const searchable = (value: string) => /^[a-zA-Z0-9 '/,.#-]{1,80}$/.test(value.trim());
 
-export function AddressField({ value, onChange, onSelectionChange, postcode, error, required }: {
+export function AddressField({ value, onChange, onSelectionChange, postcode, error, required, compact }: {
   value: string;
   onChange: (value: string, selectedLabel?: string) => void;
   onSelectionChange: (selected: boolean) => void;
   postcode: string;
   error?: string;
   required?: boolean;
+  compact?: boolean;
 }) {
   const id = useId();
   const [selectedStreet, setSelectedStreet] = useState<string | null>(null);
@@ -90,8 +91,8 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
     </div>
     <div id={`${id}-help`} aria-live="polite" className="font-medium">
       <ValidationMessage message={error || current?.error} />
-      {!error && !current?.error && !postcodeReady ? <p className="mt-1 text-xs leading-5 text-[#405347]">Choose a suburb or postcode first.</p> : null}
-      {!error && !current?.error && loading ? <p className="mt-1 text-xs leading-5 text-[#405347]">Looking up addresses…</p> : null}
+      {!compact && !error && !current?.error && !postcodeReady ? <p className="mt-1 text-xs leading-5 text-[#405347]">Choose a suburb or postcode first.</p> : null}
+      {!compact && !error && !current?.error && loading ? <p className="mt-1 text-xs leading-5 text-[#405347]">Looking up addresses…</p> : null}
     </div>
   </div>;
 }

@@ -53,7 +53,7 @@ export function StyledSelect({
           error ? "border-red-500" : "border-[#cbd8c5]"
         }`}
       >
-        <span className={display ? "text-[#172018]" : "text-[#9aa59a]"}>{display || placeholder}</span>
+        <span className={`min-w-0 truncate ${display ? "text-[#172018]" : "text-[#9aa59a]"}`}>{display || placeholder}</span>
         <ChevronDown
           size={16}
           className={`shrink-0 text-[#14532D] transition-transform ${open ? "rotate-180" : ""}`}

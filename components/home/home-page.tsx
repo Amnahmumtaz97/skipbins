@@ -6,8 +6,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { ArrowRight, BadgeDollarSign, Calendar, Check, CircleHelp, Leaf, Loader2, Recycle, ShieldCheck, Truck } from "lucide-react";
+import { AddressField } from "@/components/book/address-field";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
+import { selectedAddressLocationError } from "@/lib/address-validation";
 import { BinSizesSection } from "@/components/home/bin-sizes-section";
 import { DifferenceSlider } from "@/components/home/difference-slider";
 import { HeroCarousel } from "@/components/home/hero-carousel";
@@ -36,12 +38,23 @@ type QuoteState = {
   size: string;
   postcode: string;
   postcodeLabel: string;
+  streetAddress: string;
+  deliveryAddressLabel: string;
   waste: string;
   date: string;
   pickupDate: string;
 };
 
-const emptyQuote: QuoteState = { size: "", postcode: "", postcodeLabel: "", waste: "", date: "", pickupDate: "" };
+const emptyQuote: QuoteState = {
+  size: "",
+  postcode: "",
+  postcodeLabel: "",
+  streetAddress: "",
+  deliveryAddressLabel: "",
+  waste: "",
+  date: "",
+  pickupDate: "",
+};
 
 const heroBenefits = [
   { icon: BadgeDollarSign, title: "All-Inclusive Pricing", detail: "No Hidden Fees" },
@@ -54,6 +67,7 @@ export function HomePage() {
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteState>(emptyQuote);
   const [quoteErrors, setQuoteErrors] = useState<Partial<QuoteState>>({});
+  const [addressConfirmed, setAddressConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const updateQuote = (field: keyof QuoteState, value: string) => {
@@ -70,10 +84,29 @@ export function HomePage() {
   };
 
   const updatePostcode = (value: string, label: string) => {
-    setQuote((current) => ({ ...current, postcode: value, postcodeLabel: label }));
+    setAddressConfirmed(false);
+    setQuote((current) => ({
+      ...current,
+      postcode: value,
+      postcodeLabel: label,
+      ...(value !== current.postcode || label !== current.postcodeLabel
+        ? { streetAddress: "", deliveryAddressLabel: "" }
+        : {}),
+    }));
     setQuoteErrors((current) => {
       const next = { ...current };
       delete next.postcode;
+      delete next.streetAddress;
+      return next;
+    });
+  };
+
+  const updateStreetAddress = (value: string, selectedLabel = "") => {
+    setAddressConfirmed(Boolean(selectedLabel));
+    setQuote((current) => ({ ...current, streetAddress: value, deliveryAddressLabel: selectedLabel }));
+    setQuoteErrors((current) => {
+      const next = { ...current };
+      delete next.streetAddress;
       return next;
     });
   };
@@ -84,6 +117,12 @@ export function HomePage() {
     const nextErrors: Partial<QuoteState> = {};
     if (!quote.size) nextErrors.size = "Please select a bin size.";
     if (!isResolvedPostcode(quote.postcode)) nextErrors.postcode = postcodeSelectionError;
+    if (!quote.streetAddress.trim() || !addressConfirmed) {
+      nextErrors.streetAddress = "Select a delivery address from the suggestions.";
+    } else {
+      const locationError = selectedAddressLocationError(quote.deliveryAddressLabel, quote.postcode, quote.postcodeLabel);
+      if (locationError) nextErrors.streetAddress = locationError;
+    }
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
     if (!quote.date || quote.date < tomorrowIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date from tomorrow onward.";
     if (!quote.date || !quote.pickupDate || quote.pickupDate < standardPickupDate(quote.date) || quote.pickupDate > maxPickupDate(quote.date) || isSundayIso(quote.pickupDate)) {
@@ -99,6 +138,8 @@ export function HomePage() {
       size: quote.size,
       location: quote.postcode.trim(),
       locationLabel: quote.postcodeLabel.trim(),
+      streetAddress: quote.streetAddress.trim(),
+      deliveryAddressLabel: quote.deliveryAddressLabel.trim(),
       waste: quote.waste,
       date: quote.date,
       pickup: quote.pickupDate,
@@ -159,7 +200,7 @@ export function HomePage() {
               </div>
 
               <fieldset disabled={loading} className="grid min-w-0 grid-cols-2 items-start gap-4">
-                <div className="col-span-2">
+                <div className="min-w-0">
                   <StyledSelect
                     label="Bin size"
                     name="bin-size"
@@ -170,7 +211,7 @@ export function HomePage() {
                     options={bins.map((bin) => ({ value: bin.id, label: formatBinLabel(bin.id) }))}
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="min-w-0">
                   <StyledSelect
                     label="Waste type"
                     name="waste-type"
@@ -187,6 +228,17 @@ export function HomePage() {
                     displayValue={quote.postcodeLabel}
                     onChange={updatePostcode}
                     error={quoteErrors.postcode}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <AddressField
+                    required
+                    value={quote.streetAddress}
+                    postcode={quote.postcode}
+                    onChange={updateStreetAddress}
+                    onSelectionChange={setAddressConfirmed}
+                    error={quoteErrors.streetAddress}
+                    compact
                   />
                 </div>
                 <DatePicker

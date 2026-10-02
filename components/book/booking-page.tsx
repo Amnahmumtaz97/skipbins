@@ -40,6 +40,8 @@ type BookingPageProps = {
   initialSize?: string;
   initialLocation?: string;
   initialLocationLabel?: string;
+  initialStreetAddress?: string;
+  initialDeliveryAddressLabel?: string;
   initialWaste?: string;
   initialDate?: string;
   initialPickupDate?: string;
@@ -48,7 +50,7 @@ type BookingPageProps = {
 
 type FieldKey = keyof BookingFormState;
 
-function initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate }: Omit<BookingPageProps, "cancelled">): BookingFormState {
+function initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialStreetAddress, initialDeliveryAddressLabel, initialWaste, initialDate, initialPickupDate }: Omit<BookingPageProps, "cancelled">): BookingFormState {
   const deliveryDate = initialDate && initialDate >= tomorrowIsoDate() && !isSundayIso(initialDate) ? initialDate : "";
   const standardPickup = deliveryDate ? standardPickupDate(deliveryDate) : "";
   const pickupDate = deliveryDate
@@ -65,8 +67,8 @@ function initialBookingForm({ initialSize, initialLocation, initialLocationLabel
     phone: "",
     address: initialLocation?.trim() ?? "",
     locationLabel: initialLocationLabel?.trim() || initialLocation?.trim() || "",
-    streetAddress: "",
-    deliveryAddressLabel: "",
+    streetAddress: initialStreetAddress?.trim() ?? "",
+    deliveryAddressLabel: initialDeliveryAddressLabel?.trim() ?? "",
     placement: "",
     access: "",
     deliveryDate,
@@ -97,13 +99,15 @@ const intros = [
   "Check everything looks right before you confirm your booking.",
 ];
 
-export function BookingPage({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate, cancelled }: BookingPageProps) {
+export function BookingPage({ initialSize, initialLocation, initialLocationLabel, initialStreetAddress, initialDeliveryAddressLabel, initialWaste, initialDate, initialPickupDate, cancelled }: BookingPageProps) {
   const router = useRouter();
   const [form, setForm] = useState<BookingFormState>(() =>
-    initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialWaste, initialDate, initialPickupDate }),
+    initialBookingForm({ initialSize, initialLocation, initialLocationLabel, initialStreetAddress, initialDeliveryAddressLabel, initialWaste, initialDate, initialPickupDate }),
   );
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
-  const [addressConfirmed, setAddressConfirmed] = useState(false);
+  const [addressConfirmed, setAddressConfirmed] = useState(
+    Boolean(initialStreetAddress?.trim() && initialDeliveryAddressLabel?.trim()),
+  );
   const [step, setStep] = useState(1);
   const [maxReached, setMaxReached] = useState(1);
   const [bookingReference] = useState("");
