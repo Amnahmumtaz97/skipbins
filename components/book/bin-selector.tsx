@@ -8,12 +8,22 @@ type BinSelectorProps = {
   error?: string;
 };
 
+function dimensionParts(dimensions: string) {
+  const [length = "—", width = "—", height = "—"] = dimensions.split(" × ");
+  return [
+    { label: "Length", value: length },
+    { label: "Width", value: width },
+    { label: "Height", value: height },
+  ];
+}
+
 export function BinSelector({ value, onChange, error }: BinSelectorProps) {
   return (
     <div>
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {bins.map((bin) => {
           const selected = value === bin.id;
+          const dimensions = dimensionParts(bin.dimensions);
           return (
             <button
               key={bin.id}
@@ -36,8 +46,13 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
               <span className="selection-card-copy block cursor-text pr-7 text-[16px] font-bold leading-tight text-[#16241C]">
                 {formatBinLabel(bin.id)}
               </span>
-              <span className="selection-card-copy mt-3 block cursor-text rounded-lg bg-[#F6F2E7] px-3 py-2 text-[12px] text-[#5B6B60]">
-                Dimensions: <span className="font-semibold text-[#0B3B24]">{bin.dimensions}</span>
+              <span className="selection-card-copy mt-3 grid cursor-text grid-cols-3 rounded-lg bg-[#F6F2E7] px-3 py-2.5">
+                {dimensions.map((dimension, index) => (
+                  <span key={dimension.label} className={`${index ? "border-l border-[#DED8C8] pl-2.5" : ""} min-w-0`}>
+                    <span className="block text-[9px] font-bold uppercase tracking-[0.08em] text-[#68756C]">{dimension.label}</span>
+                    <span className="mt-0.5 block text-[14px] font-bold leading-none text-[#0B3B24]">{dimension.value}</span>
+                  </span>
+                ))}
               </span>
               <span className={`selection-card-copy mt-3 flex cursor-text items-end justify-between gap-2 ${selected ? "font-bold text-[#0B3B24]" : "font-semibold text-[#16241C]"}`}>
                 <span>
