@@ -565,7 +565,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
           </div>
 
           {/* ---- live summary sidebar ---- */}
-          {confirmed ? null : (
+          {confirmed || step === 6 ? null : (
             <aside className="hidden w-[320px] shrink-0 lg:block">
               <div className="sticky top-36">
                 <BookingLiveSummary form={form} total={estimatedTotal} currentStep={step} />

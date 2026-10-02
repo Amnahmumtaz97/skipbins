@@ -7,11 +7,13 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
   const bin = getBinBySizeOrId(form.binSize);
   const waste = acceptedWaste.find((item) => item.id === form.wasteType);
   const extras = selectedBookingExtras(form.extras);
+  const extrasTotal = extras.reduce((sum, extra) => sum + extra.price * extra.quantity, 0);
+  const hireTotal = total === null ? null : total - extrasTotal;
   const location = [form.locationLabel || form.address, form.placement].filter(Boolean).join(" · ");
 
   return (
-    <div>
-      <div className="mb-3.5 rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-white px-[18px]">
+    <div className="rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-white px-[18px]">
+      <div>
         <SummaryRow label="Location" value={location || "—"} />
         <SummaryRow label="Waste type" value={waste?.label ?? "—"} />
         <SummaryRow label="Bin size" value={bin ? formatBinLabel(bin.id) : "—"} />
@@ -21,7 +23,6 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
         />
         <SummaryRow label="Pickup date" value={form.pickupDate || "—"} />
         <SummaryRow label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
-        {extras.length ? <SummaryRow label="Disposal extras" value={extras.map((extra) => `${extra.label} × ${extra.quantity}`).join(" · ")} /> : null}
         <SummaryRow
           label="Contact"
           value={[form.fullName, form.phone].filter(Boolean).join(" · ") || "—"}
@@ -29,15 +30,12 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
         />
       </div>
 
-      <div className="rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-[#F6F2E7] p-[18px]">
-        <p className="mb-2.5 text-[15px] font-semibold text-[#0B3B24]">Price summary</p>
-        <PriceRow label="Bin size" value={bin ? formatBinLabel(bin.id) : "—"} />
-        <PriceRow label="Waste type" value={waste?.label ?? "—"} />
-        <PriceRow label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
+      <div className="border-t border-[#E8E1CF] py-[18px]">
+        <p className="mb-2 text-[15px] font-semibold text-[#0B3B24]">Payment</p>
+        <PriceRow label="Bin hire, delivery & pickup" value={hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"} />
         {extras.map((extra) => (
           <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={`+${formatCurrency(extra.price * extra.quantity)}`} />
         ))}
-        <PriceRow label="Delivery & pickup" value={total !== null ? "Included in quote" : "Awaiting quote"} />
         <div className="mt-1.5 flex justify-between border-t border-[#E8E1CF] pt-3 text-[14.5px] font-bold text-[#0B3B24]">
           <span>Total</span>
           <span>{total !== null ? formatCurrency(total) : "Calculated after we confirm your details"}</span>
