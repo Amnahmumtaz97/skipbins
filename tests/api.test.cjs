@@ -20,6 +20,7 @@ const { emptyBookingExtras } = require('../lib/data/booking-extras.ts');
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const { createPendingBooking } = require('../lib/server/booking-service.ts');
+const { isAdminUser } = require('../lib/server/admin-auth.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
 const stripeWebhook = require('../app/api/stripe/webhook/route.ts');
@@ -137,6 +138,19 @@ test('stripe webhook rejects missing signatures', async () => {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
   }));
   assert.equal(response.status, 400);
+});
+test('admin access requires a trusted app role or configured email', () => {
+  const original = process.env.ADMIN_EMAILS;
+  process.env.ADMIN_EMAILS = 'owner@example.com, accounts@example.com';
+  try {
+    assert.equal(isAdminUser(null), false);
+    assert.equal(isAdminUser({ email:'customer@example.com', app_metadata:{} }), false);
+    assert.equal(isAdminUser({ email:'OWNER@example.com', app_metadata:{} }), true);
+    assert.equal(isAdminUser({ email:'staff@example.com', app_metadata:{ role:'admin' } }), true);
+    assert.equal(isAdminUser({ email:'staff@example.com', app_metadata:{ roles:['support','admin'] } }), true);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_EMAILS; else process.env.ADMIN_EMAILS = original;
+  }
 });
 test('postcode endpoint rejects unsafe queries and returns only Victorian localities', async () => {
   const shortResponse = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=90'));

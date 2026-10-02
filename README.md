@@ -60,6 +60,7 @@ payments), then redeploy:
 - `STRIPE_SECRET_KEY`
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin`)
 - `GEOSCAPE_API_KEY`
 
 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is embedded into the browser bundle at
@@ -74,3 +75,11 @@ included RLS policy, but it intentionally cannot update or read them.
 Configure the Stripe webhook endpoint as
 `https://your-domain.example/api/stripe/webhook` and subscribe it to
 `checkout.session.completed`.
+
+## Admin payment test
+
+Create the admin user in **Supabase > Authentication > Users**, add the same
+email to the server-only `ADMIN_EMAILS` environment variable, and visit
+`/admin`. The Stripe test tool uses Stripe's minimum A$0.50 AUD charge and does
+not create a row in the bookings table. A user with `app_metadata.role` set to
+`admin` is also accepted.

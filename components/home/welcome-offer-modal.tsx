@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRight, Check, Copy, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,11 +10,13 @@ const storageKey = "premium-skip-bin-welcome-offer-seen-v3";
 const offerCode = "FIRST50";
 
 export function WelcomeOfferModal() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (pathname.startsWith("/admin")) return;
     try {
       if (window.localStorage.getItem(storageKey)) return;
       window.localStorage.setItem(storageKey, "1");
@@ -21,7 +24,7 @@ export function WelcomeOfferModal() {
       // Storage can be unavailable in strict privacy modes; the offer can still be shown.
     }
     queueMicrotask(() => setOpen(true));
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +55,7 @@ export function WelcomeOfferModal() {
     }
   };
 
-  if (!open) return null;
+  if (!open || pathname.startsWith("/admin")) return null;
 
   return (
     <div
