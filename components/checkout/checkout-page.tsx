@@ -182,8 +182,8 @@ export function CheckoutPage() {
   const amount = session ? displayAudAmount(session.total.total.amount) : "A$—";
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#FAF9F3] text-[#16241C] lg:grid lg:grid-cols-[minmax(390px,0.92fr)_minmax(620px,1.08fr)]">
-      <section className="relative isolate overflow-hidden bg-[#075A38] px-5 py-8 text-white sm:px-8 lg:flex lg:min-h-screen lg:flex-col lg:px-[clamp(2.5rem,5vw,5.5rem)] lg:py-12">
+    <main className="min-h-screen overflow-x-hidden bg-[#FAF9F3] text-[#16241C] lg:grid lg:h-dvh lg:min-h-0 lg:grid-cols-[minmax(390px,0.92fr)_minmax(620px,1.08fr)] lg:overflow-hidden">
+      <section className="relative isolate overflow-hidden bg-[#075A38] px-5 py-8 text-white sm:px-8 lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:px-[clamp(2rem,4vw,4.5rem)] lg:py-6">
         <BrandedBackdrop />
         <div className="relative z-10 flex items-start justify-between gap-5">
           <Link href="/" className="text-[20px] font-extrabold leading-tight tracking-[-0.035em] sm:text-[24px]">
@@ -194,22 +194,22 @@ export function CheckoutPage() {
           </span>
         </div>
 
-        <div className="relative z-10 mt-12 max-w-[620px] lg:mt-24">
+        <div className="relative z-10 mt-12 max-w-[620px] lg:mt-5">
           <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-[#C7F34A]">Your booking</p>
-          <h1 className="mt-3 max-w-[560px] text-[38px] font-extrabold leading-[1.06] tracking-[-0.045em] sm:text-[50px] lg:text-[clamp(2.75rem,4vw,4.4rem)]">
+          <h1 className="mt-2 max-w-[560px] text-[38px] font-extrabold leading-[1.06] tracking-[-0.045em] sm:text-[50px] lg:text-[clamp(2rem,3vw,3.25rem)]">
             One last step, then we&apos;ll deliver.
           </h1>
         </div>
 
         <BookingCard draft={draft} amount={amount} />
 
-        <div className="relative z-10 mt-6 flex flex-wrap gap-3 text-[11px] font-bold text-white/85 lg:mt-auto lg:pt-8">
+        <div className="relative z-10 mt-6 flex flex-wrap gap-3 text-[11px] font-bold text-white/85 lg:mt-auto lg:pt-4">
           <TrustPill icon={ShieldCheck} text="Protected checkout" />
           <TrustPill icon={LockKeyhole} text="Transparent pricing" />
         </div>
       </section>
 
-      <section className="bg-[#FAF9F3] px-5 py-9 sm:px-9 lg:min-h-screen lg:px-[clamp(3rem,7vw,8rem)] lg:py-12">
+      <section className="bg-[#FAF9F3] px-5 py-9 sm:px-9 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:px-[clamp(2.5rem,5vw,6rem)] lg:py-6">
         <div className="mx-auto w-full max-w-[760px]">
           <div className="flex items-center justify-between gap-4">
             <Link href="/booking?cancelled=1" className="inline-flex items-center gap-2 text-[13px] font-bold text-[#5B6B60] transition hover:text-[#0B3B24]">
@@ -220,47 +220,41 @@ export function CheckoutPage() {
             </span>
           </div>
 
-          <div className="mt-9">
-            <h2 className="text-[34px] font-extrabold leading-tight tracking-[-0.04em] text-[#0B3B24] sm:text-[42px]">Complete your booking</h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-[#6C786F] sm:text-[15px]">Pay securely in Australian dollars. Your delivery details are confirmed after payment.</p>
+          <div className="mt-9 lg:mt-4">
+            <h2 className="text-[34px] font-extrabold leading-tight tracking-[-0.04em] text-[#0B3B24] sm:text-[42px] lg:text-[30px]">Complete your booking</h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-[#6C786F]">Pay securely in Australian dollars. Receipt to <span className="font-semibold text-[#294437]">{draft.email}</span></p>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-7">
+          <form onSubmit={handleSubmit} className="mt-7 lg:mt-4">
             <div className={expressAvailable ? "block" : "hidden"}>
               <div className="flex items-center justify-between gap-4">
                 <h3 className="text-[15px] font-extrabold text-[#0B3B24]">Express checkout</h3>
                 <span className="text-[12px] font-bold text-[#16955F]">Fast &amp; secure</span>
               </div>
-              <div ref={expressMountRef} className="mt-3 min-h-[52px]" />
-              <div className="my-6 flex items-center gap-4 text-[10px] font-bold uppercase tracking-[0.06em] text-[#8B968F]">
+              <div ref={expressMountRef} className="mt-2 min-h-[48px]" />
+              <div className="my-3 flex items-center gap-4 text-[10px] font-bold uppercase tracking-[0.06em] text-[#8B968F]">
                 <span className="h-px flex-1 bg-[#DCE2DA]" /> Or pay with card <span className="h-px flex-1 bg-[#DCE2DA]" />
               </div>
             </div>
 
-            <h3 className="text-[15px] font-extrabold text-[#0B3B24]">Contact information</h3>
-            <div className="mt-3 rounded-[15px] border border-[#CDD7CA] bg-white px-4 py-3.5 shadow-[0_1px_0_rgba(11,59,36,0.02)]">
-              <span className="block text-[10px] font-bold text-[#6C786F]">Email</span>
-              <span className="mt-0.5 block break-all text-[14px] font-medium text-[#294437]">{draft.email}</span>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4">
               <h3 className="text-[15px] font-extrabold text-[#0B3B24]">Payment method</h3>
               <span className="text-[12px] font-bold text-[#16955F]">Encrypted</span>
             </div>
-            <div className="relative mt-3 min-h-[210px] rounded-[16px] border border-[#CDD7CA] bg-white p-4">
+            <div className="relative mt-2 min-h-[190px] rounded-[16px] border border-[#CDD7CA] bg-white p-3 lg:min-h-[170px]">
               {loading ? <ElementLoader /> : null}
               <div ref={paymentMountRef} />
             </div>
 
             {error ? (
-              <div role="alert" className="mt-4 flex items-start gap-2.5 rounded-[14px] border border-[#F3C7C1] bg-[#FFF3F1] px-4 py-3 text-[13px] font-medium leading-relaxed text-[#8E2F23]">
+              <div role="alert" className="mt-2 flex items-start gap-2.5 rounded-[14px] border border-[#F3C7C1] bg-[#FFF3F1] px-4 py-2.5 text-[12px] font-medium leading-relaxed text-[#8E2F23]">
                 <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {error}
               </div>
             ) : null}
 
-            <div className="mt-7 divide-y divide-[#E7EBE4] border-y border-[#DCE2DA] py-1 text-[13px]">
+            <div className="mt-3 grid grid-cols-2 gap-x-5 border-y border-[#DCE2DA] py-1 text-[12px]">
               {session?.lineItems.length ? session.lineItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-5 py-3 text-[#6C786F]">
+                <div key={item.id} className="flex items-center justify-between gap-3 border-b border-[#E7EBE4] py-2 text-[#6C786F] last:border-b-0">
                   <span className="min-w-0">
                     {item.name}
                     {item.quantity > 1 ? <span className="ml-1 text-[#8B968F]">× {item.quantity}</span> : null}
@@ -268,17 +262,17 @@ export function CheckoutPage() {
                   <strong className="shrink-0 text-[#294437]">{displayAudAmount(item.total.amount)}</strong>
                 </div>
               )) : (
-                <div className="flex items-center justify-between gap-5 py-3 text-[#6C786F]">
+                <div className="col-span-2 flex items-center justify-between gap-5 py-2 text-[#6C786F]">
                   <span>{bin?.size ?? draft.binSize} Skip Bin Hire</span>
                   <strong className="text-[#294437]">{amount}</strong>
                 </div>
               )}
             </div>
-            <div className="mt-3 flex items-center justify-between gap-4 rounded-xl bg-[#EDF6E3] px-3.5 py-3 text-[12px] font-bold text-[#34620D]">
+            <div className="mt-2 flex items-center justify-between gap-4 rounded-xl bg-[#EDF6E3] px-3.5 py-2 text-[12px] font-bold text-[#34620D]">
               <span className="inline-flex items-center gap-2"><Truck className="h-4 w-4" /> Delivery &amp; pickup</span>
               <span>FREE</span>
             </div>
-            <div className="flex items-end justify-between gap-5 py-5">
+            <div className="flex items-end justify-between gap-5 py-3">
               <div>
                 <p className="text-[15px] font-extrabold text-[#0B3B24]">Total due today</p>
                 <p className="mt-0.5 text-[11px] text-[#7C877F]">Includes GST · Free delivery &amp; pickup</p>
@@ -289,12 +283,12 @@ export function CheckoutPage() {
             <button
               type="submit"
               disabled={!actions || loading || submitting}
-              className="flex min-h-14 w-full items-center justify-center gap-2.5 rounded-[14px] bg-gradient-to-r from-[#079557] to-[#0B3B24] px-5 text-[16px] font-extrabold text-white shadow-[0_10px_24px_rgba(11,59,36,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-[14px] bg-gradient-to-r from-[#079557] to-[#0B3B24] px-5 text-[15px] font-extrabold text-white shadow-[0_10px_24px_rgba(11,59,36,0.16)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <LockKeyhole className="h-5 w-5" />}
               {submitting ? "Processing secure payment…" : `Pay ${amount}`}
             </button>
-            <p className="mt-4 flex items-center justify-center gap-2 text-center text-[11px] font-medium text-[#7C877F]">
+            <p className="mt-2 flex items-center justify-center gap-2 text-center text-[10.5px] font-medium text-[#7C877F]">
               <ShieldCheck className="h-4 w-4 text-[#16955F]" /> Secure payment · Transparent pricing · Protected checkout
             </p>
           </form>
@@ -309,9 +303,9 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
   const waste = getWasteById(draft.wasteType);
   const extras = selectedBookingExtras(draft.extras);
   return (
-    <div className="relative z-10 mt-10 rounded-[26px] border border-white/25 bg-white/10 p-5 shadow-[0_24px_80px_rgba(0,34,19,0.22)] backdrop-blur-md sm:p-6 lg:mt-14">
+    <div className="relative z-10 mt-10 rounded-[26px] border border-white/25 bg-white/10 p-5 shadow-[0_24px_80px_rgba(0,34,19,0.22)] backdrop-blur-md sm:p-6 lg:mt-5 lg:p-4">
       <div className="flex items-center gap-5">
-        <div className="relative h-28 w-36 shrink-0 overflow-hidden rounded-[18px] bg-[#F5FAE6] sm:h-32 sm:w-44">
+        <div className="relative h-28 w-36 shrink-0 overflow-hidden rounded-[18px] bg-[#F5FAE6] sm:h-32 sm:w-44 lg:h-20 lg:w-28">
           {bin ? <Image src={bin.image} alt={`${bin.size} skip bin`} fill sizes="176px" className="object-contain p-2" priority /> : null}
         </div>
         <div className="min-w-0">
@@ -320,15 +314,15 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
           <p className="mt-1 text-[17px] font-extrabold text-[#A3E635]">{amount}</p>
         </div>
       </div>
-      <div className="my-5 h-px bg-white/20" />
-      <dl className="grid gap-3 text-[12px] sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+      <div className="my-5 h-px bg-white/20 lg:my-3" />
+      <dl className="grid gap-3 text-[12px] sm:grid-cols-2 lg:grid-cols-2 lg:gap-2">
         <BookingDetail icon={Recycle} label="Waste type" value={waste?.label ?? draft.wasteType} />
         <BookingDetail icon={Clock3} label="Hire period" value={formatHirePeriod(draft.hirePeriod)} />
         <BookingDetail icon={CalendarDays} label="Delivery" value={formatDate(draft.deliveryDate)} />
         <BookingDetail icon={MapPin} label="Delivery location" value={draft.locationLabel || draft.address} />
       </dl>
       {extras.length ? (
-        <div className="mt-5 border-t border-white/20 pt-4">
+        <div className="mt-5 border-t border-white/20 pt-4 lg:mt-3 lg:pt-3">
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.06em] text-white/60">
             <PackagePlus className="h-4 w-4 text-[#C7F34A]" /> Disposal extras
           </div>
@@ -341,7 +335,7 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
           </div>
         </div>
       ) : null}
-      <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5">
+      <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5 lg:mt-3 lg:pt-3">
         <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST · Free delivery &amp; pickup</p></div>
         <strong className="text-[27px] font-extrabold tracking-[-0.03em]">{amount}</strong>
       </div>
@@ -351,8 +345,8 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
 
 function BookingDetail({ icon: Icon, label, value }: { icon: typeof Recycle; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#B7EB40]/30 bg-[#84CC16]/15 text-[#C7F34A]"><Icon className="h-4 w-4" /></span>
+    <div className="flex items-center gap-3 lg:gap-2">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#B7EB40]/30 bg-[#84CC16]/15 text-[#C7F34A] lg:h-8 lg:w-8"><Icon className="h-4 w-4" /></span>
       <div className="min-w-0"><dt className="text-white/55">{label}</dt><dd className="mt-0.5 font-bold text-white">{value}</dd></div>
     </div>
   );
