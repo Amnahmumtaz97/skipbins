@@ -19,10 +19,12 @@ import {
   LoaderCircle,
   LockKeyhole,
   MapPin,
+  PackagePlus,
   Recycle,
   ShieldCheck,
 } from "lucide-react";
 import { loadBookingDraft, loadCheckoutClientSecret } from "@/lib/booking-draft";
+import { selectedBookingExtras } from "@/lib/data/booking-extras";
 import { formatHirePeriod, getBinBySizeOrId, getWasteById } from "@/lib/data/skip-bins";
 import type { BookingFormState } from "@/types/skip-bin";
 
@@ -255,11 +257,21 @@ export function CheckoutPage() {
               </div>
             ) : null}
 
-            <div className="mt-7 border-y border-[#DCE2DA] py-4 text-[13px]">
-              <div className="flex items-center justify-between gap-5 text-[#6C786F]">
-                <span>{bin?.size ?? draft.binSize} Skip Bin Hire</span>
-                <strong className="text-[#294437]">{amount}</strong>
-              </div>
+            <div className="mt-7 divide-y divide-[#E7EBE4] border-y border-[#DCE2DA] py-1 text-[13px]">
+              {session?.lineItems.length ? session.lineItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-5 py-3 text-[#6C786F]">
+                  <span className="min-w-0">
+                    {item.name}
+                    {item.quantity > 1 ? <span className="ml-1 text-[#8B968F]">× {item.quantity}</span> : null}
+                  </span>
+                  <strong className="shrink-0 text-[#294437]">{displayAudAmount(item.total.amount)}</strong>
+                </div>
+              )) : (
+                <div className="flex items-center justify-between gap-5 py-3 text-[#6C786F]">
+                  <span>{bin?.size ?? draft.binSize} Skip Bin Hire</span>
+                  <strong className="text-[#294437]">{amount}</strong>
+                </div>
+              )}
             </div>
             <div className="flex items-end justify-between gap-5 py-5">
               <div>
@@ -290,6 +302,7 @@ export function CheckoutPage() {
 function BookingCard({ draft, amount }: { draft: BookingFormState; amount: string }) {
   const bin = getBinBySizeOrId(draft.binSize);
   const waste = getWasteById(draft.wasteType);
+  const extras = selectedBookingExtras(draft.extras);
   return (
     <div className="relative z-10 mt-10 rounded-[26px] border border-white/25 bg-white/10 p-5 shadow-[0_24px_80px_rgba(0,34,19,0.22)] backdrop-blur-md sm:p-6 lg:mt-14">
       <div className="flex items-center gap-5">
@@ -309,6 +322,20 @@ function BookingCard({ draft, amount }: { draft: BookingFormState; amount: strin
         <BookingDetail icon={CalendarDays} label="Delivery" value={formatDate(draft.deliveryDate)} />
         <BookingDetail icon={MapPin} label="Delivery location" value={draft.locationLabel || draft.address} />
       </dl>
+      {extras.length ? (
+        <div className="mt-5 border-t border-white/20 pt-4">
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.06em] text-white/60">
+            <PackagePlus className="h-4 w-4 text-[#C7F34A]" /> Disposal extras
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {extras.map((extra) => (
+              <span key={extra.id} className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11.5px] font-bold text-white">
+                {extra.label} × {extra.quantity}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-5 flex items-end justify-between border-t border-white/20 pt-5">
         <div><p className="text-[14px] font-extrabold">Total</p><p className="mt-0.5 text-[10px] text-white/60">Includes GST · No hidden fees</p></div>
         <strong className="text-[27px] font-extrabold tracking-[-0.03em]">{amount}</strong>
