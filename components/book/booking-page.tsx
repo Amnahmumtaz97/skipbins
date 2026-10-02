@@ -402,14 +402,14 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                   </div>
                   <div>
                     <p id="bin-placement-label" className="mb-1.5 text-[13px] font-semibold text-[#0B3B24]">Where should the bin be placed?</p>
-                    <div role="group" aria-labelledby="bin-placement-label" className="flex flex-wrap gap-1.5">
+                    <div role="group" aria-labelledby="bin-placement-label" className="grid w-full grid-cols-3 gap-1.5">
                       {placements.map((option) => (
                         <button
                           key={option}
                           type="button"
                           aria-pressed={form.placement === option}
                           onClick={() => updateField("placement", option as BinPlacement)}
-                          className={`rounded-full border-[1.5px] px-3.5 py-2 text-[13px] font-semibold ${
+                          className={`w-full rounded-full border-[1.5px] px-2 py-2 text-[13px] font-semibold ${
                             form.placement === option
                               ? "border-[#0B3B24] bg-[#0B3B24] text-white"
                               : errors.placement

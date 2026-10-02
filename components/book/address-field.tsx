@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
+import { frequentAddresses, rememberAddress } from "@/lib/search-history";
 
 type AddressSuggestion = { street: string; label: string };
 
@@ -24,20 +25,25 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
   const [lookup, setLookup] = useState<{ query: string; results: AddressSuggestion[]; error?: string } | null>(null);
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
+  const [frequent, setFrequent] = useState<AddressSuggestion[]>([]);
   if (postcode !== trackedPostcode) {
     setTrackedPostcode(postcode);
     setSelectedStreet(null);
+    setFrequent([]);
   }
   const postcodeReady = /^\d{4}$/.test(postcode);
   const canSearch = postcodeReady && searchable(value);
   const chosen = selectedStreet === value && canSearch;
   const current = lookup?.query === value ? lookup : null;
   const loading = canSearch && !chosen && !current;
-  const results = current?.results ?? [];
+  const showFrequent = value.trim() === "" || chosen;
+  const results = showFrequent ? frequent : (current?.results ?? []);
   const open = focused && results.length > 0;
 
   const selectResult = (result: AddressSuggestion) => {
     setSelectedStreet(result.street);
+    rememberAddress({ ...result, postcode });
+    setFrequent(frequentAddresses(postcode));
     onChange(result.street, result.label);
     onSelectionChange(true);
     setFocused(false);
@@ -69,7 +75,7 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
       autoComplete="off" maxLength={240} required={required} placeholder="Street address" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
       role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-results`}
       aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}
-      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      onFocus={() => { setFrequent(frequentAddresses(postcode)); setFocused(true); }} onBlur={() => setFocused(false)}
       onKeyDown={(event) => {
         if (event.key === "Escape") setFocused(false);
         if (!open) return;
@@ -81,7 +87,8 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
       }}
       className={`h-14 w-full min-w-0 text-base sm:text-sm ${inputClass(error)}`} />
     {loading ? <Loader2 aria-hidden="true" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#14532D]" /> : null}
-    <ul id={`${id}-results`} role="listbox" aria-label="Matching addresses" hidden={!open} className="absolute z-40 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-[#cbd8c5] bg-white shadow-lg">
+    <ul id={`${id}-results`} role="listbox" aria-label={showFrequent ? "Frequently selected addresses" : "Matching addresses"} hidden={!open} className="absolute z-40 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-[#cbd8c5] bg-white shadow-lg">
+      {showFrequent ? <li role="presentation" className="px-3 pb-1 pt-2.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#718078]">Frequently selected</li> : null}
       {results.map((result, index) => <li key={result.label} id={`${id}-option-${index}`} role="option" aria-selected={index === active}
         onMouseDown={(event) => event.preventDefault()} onClick={() => selectResult(result)}
         className={`flex min-h-11 cursor-pointer items-center break-words px-3 py-3 text-sm ${index === active ? "bg-[#DDECCB]" : "hover:bg-[#F4F7EC]"}`}>
