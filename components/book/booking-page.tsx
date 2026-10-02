@@ -523,8 +523,8 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
               {step === 6 ? (
                 <div>
                   <BookingExtras value={form.extras} onChange={updateExtra} />
-                  <BookingSummary form={form} total={estimatedTotal} />
-                  <p className="mt-4 flex items-center gap-2 text-[12.5px] text-[#5B6B60]">
+                  <BookingSummary form={form} total={estimatedTotal} compact />
+                  <p className="mt-2.5 flex items-center gap-2 text-[11.5px] text-[#5B6B60]">
                     <Leaf size={13} className="shrink-0 text-[#4d7c0f]" />
                     90% of collected waste is diverted from landfill through recycling and recovery.
                   </p>
