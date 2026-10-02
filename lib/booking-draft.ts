@@ -1,5 +1,6 @@
 import type { BookingFormState, HirePeriod } from "@/types/skip-bin";
 import { hirePeriods, placements } from "@/lib/data/skip-bins";
+import { normalizeBookingExtras } from "@/lib/data/booking-extras";
 
 const draftKey = "skipbins-booking-draft";
 const awaitingKey = "skipbins-awaiting-payment";
@@ -35,8 +36,10 @@ export function loadBookingDraft(): BookingFormState | null {
     const savedHirePeriod = parsed.hirePeriod as string | undefined;
     const hirePeriod = savedHirePeriod === "Standard (7 days)" ? "Standard (10 days)" : savedHirePeriod;
     const placement = parsed.placement;
+    const extras = normalizeBookingExtras(parsed.extras);
     if (hirePeriod && !hirePeriods.includes(hirePeriod as HirePeriod)) return null;
     if (placement && !placements.includes(placement as (typeof placements)[number])) return null;
+    if (!extras) return null;
     return {
       fullName: String(parsed.fullName ?? ""),
       email: String(parsed.email ?? ""),
@@ -51,6 +54,7 @@ export function loadBookingDraft(): BookingFormState | null {
       binSize: String(parsed.binSize ?? ""),
       wasteType: String(parsed.wasteType ?? ""),
       hirePeriod: (hirePeriod as BookingFormState["hirePeriod"]) ?? "",
+      extras,
       notes: String(parsed.notes ?? ""),
     };
   } catch {

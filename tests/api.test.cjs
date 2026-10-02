@@ -16,6 +16,8 @@ require.extensions['.ts'] = (mod, filename) => mod._compile(ts.transpileModule(f
 const { isResolvedPostcode, isValidPostcode } = require('../lib/postcode.ts');
 const { validateQuote } = require('../lib/server/quote-service.ts');
 const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
+const { emptyBookingExtras } = require('../lib/data/booking-extras.ts');
+const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const { createPendingBooking } = require('../lib/server/booking-service.ts');
 const quotes = require('../app/api/quotes/route.ts');
@@ -63,6 +65,12 @@ test('quotes return catalogue bin prices and fail closed on invalid input', asyn
   const extended = await quotes.POST(request({ ...valid, hirePeriod: 'Extended (14 days)' }));
   assert.equal((await extended.json()).total, 209);
 });
+test('booking extras are priced from the server catalogue', () => {
+  const extras = emptyBookingExtras();
+  extras.excavatorTrack = 2;
+  extras.mattressDisposal = 1;
+  assert.equal(quoteTotal('2m3', 'Standard (10 days)', extras), 399);
+});
 test('rate quota cannot be bypassed with caller-controlled IPs and resets after one minute', () => {
   assert.equal(rateLimit('test-only', 2, 0), null);
   assert.equal(rateLimit('test-only', 2, 1), null);
@@ -77,7 +85,7 @@ test('contact validates input and cannot acknowledge an undelivered message', as
 });
 test('booking validates all inputs and never returns a simulated reference', async () => {
   assert.equal((await bookings.POST(request({}))).status, 400);
-  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
+  const body = {address:'0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'Test address',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
   const missingPlacement = await bookings.POST(request({...body,placement:''}));
   assert.equal(missingPlacement.status, 400);
@@ -85,6 +93,9 @@ test('booking validates all inputs and never returns a simulated reference', asy
   const invalidPlacement = await bookings.POST(request({...body,placement:'Footpath'}));
   assert.equal(invalidPlacement.status, 400);
   assert.match((await invalidPlacement.json()).error, /placement/i);
+  const invalidExtras = await bookings.POST(request({...body,extras:{excavatorTrack:999}}));
+  assert.equal(invalidExtras.status, 400);
+  assert.match((await invalidExtras.json()).error, /extras/i);
   const response = await bookings.POST(request(body));
   assert.ok(response.status === 400 || response.status === 503);
   const data = await response.json();
@@ -112,7 +123,7 @@ test('pending bookings leave the unique Stripe session ID unset until Stripe cre
     return new Response('', { status: 201 });
   };
   try {
-    await createPendingBooking({ address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' }, 14900);
+    await createPendingBooking({ address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' }, 14900);
   } finally {
     global.fetch = originalFetch;
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;

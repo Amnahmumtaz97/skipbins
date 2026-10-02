@@ -1,10 +1,12 @@
 import { acceptedWaste, formatBinLabel, formatHirePeriod, getBinBySizeOrId } from "@/lib/data/skip-bins";
+import { selectedBookingExtras } from "@/lib/data/booking-extras";
 import { formatCurrency } from "@/lib/booking-utils";
 import type { BookingFormState } from "@/types/skip-bin";
 
 export function BookingSummary({ form, total }: { form: BookingFormState; total: number | null }) {
   const bin = getBinBySizeOrId(form.binSize);
   const waste = acceptedWaste.find((item) => item.id === form.wasteType);
+  const extras = selectedBookingExtras(form.extras);
   const location = [form.locationLabel || form.address, form.placement].filter(Boolean).join(" · ");
 
   return (
@@ -19,6 +21,7 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
         />
         <SummaryRow label="Pickup date" value={form.pickupDate || "—"} />
         <SummaryRow label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
+        {extras.length ? <SummaryRow label="Disposal extras" value={extras.map((extra) => `${extra.label} × ${extra.quantity}`).join(" · ")} /> : null}
         <SummaryRow
           label="Contact"
           value={[form.fullName, form.phone].filter(Boolean).join(" · ") || "—"}
@@ -31,6 +34,9 @@ export function BookingSummary({ form, total }: { form: BookingFormState; total:
         <PriceRow label="Bin size" value={bin ? formatBinLabel(bin.id) : "—"} />
         <PriceRow label="Waste type" value={waste?.label ?? "—"} />
         <PriceRow label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
+        {extras.map((extra) => (
+          <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={`+${formatCurrency(extra.price * extra.quantity)}`} />
+        ))}
         <PriceRow label="Delivery & pickup" value={total !== null ? "Included in quote" : "Awaiting quote"} />
         <div className="mt-1.5 flex justify-between border-t border-[#E8E1CF] pt-3 text-[14.5px] font-bold text-[#0B3B24]">
           <span>Total</span>

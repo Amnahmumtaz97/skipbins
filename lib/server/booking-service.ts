@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { selectedBookingExtras, type BookingExtraQuantities } from "@/lib/data/booking-extras";
 
 export type BookingRecord = {
   address: string;
@@ -11,6 +12,7 @@ export type BookingRecord = {
   deliveryDate: string;
   pickupDate: string;
   hirePeriod: string;
+  extras: BookingExtraQuantities;
   fullName: string;
   email: string;
   phone: string;
@@ -89,6 +91,10 @@ function databaseError(operation: string, error: { code?: string; message?: stri
 }
 
 function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
+  const extras = selectedBookingExtras(data.extras);
+  const extrasNote = extras.length
+    ? `Paid disposal extras: ${extras.map((extra) => `${extra.label} x ${extra.quantity}`).join(", ")}`
+    : "";
   return {
     id: randomUUID(),
     reference: newReference(),
@@ -107,7 +113,7 @@ function fromRecord(data: BookingRecord, amountCents: number): StoredBooking {
     street_address: data.streetAddress.trim(),
     placement: data.placement,
     access: data.access.trim(),
-    notes: data.notes.trim(),
+    notes: [extrasNote, data.notes.trim()].filter(Boolean).join("\n"),
   };
 }
 

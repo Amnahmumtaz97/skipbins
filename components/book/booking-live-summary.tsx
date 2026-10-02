@@ -1,6 +1,7 @@
 import { Check, MapPin, Calendar, User, Trash2, Package } from "lucide-react";
 import { acceptedWaste, bins, formatBinLabel, formatHirePeriod } from "@/lib/data/skip-bins";
 import { formatCurrency } from "@/lib/booking-utils";
+import { selectedBookingExtras } from "@/lib/data/booking-extras";
 import type { BookingFormState } from "@/types/skip-bin";
 
 type LiveSummaryProps = {
@@ -39,6 +40,7 @@ function SummaryItem({ icon, label, value, done }: SummaryItemProps) {
 export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
   const bin = bins.find((b) => b.id === form.binSize);
   const waste = acceptedWaste.find((w) => w.id === form.wasteType);
+  const extraCount = selectedBookingExtras(form.extras).reduce((count, extra) => count + extra.quantity, 0);
 
   const items: SummaryItemProps[] = [
     {
@@ -120,7 +122,7 @@ export function BookingLiveSummary({ form, total }: LiveSummaryProps) {
           </p>
         ) : (
           <p className="mt-1 text-[11px] text-[#5B6B60]">
-            Includes standard 10-day hire, delivery and pickup.
+            Includes hire, delivery and pickup{extraCount ? `, plus ${extraCount} disposal ${extraCount === 1 ? "extra" : "extras"}` : ""}.
           </p>
         )}
       </div>

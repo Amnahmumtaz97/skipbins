@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarClock, Check, CircleAlert, Leaf, Loader2 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
 import { BookingLiveSummary } from "@/components/book/booking-live-summary";
+import { BookingExtras } from "@/components/book/booking-extras";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
 import { AddressField } from "@/components/book/address-field";
@@ -19,6 +20,7 @@ import { ValidationMessage } from "@/components/book/validation-message";
 import { WasteTypeSelector } from "@/components/book/waste-type-selector";
 import { Navbar } from "@/components/home/navbar";
 import { acceptedWaste, bins, placements } from "@/lib/data/skip-bins";
+import { emptyBookingExtras, type BookingExtraId } from "@/lib/data/booking-extras";
 import {
   isSundayIso,
   isValidAuPhone,
@@ -70,6 +72,7 @@ function initialBookingForm({ initialSize, initialLocation, initialLocationLabel
     binSize: resolveBinId(initialSize),
     wasteType: resolveWasteId(initialWaste),
     hirePeriod: pickupDate && pickupDate !== standardPickup ? "Extended (14 days)" : "Standard (10 days)",
+    extras: emptyBookingExtras(),
     notes: "",
   };
 }
@@ -106,7 +109,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
   const [requestError, setRequestError] = useState(
     cancelled ? "Payment was cancelled. Your booking is not confirmed." : "",
   );
-  const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod);
+  const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod, form.extras);
   const restoredDraft = useRef(false);
 
   useEffect(() => {
@@ -199,6 +202,14 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
       delete next.pickupDate;
       return next;
     });
+  };
+
+  const updateExtra = (id: BookingExtraId, quantity: number) => {
+    setRequestError("");
+    setForm((current) => ({
+      ...current,
+      extras: { ...current.extras, [id]: quantity },
+    }));
   };
 
   const validateStep = (currentStep: number) => {
@@ -538,6 +549,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
 
               {step === 6 ? (
                 <div>
+                  <BookingExtras value={form.extras} onChange={updateExtra} />
                   <BookingSummary form={form} total={estimatedTotal} />
                   <p className="mt-4 flex items-center gap-2 text-[12.5px] text-[#5B6B60]">
                     <Leaf size={13} className="shrink-0 text-[#4d7c0f]" />

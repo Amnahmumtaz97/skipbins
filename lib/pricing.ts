@@ -1,4 +1,5 @@
 import { getBinBySizeOrId } from "@/lib/data/skip-bins";
+import { bookingExtrasTotal, type BookingExtraQuantities } from "@/lib/data/booking-extras";
 import type { HirePeriod } from "@/types/skip-bin";
 
 const hireUplift: Record<HirePeriod, number> = {
@@ -11,11 +12,11 @@ export function parseBinPrice(price: string) {
   return Number.isFinite(amount) ? amount : null;
 }
 
-export function quoteTotal(size?: string | null, hirePeriod?: string | null) {
+export function quoteTotal(size?: string | null, hirePeriod?: string | null, extras?: BookingExtraQuantities | null) {
   const bin = getBinBySizeOrId(size);
   if (!bin) return null;
   const base = parseBinPrice(bin.price);
   if (base == null) return null;
   const uplift = hirePeriod && hirePeriod in hireUplift ? hireUplift[hirePeriod as HirePeriod] : 0;
-  return Math.round(base * (1 + uplift));
+  return Math.round(base * (1 + uplift)) + (extras ? bookingExtrasTotal(extras) : 0);
 }

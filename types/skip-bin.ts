@@ -1,3 +1,5 @@
+import type { BookingExtraQuantities } from "@/lib/data/booking-extras";
+
 export type SkipBin = {
   id: string;
   size: string;
@@ -48,5 +50,6 @@ export type BookingFormState = {
   binSize: string;
   wasteType: string;
   hirePeriod: HirePeriod | "";
+  extras: BookingExtraQuantities;
   notes: string;
 };

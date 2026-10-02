@@ -5,6 +5,7 @@ import { lookupQuote, validateQuote } from "@/lib/server/quote-service";
 import { rateLimit } from "@/lib/server/rate-limit";
 import { apiError, InputError, readJson } from "@/lib/server/request";
 import { getStripe } from "@/lib/server/stripe";
+import { bookingExtrasTotal, normalizeBookingExtras, selectedBookingExtras } from "@/lib/data/booking-extras";
 
 export async function POST(request: Request) {
   const limited = rateLimit("bookings", 10);
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
     }
     if (!(data.fullName as string).trim() || !(data.streetAddress as string).trim() || !isValidEmail(data.email as string) || !isValidAuPhone(data.phone as string)) throw new InputError("Please enter a name, delivery address, valid email and Australian phone number.");
     if (typeof data.placement !== "string" || !placements.some((placement) => placement === data.placement)) throw new InputError("Please choose a valid bin placement.");
+    const extras = normalizeBookingExtras(data.extras);
+    if (!extras) throw new InputError("Please check the selected disposal extras.");
 
     const quote = await lookupQuote(input);
     if (!quote.serviceable || quote.total == null || !Number.isFinite(quote.total) || quote.total <= 0) {
@@ -29,7 +32,9 @@ export async function POST(request: Request) {
       throw new InputError("Stripe is not configured. Add STRIPE_SECRET_KEY to .env and restart the server.");
     }
 
-    const amountCents = Math.round(quote.total * 100);
+    const selectedExtras = selectedBookingExtras(extras);
+    const extrasTotal = bookingExtrasTotal(extras);
+    const amountCents = Math.round((quote.total + extrasTotal) * 100);
     stage = "booking-persistence";
     const booking = await createPendingBooking({
       address: String(data.address),
@@ -38,6 +43,7 @@ export async function POST(request: Request) {
       deliveryDate: String(data.deliveryDate),
       pickupDate: String(data.pickupDate),
       hirePeriod: String(data.hirePeriod),
+      extras,
       fullName: data.fullName as string,
       email: data.email as string,
       phone: data.phone as string,
@@ -67,15 +73,25 @@ export async function POST(request: Request) {
         quantity: 1,
         price_data: {
           currency: "aud",
-          unit_amount: amountCents,
+          unit_amount: Math.round(quote.total * 100),
           product_data: {
             name: bin ? `${bin.size} Skip Bin Hire` : `Skip Bin Hire — ${input.size}`,
             description: productDescription,
             ...(binImageUrl ? { images: [binImageUrl] } : {}),
           },
         },
-      }],
-      metadata: { bookingId: booking.id },
+      }, ...selectedExtras.map((extra) => ({
+        quantity: extra.quantity,
+        price_data: {
+          currency: "aud" as const,
+          unit_amount: extra.price * 100,
+          product_data: { name: extra.label },
+        },
+      }))],
+      metadata: {
+        bookingId: booking.id,
+        disposalExtras: selectedExtras.map((extra) => `${extra.id}:${extra.quantity}`).join(","),
+      },
       return_url: `${origin}/book/success?session_id={CHECKOUT_SESSION_ID}`,
     });
     if (!session.client_secret) throw new Error("Stripe did not return a checkout client secret");
