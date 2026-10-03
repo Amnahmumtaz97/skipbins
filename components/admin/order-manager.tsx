@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarDays, CircleAlert, MapPin, Search, UserRound } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { CircleAlert, Eye, Search, X } from "lucide-react";
 import { operationStatuses, operationStatusLabels, operationStatusTone, type OperationStatus } from "@/lib/data/operations";
 import type { OperationsBooking, SupplierRecord } from "@/lib/server/operations-service";
 import { formatCurrency } from "@/lib/booking-utils";
@@ -12,6 +12,8 @@ export function OrderManager({ initialBookings, suppliers }: { initialBookings: 
   const [filter, setFilter] = useState<OperationStatus | "all">("all");
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = bookings.find((booking) => booking.id === selectedId) ?? null;
 
   const visible = useMemo(() => bookings.filter((booking) => {
     const match = `${booking.reference} ${booking.full_name} ${booking.street_address} ${booking.postcode} ${booking.supplier_name ?? ""}`.toLowerCase().includes(query.toLowerCase());
@@ -19,59 +21,24 @@ export function OrderManager({ initialBookings, suppliers }: { initialBookings: 
   }), [bookings, query, filter]);
 
   async function updateOrder(booking: OperationsBooking, changes: { supplierId?: string | null; status?: OperationStatus }) {
-    setSaving(booking.id);
-    setError("");
+    setSaving(booking.id); setError("");
     try {
       const response = await fetch(`/api/admin/orders/${encodeURIComponent(booking.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not update order.");
-      setBookings((current) => current.map((item) => item.id === booking.id ? {
-        ...item,
-        ...(changes.status ? { operation_status: changes.status } : {}),
-        ...(changes.supplierId !== undefined ? {
-          supplier_id: changes.supplierId,
-          supplier_name: suppliers.find((supplier) => supplier.id === changes.supplierId)?.name ?? null,
-          operation_status: changes.status ?? (changes.supplierId ? "assigned" : "unassigned"),
-        } : {}),
-      } : item));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not update order.");
-    } finally {
-      setSaving("");
-    }
+      setBookings((current) => current.map((item) => item.id === booking.id ? { ...item, ...(changes.status ? { operation_status: changes.status } : {}), ...(changes.supplierId !== undefined ? { supplier_id: changes.supplierId, supplier_name: suppliers.find((supplier) => supplier.id === changes.supplierId)?.name ?? null, operation_status: changes.status ?? (changes.supplierId ? "assigned" : "unassigned") } : {}) } : item));
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not update order."); }
+    finally { setSaving(""); }
   }
 
-  return (
-    <div>
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#DDE5D8] bg-white p-3 shadow-sm md:flex-row md:items-center">
-        <label className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#718078]" /><span className="sr-only">Search orders</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reference, customer, address or supplier" className="h-11 w-full rounded-xl border border-[#D7E0D3] bg-[#FAFBF8] pl-10 pr-3 text-[13px] outline-none focus:border-[#65A30D]" /></label>
-        <select value={filter} onChange={(event) => setFilter(event.target.value as OperationStatus | "all")} className="h-11 rounded-xl border border-[#D7E0D3] bg-white px-3 text-[12px] font-bold text-[#405347] outline-none"><option value="all">All workflow stages</option>{operationStatuses.map((status) => <option key={status} value={status}>{operationStatusLabels[status]}</option>)}</select>
-      </div>
-      {error ? <p role="alert" className="mt-3 flex items-center gap-2 rounded-xl bg-[#FFF0ED] px-4 py-3 text-[12px] font-bold text-[#93382C]"><CircleAlert className="h-4 w-4" />{error}</p> : null}
-      <div className="mt-4 space-y-3">
-        {visible.map((booking) => (
-          <article key={booking.id} className="rounded-2xl border border-[#DDE5D8] bg-white p-4 shadow-[0_8px_28px_rgba(25,45,34,0.05)]">
-            <div className="grid gap-4 xl:grid-cols-[1.2fr_1.35fr_.8fr_1.15fr] xl:items-center">
-              <div>
-                <div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-[13px] text-[#0B3B24]">{booking.reference}</strong><span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-[0.08em] ${operationStatusTone(booking.operation_status)}`}>{operationStatusLabels[booking.operation_status]}</span><span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase ${booking.payment_status === "paid" ? "bg-[#E7F4E2] text-[#2F6B24]" : "bg-[#F1EDF8] text-[#684C91]"}`}>{booking.payment_status}</span></div>
-                <p className="mt-2 flex items-center gap-2 text-[12px] font-bold text-[#314B3D]"><UserRound className="h-3.5 w-3.5 text-[#65A30D]" />{booking.full_name || "Customer unavailable"}</p>
-                <p className="mt-1 text-[11px] text-[#718078]">{booking.phone} · {booking.email}</p>
-              </div>
-              <div>
-                <p className="flex items-start gap-2 text-[12px] font-semibold leading-5 text-[#314B3D]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#65A30D]" />{booking.street_address || "Address unavailable"}, {booking.postcode}</p>
-                <p className="mt-1 flex items-center gap-2 text-[11px] text-[#718078]"><CalendarDays className="h-3.5 w-3.5" />Deliver {booking.delivery_date || "TBC"} · Pick up {booking.pickup_date || "TBC"}</p>
-              </div>
-              <div><p className="text-[15px] font-extrabold text-[#0B3B24]">{booking.bin_size.replace("m3", "m³")}</p><p className="mt-1 text-[11px] capitalize text-[#718078]">{booking.waste_type} · {booking.placement || "Placement TBC"}</p><p className="mt-1 text-[12px] font-bold text-[#405347]">{formatCurrency(booking.amount_cents / 100)}</p></div>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                <label className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#718078]">Supplier<select disabled={!booking.manageable || saving === booking.id} value={booking.supplier_id ?? ""} onChange={(event) => updateOrder(booking, { supplierId: event.target.value || null })} className="mt-1 h-9 w-full rounded-lg border border-[#D7E0D3] bg-white px-2 text-[11px] font-bold normal-case tracking-normal text-[#314B3D]"><option value="">Unassigned</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.status === "paused" ? " (paused)" : ""}</option>)}</select></label>
-                <label className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#718078]">Workflow<select disabled={!booking.manageable || saving === booking.id} value={booking.operation_status} onChange={(event) => updateOrder(booking, { status: event.target.value as OperationStatus })} className="mt-1 h-9 w-full rounded-lg border border-[#D7E0D3] bg-white px-2 text-[11px] font-bold normal-case tracking-normal text-[#314B3D]">{operationStatuses.map((status) => <option key={status} value={status}>{operationStatusLabels[status]}</option>)}</select></label>
-              </div>
-            </div>
-            {booking.notes || booking.access ? <p className="mt-3 border-t border-[#EDF1EA] pt-3 text-[11px] leading-5 text-[#66746B]"><strong className="text-[#405347]">Site notes:</strong> {[booking.access, booking.notes].filter(Boolean).join(" · ")}</p> : null}
-          </article>
-        ))}
-        {!visible.length ? <div className="rounded-2xl border border-dashed border-[#C9D5C5] bg-white/60 px-6 py-12 text-center text-[13px] text-[#718078]">No orders match these filters.</div> : null}
-      </div>
-    </div>
-  );
+  return <div>
+    <div className="flex flex-col gap-3 rounded-t-2xl border border-[#D6DFD2] bg-white p-3 md:flex-row md:items-center"><label className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#718078]" /><span className="sr-only">Search orders</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reference, customer, address or supplier" className="h-10 w-full rounded-lg border border-[#D7E0D3] bg-[#FAFBF8] pl-10 pr-3 text-[12px] outline-none focus:border-[#65A30D]" /></label><select value={filter} onChange={(event) => setFilter(event.target.value as OperationStatus | "all")} className="h-10 rounded-lg border border-[#D7E0D3] bg-white px-3 text-[11px] font-bold text-[#405347] outline-none"><option value="all">All workflow stages</option>{operationStatuses.map((status) => <option key={status} value={status}>{operationStatusLabels[status]}</option>)}</select><span className="text-[10px] font-bold text-[#718078]">{visible.length} rows</span></div>
+    {error ? <p role="alert" className="flex items-center gap-2 border-x border-[#E9C8C1] bg-[#FFF0ED] px-4 py-3 text-[11px] font-bold text-[#93382C]"><CircleAlert className="h-4 w-4" />{error}</p> : null}
+    <div className="overflow-x-auto rounded-b-2xl border border-t-0 border-[#D6DFD2] bg-white shadow-sm"><table className="w-full min-w-[860px] border-collapse text-left text-[10px]"><thead className="sticky top-0 z-10 bg-[#EAF0E6] text-[#405347]"><tr>{["Order", "Customer", "Schedule", "Bin", "Workflow", "Supplier", "Details"].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap border-b border-r border-[#CBD7C7] px-3 py-3 font-extrabold uppercase tracking-[.07em] last:border-r-0">{heading}</th>)}</tr></thead><tbody>{visible.map((booking, index) => <tr key={booking.id} className={`align-middle hover:bg-[#F5F8F2] ${index % 2 ? "bg-[#FBFCFA]" : "bg-white"}`}><Cell><strong className="block whitespace-nowrap font-mono text-[11px] text-[#0B3B24]">{booking.reference}</strong><span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[7px] font-extrabold uppercase ${booking.payment_status === "paid" ? "bg-[#E7F4E2] text-[#2F6B24]" : "bg-[#F1EDF8] text-[#684C91]"}`}>{booking.payment_status}</span></Cell><Cell><strong className="block max-w-[150px] text-[11px] text-[#314B3D]">{booking.full_name || "Unavailable"}</strong><span className="mt-1 block text-[#7B887F]">{booking.postcode}</span></Cell><Cell><span className="block whitespace-nowrap"><b>Out:</b> {booking.delivery_date || "TBC"}</span><span className="mt-1 block whitespace-nowrap"><b>Back:</b> {booking.pickup_date || "TBC"}</span></Cell><Cell><strong className="whitespace-nowrap text-[12px] text-[#0B3B24]">{booking.bin_size.replace("m3", "m³")}</strong></Cell><Cell><select aria-label={`Workflow for ${booking.reference}`} disabled={!booking.manageable || saving === booking.id} value={booking.operation_status} onChange={(event) => updateOrder(booking, { status: event.target.value as OperationStatus })} className={`h-8 w-[145px] rounded-md border border-[#C9D5C5] px-2 text-[10px] font-bold ${operationStatusTone(booking.operation_status)}`}>{operationStatuses.map((status) => <option key={status} value={status}>{operationStatusLabels[status]}</option>)}</select></Cell><Cell><select aria-label={`Supplier for ${booking.reference}`} disabled={!booking.manageable || saving === booking.id} value={booking.supplier_id ?? ""} onChange={(event) => updateOrder(booking, { supplierId: event.target.value || null })} className="h-8 w-[150px] rounded-md border border-[#C9D5C5] bg-white px-2 text-[10px] font-bold text-[#314B3D] disabled:opacity-50"><option value="">Unassigned</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.status === "paused" ? " (paused)" : ""}</option>)}</select></Cell><Cell><button type="button" onClick={() => setSelectedId(booking.id)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#EEF3EA] px-3 py-2 text-[9px] font-extrabold text-[#315B28]"><Eye className="h-3 w-3" />View details</button></Cell></tr>)}</tbody></table>{!visible.length ? <p className="px-6 py-12 text-center text-[12px] text-[#718078]">No orders match these filters.</p> : null}</div>
+    {selected ? <Modal title={`Order ${selected.reference}`} onClose={() => setSelectedId(null)}><div className="grid gap-3 sm:grid-cols-2"><Detail label="Customer" value={selected.full_name} /><Detail label="Contact" value={`${selected.phone || "—"}\n${selected.email || "—"}`} /><Detail label="Delivery address" value={`${selected.street_address}, ${selected.postcode}`} wide /><Detail label="Schedule" value={`Delivery: ${selected.delivery_date || "TBC"}\nPickup: ${selected.pickup_date || "TBC"}`} /><Detail label="Bin and waste" value={`${selected.bin_size.replace("m3", "m³")} · ${selected.waste_type}\n${selected.placement || "Placement TBC"}`} /><Detail label="Price" value={formatCurrency(selected.amount_cents / 100)} /><Detail label="Hire period" value={selected.hire_period || "—"} /><Detail label="Site notes" value={[selected.access, selected.notes].filter(Boolean).join(" · ") || "No site notes"} wide /><Detail label="Supplier notes" value={selected.supplier_notes || "No supplier notes"} wide /></div></Modal> : null}
+  </div>;
 }
+
+function Cell({ children }: { children: ReactNode }) { return <td className="border-b border-r border-[#E1E7DE] px-3 py-3 text-[#526159] last:border-r-0">{children}</td>; }
+function Detail({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) { return <div className={`rounded-xl bg-[#F4F8F0] p-3 ${wide ? "sm:col-span-2" : ""}`}><p className="text-[9px] font-extrabold uppercase tracking-[.08em] text-[#718078]">{label}</p><p className="mt-1 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#314B3D]">{value || "—"}</p></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#061C11]/60 p-4" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 className="text-[18px] font-extrabold text-[#0B3B24]">{title}</h2><button type="button" onClick={onClose} aria-label="Close details" className="rounded-lg bg-[#EEF3EA] p-2 text-[#405347]"><X className="h-4 w-4" /></button></div><div className="mt-4">{children}</div></section></div>; }

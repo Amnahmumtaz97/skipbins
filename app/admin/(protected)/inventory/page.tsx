@@ -1,10 +1,17 @@
-import { Boxes, CircleAlert } from "lucide-react";
+import { InventoryTable } from "@/components/admin/inventory-table";
 import { bins } from "@/lib/data/skip-bins";
 import { getOperationsSnapshot } from "@/lib/server/operations-service";
 
 export default async function AdminInventoryPage() {
   const { bookings, suppliers } = await getOperationsSnapshot();
-  return <div className="mx-auto max-w-[1400px]"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#65A30D]">Supply management</p><h1 className="mt-1 text-[30px] font-extrabold tracking-[-0.04em] text-[#0B3B24]">Bin availability</h1><p className="mt-2 text-[13px] text-[#66746B]">Network stock compared with bins currently assigned or on hire.</p><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{bins.map((bin) => { const stock = suppliers.reduce((sum, supplier) => sum + Number(supplier.bin_inventory[bin.id] ?? 0), 0); const committed = bookings.filter((booking) => booking.bin_size === bin.id && ["assigned", "accepted", "scheduled", "delivered", "collection_due"].includes(booking.operation_status)).length; const available = Math.max(0, stock - committed); return <article key={bin.id} className="rounded-2xl border border-[#DDE5D8] bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF4DF] text-[#397520]"><Boxes className="h-4 w-4" /></span>{available === 0 && committed > 0 ? <CircleAlert className="h-4 w-4 text-[#C56B16]" /> : null}</div><h2 className="mt-3 text-[20px] font-extrabold text-[#0B3B24]">{bin.size}</h2><p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#718078]">{bin.door}</p><div className="mt-4 grid grid-cols-3 gap-1.5 text-center"><Stock label="Listed" value={stock} /><Stock label="In use" value={committed} /><Stock label="Free" value={available} strong /></div></article>; })}</div><p className="mt-5 rounded-xl bg-[#EAF4DF] px-4 py-3 text-[11px] leading-5 text-[#315B28]">Inventory is the total entered against active suppliers. Assigned, scheduled, delivered and collection-due orders count as committed stock.</p></div>;
-}
+  const rows = bins.map((bin) => {
+    const stock = suppliers.reduce((sum, supplier) => sum + Number(supplier.bin_inventory[bin.id] ?? 0), 0);
+    const committed = bookings.filter((booking) => booking.bin_size === bin.id && ["assigned", "accepted", "scheduled", "delivered", "collection_due"].includes(booking.operation_status)).length;
+    return { id: bin.id, size: bin.size, door: bin.door, dimensions: bin.dimensions, stock, committed, available: Math.max(0, stock - committed) };
+  });
 
-function Stock({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) { return <div className={`rounded-lg px-1 py-2 ${strong ? "bg-[#0B3B24] text-white" : "bg-[#F4F8F0] text-[#405347]"}`}><p className="text-[8px] font-bold uppercase opacity-65">{label}</p><p className="mt-1 text-[15px] font-extrabold">{value}</p></div>; }
+  return <div className="mx-auto max-w-[1400px]"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#65A30D]">Supply management</p><h1 className="mt-1 text-[30px] font-extrabold tracking-[-0.04em] text-[#0B3B24]">Bin availability</h1><p className="mt-2 text-[13px] text-[#66746B]">Network stock compared with bins currently assigned or on hire.</p>
+    <div className="mt-6"><InventoryTable rows={rows} /></div>
+    <p className="mt-5 rounded-xl bg-[#EAF4DF] px-4 py-3 text-[11px] leading-5 text-[#315B28]">Inventory is the total entered against active suppliers. Assigned, scheduled, delivered and collection-due orders count as committed stock.</p>
+  </div>;
+}

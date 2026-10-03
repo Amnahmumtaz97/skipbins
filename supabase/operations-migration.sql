@@ -33,6 +33,25 @@ create index if not exists bookings_operation_status_idx on public.bookings (ope
 alter table public.suppliers enable row level security;
 revoke all on public.suppliers from anon, authenticated;
 
+create table if not exists public.supplier_applications (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid not null unique references auth.users (id) on delete cascade,
+  company_name text not null,
+  contact_name text not null,
+  phone text not null,
+  email text not null,
+  abn text not null default '',
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_at timestamptz,
+  reviewed_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists supplier_applications_email_key on public.supplier_applications (lower(email));
+create index if not exists supplier_applications_status_idx on public.supplier_applications (status);
+alter table public.supplier_applications enable row level security;
+revoke all on public.supplier_applications from anon, authenticated;
+
 -- Supplier account setup after creating the user in Authentication:
 -- 1. Add the supplier in /admin/suppliers and copy its supplier UUID.
 -- 2. Link public.suppliers.auth_user_id to the Auth user's UUID.

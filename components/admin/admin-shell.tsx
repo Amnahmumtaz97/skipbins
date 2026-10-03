@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Boxes, ClipboardList, CreditCard, LayoutDashboard, LogOut, PackageSearch, Truck } from "lucide-react";
+import { Boxes, ClipboardList, CreditCard, LayoutDashboard, LogOut, PackageSearch, Truck, UserPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const links = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/orders", label: "Orders", icon: ClipboardList },
+  { href: "/admin/applications", label: "Applications", icon: UserPlus },
   { href: "/admin/suppliers", label: "Suppliers", icon: Truck },
   { href: "/admin/inventory", label: "Bin supply", icon: Boxes },
   { href: "/admin/stripe-test", label: "Stripe test", icon: CreditCard },

@@ -25,6 +25,8 @@ const { createPendingBooking } = require('../lib/server/booking-service.ts');
 const { newCustomerCode, normalizeCustomerEmail } = require('../lib/server/customer-service.ts');
 const { isAdminUser, isSupplierUser, supplierIdFromUser } = require('../lib/server/admin-auth.ts');
 const { isOperationStatus, supplierActionStatuses } = require('../lib/data/operations.ts');
+const { validateSupplierApplication } = require('../lib/supplier-application.ts');
+const { buildAdminKpis, buildSupplierKpis } = require('../lib/operations-kpis.ts');
 const { getTestStripe } = require('../lib/server/stripe.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
@@ -82,6 +84,15 @@ test('customer identities use normalized emails and non-guessable public codes',
   assert.match(first, /^CUS-[A-F0-9]{12}$/);
   assert.match(second, /^CUS-[A-F0-9]{12}$/);
   assert.notEqual(first, second);
+});
+test('supplier applications normalize contact details and enforce account security', () => {
+  const application = validateSupplierApplication({ companyName: '  Test Bins ', contactName: ' Test Owner ', phone: '0411 222 333', email: ' TEAM@TestBins.COM ', abn: '12 345 678 901', password: 'StrongPass1', confirmPassword: 'StrongPass1' });
+  assert.equal(application.companyName, 'Test Bins');
+  assert.equal(application.email, 'team@testbins.com');
+  assert.equal(application.abn, '12345678901');
+  for (const changes of [{phone:'123'}, {email:'bad'}, {abn:'123'}, {password:'short',confirmPassword:'short'}, {confirmPassword:'Different1'}]) {
+    assert.throws(() => validateSupplierApplication({ ...application, confirmPassword: application.password, ...changes }));
+  }
 });
 test('booking extras are priced from the server catalogue', () => {
   const extras = emptyBookingExtras();
@@ -191,6 +202,22 @@ test('supplier access and operations updates use explicit trusted roles', () => 
   assert.equal(supplierIdFromUser({ app_metadata:{} }), undefined);
   for (const status of supplierActionStatuses) assert.equal(isOperationStatus(status), true);
   assert.equal(isOperationStatus('admin_override'), false);
+});
+test('operations KPI calculations reflect paid work, capacity and due dates', () => {
+  const base = { id:'1',reference:'B1',payment_status:'paid',operation_status:'assigned',amount_cents:35000,bin_size:'2m3',postcode:'3000',waste_type:'green',delivery_date:'2099-01-01',pickup_date:'2099-01-11',hire_period:'Standard',full_name:'Test',email:'test@example.com',phone:'0400000000',street_address:'1 Test St',placement:'Driveway',access:'',notes:'',supplier_id:'s1',supplier_name:'Supplier',supplier_notes:'',created_at:'2099-01-01T00:00:00Z',manageable:true };
+  const bookings = [base, { ...base, id:'2', reference:'B2', operation_status:'collected', amount_cents:45000 }, { ...base, id:'3', reference:'B3', operation_status:'issue', supplier_id:'s2', delivery_date:'2099-01-02' }];
+  const suppliers = [{ id:'s1',name:'One',contact_name:'',email:'',phone:'',service_area:'',status:'active',bin_inventory:{'2m3':2},auth_user_id:null }, { id:'s2',name:'Two',contact_name:'',email:'',phone:'',service_area:'',status:'active',bin_inventory:{'4m3':3},auth_user_id:null }];
+  const admin = buildAdminKpis(bookings, suppliers, '2099-01-01');
+  assert.equal(admin.openJobs, 2);
+  assert.equal(admin.paidValueCents, 115000);
+  assert.equal(admin.completionRate, 33);
+  assert.equal(admin.supplierUtilization, 100);
+  assert.equal(admin.totalInventory, 5);
+  assert.equal(admin.pipeline.issue, 1);
+  const supplier = buildSupplierKpis(bookings, '2099-01-12');
+  assert.equal(supplier.active.length, 2);
+  assert.equal(supplier.overdue, 2);
+  assert.equal(supplier.issues, 1);
 });
 test('admin Stripe diagnostic uses an accepted one-dollar AUD test amount', () => {
   assert.equal(adminStripeTestAmountCents, 100);

@@ -224,3 +224,104 @@ export async function updateSupplier(supplierId: string, changes: Partial<Suppli
   if (!data) throw new Error("Supplier not found");
   return normalizeSupplier(data as Record<string, unknown>);
 }
+
+export type SupplierApplication = {
+  id: string;
+  auth_user_id: string;
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  abn: string;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+};
+
+function normalizeApplication(row: Record<string, unknown>): SupplierApplication {
+  const status = text(row, "status");
+  return {
+    id: text(row, "id"),
+    auth_user_id: text(row, "auth_user_id"),
+    company_name: text(row, "company_name"),
+    contact_name: text(row, "contact_name"),
+    phone: text(row, "phone"),
+    email: text(row, "email"),
+    abn: text(row, "abn"),
+    status: status === "approved" || status === "rejected" ? status : "pending",
+    created_at: text(row, "created_at"),
+  };
+}
+
+export async function listSupplierApplications() {
+  const client = adminDatabase();
+  if (!client) return [] as SupplierApplication[];
+  const { data, error } = await client.from("supplier_applications").select("*").order("created_at", { ascending: false });
+  if (error) return [] as SupplierApplication[];
+  return (data as Record<string, unknown>[]).map(normalizeApplication);
+}
+
+export async function createSupplierApplication(input: { companyName: string; contactName: string; phone: string; email: string; abn: string; password: string }) {
+  const client = adminDatabase();
+  if (!client) throw new Error("Supplier applications are not configured");
+  const { data: authData, error: authError } = await client.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    app_metadata: { role: "supplier_pending" },
+  });
+  if (authError || !authData.user) throw new Error(authError?.message || "Could not create supplier account");
+  const { data, error } = await client.from("supplier_applications").insert({
+    auth_user_id: authData.user.id,
+    company_name: input.companyName,
+    contact_name: input.contactName,
+    phone: input.phone,
+    email: input.email,
+    abn: input.abn,
+  }).select("*").single();
+  if (error) {
+    await client.auth.admin.deleteUser(authData.user.id).catch(() => undefined);
+    throw new Error(`Could not submit supplier application: ${error.message}`);
+  }
+  return normalizeApplication(data as Record<string, unknown>);
+}
+
+export async function reviewSupplierApplication(applicationId: string, decision: "approved" | "rejected", adminUserId: string) {
+  const client = adminDatabase();
+  if (!client) throw new Error("Operations database is not configured");
+  const { data, error } = await client.from("supplier_applications").select("*").eq("id", applicationId).maybeSingle();
+  if (error || !data) throw new Error("Supplier application not found");
+  const application = normalizeApplication(data as Record<string, unknown>);
+  if (application.status !== "pending") throw new Error("This application has already been reviewed");
+
+  if (decision === "approved") {
+    const { data: supplierData, error: supplierError } = await client.from("suppliers").insert({
+      auth_user_id: application.auth_user_id,
+      name: application.company_name,
+      contact_name: application.contact_name,
+      email: application.email,
+      phone: application.phone,
+      service_area: "",
+      status: "active",
+      bin_inventory: {},
+    }).select("*").single();
+    if (supplierError || !supplierData) throw new Error(supplierError?.message || "Could not create supplier profile");
+    const supplier = normalizeSupplier(supplierData as Record<string, unknown>);
+    const { data: authData } = await client.auth.admin.getUserById(application.auth_user_id);
+    const metadata = authData.user?.app_metadata ?? {};
+    const { error: metadataError } = await client.auth.admin.updateUserById(application.auth_user_id, {
+      app_metadata: { ...metadata, role: "supplier", supplier_id: supplier.id },
+    });
+    if (metadataError) {
+      await client.from("suppliers").delete().eq("id", supplier.id);
+      throw new Error(`Could not activate supplier login: ${metadataError.message}`);
+    }
+  } else {
+    const { data: authData } = await client.auth.admin.getUserById(application.auth_user_id);
+    const metadata = authData.user?.app_metadata ?? {};
+    const { error: metadataError } = await client.auth.admin.updateUserById(application.auth_user_id, { app_metadata: { ...metadata, role: "supplier_rejected" } });
+    if (metadataError) throw new Error(`Could not update supplier login: ${metadataError.message}`);
+  }
+
+  const { error: reviewError } = await client.from("supplier_applications").update({ status: decision, reviewed_at: new Date().toISOString(), reviewed_by: adminUserId }).eq("id", applicationId);
+  if (reviewError) throw new Error(`Could not complete review: ${reviewError.message}`);
+}

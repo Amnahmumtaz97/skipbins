@@ -37,6 +37,7 @@ export function AdminLoginForm({ nextPath }: { nextPath: string }) {
           name="email"
           type="email"
           autoComplete="username"
+          placeholder="admin@yourcompany.com.au"
           required
           className="mt-2 h-12 w-full rounded-xl border border-[#CDD7CA] bg-white px-4 text-[14px] font-medium outline-none transition focus:border-[#16955F] focus:ring-2 focus:ring-[#16955F]/15"
         />
@@ -47,6 +48,7 @@ export function AdminLoginForm({ nextPath }: { nextPath: string }) {
           name="password"
           type="password"
           autoComplete="current-password"
+          placeholder="Enter your admin password"
           required
           className="mt-2 h-12 w-full rounded-xl border border-[#CDD7CA] bg-white px-4 text-[14px] font-medium outline-none transition focus:border-[#16955F] focus:ring-2 focus:ring-[#16955F]/15"
         />

@@ -75,11 +75,28 @@ create unique index if not exists customers_stripe_customer_id_key on public.cus
 alter table public.bookings enable row level security;
 alter table public.customers enable row level security;
 alter table public.suppliers enable row level security;
+create table if not exists public.supplier_applications (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid not null unique references auth.users (id) on delete cascade,
+  company_name text not null,
+  contact_name text not null,
+  phone text not null,
+  email text not null,
+  abn text not null default '',
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_at timestamptz,
+  reviewed_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists supplier_applications_email_key on public.supplier_applications (lower(email));
+create index if not exists supplier_applications_status_idx on public.supplier_applications (status);
+alter table public.supplier_applications enable row level security;
 
 -- Customer records contain private contact details. Only the server-side
 -- Supabase secret/service-role key may read or write them.
 revoke all on public.customers from anon, authenticated;
 revoke all on public.suppliers from anon, authenticated;
+revoke all on public.supplier_applications from anon, authenticated;
 
 -- Inserts go through /api/bookings after validation. Prefer SUPABASE_SECRET_KEY
 -- (bypasses RLS). The insert policy lets the server publishable key persist
