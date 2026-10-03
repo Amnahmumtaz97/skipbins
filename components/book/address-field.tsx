@@ -78,7 +78,7 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
     <label htmlFor={id} className="block h-5 leading-5">Delivery address</label>
     <div className="relative mt-1.5">
     <input id={id} name="street-address" value={text} onChange={(event) => { setDraftText(event.target.value); setSelectedStreet(null); onSelectionChange(false); onChange(event.target.value); setActive(-1); setFocused(true); }}
-      autoComplete="off" maxLength={240} required={required} placeholder="Street address" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
+      autoComplete="off" maxLength={240} required={required} placeholder="e.g. 120 Collins Street" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
       role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-results`}
       aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}
       onFocus={() => { setFrequent(frequentAddresses(postcode)); setFocused(true); }} onBlur={() => setFocused(false)}
@@ -94,7 +94,9 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
       className={`h-14 w-full min-w-0 text-base sm:text-sm ${inputClass(error)}`} />
     {loading ? <Loader2 aria-hidden="true" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#14532D]" /> : null}
     <ul id={`${id}-results`} role="listbox" aria-label={showFrequent ? "Frequently selected addresses" : "Matching addresses"} hidden={!open} className="absolute z-40 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-[#cbd8c5] bg-white shadow-lg">
-      {showFrequent ? <li role="presentation" className="px-3 pb-1 pt-2.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#718078]">Frequently selected</li> : null}
+      <li role="presentation" className="px-3 pb-1 pt-2.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#718078]">
+        {showFrequent ? "Frequently selected" : "Select a complete address"}
+      </li>
       {results.map((result, index) => <li key={result.label} id={`${id}-option-${index}`} role="option" aria-selected={index === active}
         onMouseDown={(event) => event.preventDefault()} onClick={() => selectResult(result)}
         className={`flex min-h-11 cursor-pointer items-center break-words px-3 py-3 text-sm ${index === active ? "bg-[#DDECCB]" : "hover:bg-[#F4F7EC]"}`}>
@@ -104,7 +106,7 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
     </div>
     <div id={`${id}-help`} aria-live="polite" className="font-medium">
       <ValidationMessage message={error || current?.error} />
-      {!compact && !error && !current?.error && !postcodeReady ? (
+      {!error && !current?.error && !postcodeReady && (!compact || Boolean(text.trim())) ? (
         <p className={`mt-1 text-xs leading-5 ${text.trim() ? "font-semibold text-[#9A6707]" : "text-[#405347]"}`}>
           Select a suburb or postcode from its suggestions before entering your delivery address.
         </p>
@@ -112,7 +114,7 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
       {!compact && !error && !current?.error && postcodeReady && !text.trim() ? <p className="mt-1 text-xs leading-5 text-[#405347]">Start with a street number or name, then select the complete address.</p> : null}
       {!compact && !error && !current?.error && loading ? <p className="mt-1 text-xs leading-5 text-[#405347]">Looking up addresses…</p> : null}
       {!compact && !error && !current?.error && chosen ? <p className="mt-1 text-xs font-semibold leading-5 text-[#4D7C0F]">Full delivery address selected.</p> : null}
-      {!compact && !error && !current?.error && current && !loading && current.results.length === 0 ? <p className="mt-1 text-xs leading-5 text-[#405347]">No matching addresses found. Check the street or try a shorter search.</p> : null}
+      {!error && !current?.error && current && !loading && current.results.length === 0 ? <p className="mt-1 text-xs leading-5 text-[#405347]">No matching addresses found. Check the street or try a shorter search.</p> : null}
     </div>
   </div>;
 }

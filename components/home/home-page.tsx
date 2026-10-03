@@ -116,8 +116,11 @@ export function HomePage() {
     if (loading) return;
     const nextErrors: Partial<QuoteState> = {};
     if (!quote.size) nextErrors.size = "Please select a bin size.";
-    if (!isResolvedPostcode(quote.postcode)) nextErrors.postcode = postcodeSelectionError;
-    if (!quote.streetAddress.trim() || !addressConfirmed) {
+    const postcodeSelected = isResolvedPostcode(quote.postcode) && quote.postcodeLabel.trim() !== quote.postcode.trim();
+    if (!postcodeSelected) nextErrors.postcode = postcodeSelectionError;
+    if (!postcodeSelected) {
+      nextErrors.streetAddress = "Select a suburb or postcode first before choosing an address.";
+    } else if (!quote.streetAddress.trim() || !addressConfirmed) {
       nextErrors.streetAddress = "Select a delivery address from the suggestions.";
     } else {
       const locationError = selectedAddressLocationError(quote.deliveryAddressLabel, quote.postcode, quote.postcodeLabel);
@@ -234,7 +237,9 @@ export function HomePage() {
                   <AddressField
                     required
                     value={quote.streetAddress}
+                    displayValue={quote.deliveryAddressLabel}
                     postcode={quote.postcode}
+                    postcodeSelected={isResolvedPostcode(quote.postcode) && quote.postcodeLabel.trim() !== quote.postcode.trim()}
                     onChange={updateStreetAddress}
                     onSelectionChange={setAddressConfirmed}
                     error={quoteErrors.streetAddress}
