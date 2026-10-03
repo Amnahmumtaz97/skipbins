@@ -230,8 +230,11 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     if (currentStep === 1 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
     if (currentStep === 2 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
     if (currentStep === 3) {
-      if (!isResolvedPostcode(form.address)) nextErrors.address = postcodeSelectionError;
-      if (!form.streetAddress.trim() || !addressConfirmed) nextErrors.streetAddress = "Select a delivery address from the suggestions.";
+      const postcodeSelected = isResolvedPostcode(form.address) && form.locationLabel.trim() !== form.address.trim();
+      if (!postcodeSelected) {
+        nextErrors.address = postcodeSelectionError;
+        nextErrors.streetAddress = "Select a suburb or postcode first before choosing an address.";
+      } else if (!form.streetAddress.trim() || !addressConfirmed) nextErrors.streetAddress = "Select a delivery address from the suggestions.";
       else {
         const locationError = selectedAddressLocationError(form.deliveryAddressLabel, form.address, form.locationLabel);
         if (locationError) nextErrors.streetAddress = locationError;
@@ -396,6 +399,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       value={form.streetAddress}
                       displayValue={form.deliveryAddressLabel}
                       postcode={form.address}
+                      postcodeSelected={isResolvedPostcode(form.address) && form.locationLabel.trim() !== form.address.trim()}
                       onChange={updateStreetAddress}
                       onSelectionChange={(confirmed) => setAddressConfirmed(confirmed)}
                       error={errors.streetAddress}
@@ -423,6 +427,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       ))}
                     </div>
                     <ValidationMessage message={errors.placement} />
+                    {!errors.placement && !form.placement ? <p className="mt-1.5 text-xs leading-5 text-[#5B6B60]">Choose the exact area where the driver should place the bin.</p> : null}
                     {form.placement === "Road" || form.placement === "Nature Strip" ? (
                       <div
                         role="status"
@@ -445,7 +450,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       placeholder="Please make sure the access to the drop-off location is a minimum of 2.75m wide."
                       className={`${inputClass()} min-h-16 resize-y`}
                     />
-                    <span className="text-xs font-medium text-[#5B6B60]">Optional</span>
+                    <span className="text-xs font-medium leading-5 text-[#5B6B60]">Optional — mention gates, slopes, overhead obstacles, or restricted access.</span>
                   </label>
                 </div>
               ) : null}
@@ -472,6 +477,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       onChange={updatePickupDate}
                     />
                   </div>
+                  <p className="text-xs leading-5 text-[#5B6B60]">Delivery starts tomorrow and Sundays are unavailable. Pickup must be 10–14 days after delivery.</p>
                   <div className="flex items-start gap-3 rounded-2xl border border-[#C6DAB0] bg-[#EEF5E5] px-4 py-3.5">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#DDECCB] text-[#14532D]">
                       <CalendarClock size={20} aria-hidden="true" />
@@ -501,6 +507,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                         className={inputClass(errors.fullName)}
                       />
                       <ValidationMessage message={errors.fullName} />
+                      {!errors.fullName ? <span className="text-xs font-medium leading-5 text-[#5B6B60]">Use the name of the person receiving the delivery.</span> : null}
                     </label>
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
                       Phone number
@@ -511,6 +518,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                         className={inputClass(errors.phone)}
                       />
                       <ValidationMessage message={errors.phone} />
+                      {!errors.phone ? <span className="text-xs font-medium leading-5 text-[#5B6B60]">Australian number, for example 0412 345 678.</span> : null}
                     </label>
                     <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24] sm:col-span-2">
                       Email
@@ -522,6 +530,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                         className={inputClass(errors.email)}
                       />
                       <ValidationMessage message={errors.email} />
+                      {!errors.email ? <span className="text-xs font-medium leading-5 text-[#5B6B60]">We’ll send the booking confirmation and receipt here.</span> : null}
                     </label>
                   </div>
                   <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
@@ -532,7 +541,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                       placeholder="Tell us about the 2.75m wide area, access, or anything else we should know."
                       className={`${inputClass()} min-h-16 resize-y`}
                     />
-                    <span className="text-xs font-medium text-[#5B6B60]">Optional</span>
+                    <span className="text-xs font-medium leading-5 text-[#5B6B60]">Optional — add instructions that will help the delivery driver.</span>
                   </label>
                 </div>
               ) : null}

@@ -10,12 +10,13 @@ type AddressSuggestion = { street: string; label: string };
 
 const searchable = (value: string) => /^[a-zA-Z0-9 '/,.#-]{1,80}$/.test(value.trim());
 
-export function AddressField({ value, displayValue, onChange, onSelectionChange, postcode, error, required, compact }: {
+export function AddressField({ value, displayValue, onChange, onSelectionChange, postcode, postcodeSelected, error, required, compact }: {
   value: string;
   displayValue?: string;
   onChange: (value: string, selectedLabel?: string) => void;
   onSelectionChange: (selected: boolean) => void;
   postcode: string;
+  postcodeSelected?: boolean;
   error?: string;
   required?: boolean;
   compact?: boolean;
@@ -35,7 +36,7 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
     setFrequent([]);
   }
   const text = draftText ?? displayValue ?? value;
-  const postcodeReady = /^\d{4}$/.test(postcode);
+  const postcodeReady = postcodeSelected ?? /^\d{4}$/.test(postcode);
   const canSearch = postcodeReady && searchable(text);
   const chosen = selectedStreet === value && canSearch;
   const current = lookup?.query === text ? lookup : null;
@@ -103,8 +104,15 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
     </div>
     <div id={`${id}-help`} aria-live="polite" className="font-medium">
       <ValidationMessage message={error || current?.error} />
-      {!compact && !error && !current?.error && !postcodeReady ? <p className="mt-1 text-xs leading-5 text-[#405347]">Choose a suburb or postcode first.</p> : null}
+      {!compact && !error && !current?.error && !postcodeReady ? (
+        <p className={`mt-1 text-xs leading-5 ${text.trim() ? "font-semibold text-[#9A6707]" : "text-[#405347]"}`}>
+          Select a suburb or postcode from its suggestions before entering your delivery address.
+        </p>
+      ) : null}
+      {!compact && !error && !current?.error && postcodeReady && !text.trim() ? <p className="mt-1 text-xs leading-5 text-[#405347]">Start with a street number or name, then select the complete address.</p> : null}
       {!compact && !error && !current?.error && loading ? <p className="mt-1 text-xs leading-5 text-[#405347]">Looking up addresses…</p> : null}
+      {!compact && !error && !current?.error && chosen ? <p className="mt-1 text-xs font-semibold leading-5 text-[#4D7C0F]">Full delivery address selected.</p> : null}
+      {!compact && !error && !current?.error && current && !loading && current.results.length === 0 ? <p className="mt-1 text-xs leading-5 text-[#405347]">No matching addresses found. Check the street or try a shorter search.</p> : null}
     </div>
   </div>;
 }

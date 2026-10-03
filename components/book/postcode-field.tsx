@@ -89,8 +89,10 @@ export function PostcodeField({ value, displayValue, onChange, error }: {
     </div>
     <div id={`${id}-help`} aria-live="polite" className="font-medium">
       <ValidationMessage message={error || current?.error} />
+      {!error && !current?.error && trimmedLength === 0 ? <p className="mt-1 text-xs leading-5 text-[#405347]">Start typing a suburb or 4-digit postcode, then select a suggestion.</p> : null}
       {!error && trimmedLength > 0 && trimmedLength < 3 ? <p className="mt-1 text-xs leading-5 text-[#405347]">Enter at least 3 characters to search.</p> : null}
       {!error && !current?.error && valid && (loading || results.length === 0) ? <p className="mt-1 text-xs leading-5 text-[#405347]">{loading ? "Looking up suburbs…" : "No suburbs found. Please check your search."}</p> : null}
+      {!error && !current?.error && chosen ? <p className="mt-1 text-xs font-semibold leading-5 text-[#4D7C0F]">Suburb and postcode selected.</p> : null}
     </div>
   </div>;
 }
