@@ -62,12 +62,12 @@ payments), then redeploy:
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin`)
-- `GEOSCAPE_API_KEY`
+- `GETADDRESS_API_KEY`
 
 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is embedded into the browser bundle at
 build time, so a new deployment is required after adding or changing it.
-`GEOSCAPE_API_KEY` is read by `/api/addresses` at request time. Make sure the
-key has the Predictive API enabled in Geoscape Hub.
+`GETADDRESS_API_KEY` is read by `/api/addresses` at request time and is never
+sent to the browser. Create an Australian address API key in getAddress.io.
 
 The server secret is required because checkout creates or reuses a private
 customer record, stores its Stripe Customer ID, and updates the booking with

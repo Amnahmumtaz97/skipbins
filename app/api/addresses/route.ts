@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server";
 import { rateLimit } from "@/lib/server/rate-limit";
 
-const GEOSCAPE_URL = "https://api.psma.com.au/v1/predictive/address";
-const STREET_PREFIXES = ["sw", "st", "sa", "se", "sh", "sc", "ma", "ba", "br", "ca", "ch", "cl", "gr", "ha", "la", "pa", "ra", "ro", "wa", "we", "hi", "mo", "ke", "pr", "co"];
+const GETADDRESS_URL = "https://api.getaddress.io/autocomplete";
 
-type GeoscapeSuggestion = {
+type GetAddressSuggestion = {
   address?: string;
+  id?: string;
 };
 
-type GeoscapeResponse = {
-  suggest?: GeoscapeSuggestion[];
+type GetAddressResponse = {
+  suggestions?: GetAddressSuggestion[];
 };
 
 function parseSuggestion(label: string) {
@@ -21,44 +21,23 @@ function parseSuggestion(label: string) {
   return { street, label: trimmed, postcode };
 }
 
-async function geoscapeSuggest(apiKey: string, query: string) {
-  const url = `${GEOSCAPE_URL}?query=${encodeURIComponent(query)}&stateTerritory=VIC&maxNumberOfResults=20`;
+async function getAddressSuggestions(apiKey: string, query: string, postcode: string) {
+  const term = `${query} ${postcode}`.trim();
+  const url = new URL(`${GETADDRESS_URL}/${encodeURIComponent(term)}`);
+  url.searchParams.set("api-key", apiKey);
+  url.searchParams.set("top", "6");
   const res = await fetch(url, {
-    headers: { Authorization: apiKey },
     cache: "no-store",
     signal: AbortSignal.timeout(8000),
     redirect: "error",
   });
-  if (!res.ok) return { status: res.status, addresses: [] as string[] };
-  const data: GeoscapeResponse = await res.json();
-  if (!Array.isArray(data.suggest)) return { status: 502, addresses: [] as string[] };
+  if (!res.ok) return { status: res.status, suggestions: [] as GetAddressSuggestion[] };
+  const data: GetAddressResponse = await res.json();
+  if (!Array.isArray(data.suggestions)) return { status: 502, suggestions: [] as GetAddressSuggestion[] };
   return {
     status: res.status,
-    addresses: data.suggest.flatMap((item) => typeof item.address === "string" ? [item.address.trim()] : []),
+    suggestions: data.suggestions,
   };
-}
-
-async function addressesInPostcode(apiKey: string, number: string, postcode: string) {
-  const found: string[] = [];
-  const seen = new Set<string>();
-  let index = 0;
-  const deadline = Date.now() + 3500;
-  const worker = async () => {
-    while (index < STREET_PREFIXES.length && found.length < 20 && Date.now() < deadline) {
-      const prefix = STREET_PREFIXES[index++];
-      const result = await geoscapeSuggest(apiKey, `${number} ${prefix}`);
-      const numberPattern = new RegExp(`(^|\\s)${number.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`, "i");
-      for (const address of result.addresses) {
-        const streetLine = address.slice(0, Math.max(address.lastIndexOf(","), 0));
-        if (seen.has(address) || !address.toUpperCase().endsWith(`VIC ${postcode}`) || !numberPattern.test(streetLine)) continue;
-        seen.add(address);
-        found.push(address);
-        if (found.length >= 20) return;
-      }
-    }
-  };
-  await Promise.all([worker(), worker()]);
-  return found;
 }
 
 export async function GET(request: NextRequest) {
@@ -80,16 +59,17 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Choose a Victorian postcode before searching for a street." }, { status: 400 });
   }
 
-  const apiKey = process.env.GEOSCAPE_API_KEY?.trim();
+  const apiKey = process.env.GETADDRESS_API_KEY?.trim();
   if (!apiKey) {
     return Response.json({ error: "Address search is temporarily unavailable. Please try again later." }, { status: 503 });
   }
 
   try {
-    const first = await geoscapeSuggest(apiKey, query);
+    const first = await getAddressSuggestions(apiKey, query, postcode);
     if (first.status === 401 || first.status === 403) {
-      return Response.json({ error: "Address search isn't enabled for this API key. In Geoscape Hub, add the Predictive API to the key, then try again." }, { status: 503 });
+      return Response.json({ error: "Address search isn't enabled for this getAddress.io API key. Please check the key and subscription." }, { status: 503 });
     }
+    if (first.status === 429) return Response.json({ error: "Address search is busy. Please wait a moment and try again." }, { status: 503 });
     if (first.status === 502) {
       return Response.json({ error: "Address search is temporarily unavailable. Please try again later." }, { status: 503 });
     }
@@ -97,16 +77,14 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: "Address search is temporarily unavailable. Please try again later." }, { status: 503 });
     }
 
-    const inPostcode = (address: string) => address.toUpperCase().endsWith(`VIC ${postcode}`);
-    let labels = first.addresses.filter(inPostcode);
-    if (labels.length === 0 && /^\d+[a-z]?$/i.test(query)) {
-      labels = await addressesInPostcode(apiKey, query, postcode);
-    }
-
-    const results = labels.flatMap((label) => {
-      const parsed = parseSuggestion(label);
-      return parsed ? [{ street: parsed.street, label: parsed.label }] : [];
-    }).slice(0, 20);
+    const seen = new Set<string>();
+    const results = first.suggestions.flatMap((suggestion) => {
+      if (typeof suggestion.address !== "string") return [];
+      const parsed = parseSuggestion(suggestion.address);
+      if (!parsed || parsed.postcode !== postcode || seen.has(parsed.label.toUpperCase())) return [];
+      seen.add(parsed.label.toUpperCase());
+      return [{ street: parsed.street, label: parsed.label }];
+    }).slice(0, 6);
 
     return Response.json(results, { headers: { "Cache-Control": "no-store" } });
   } catch {

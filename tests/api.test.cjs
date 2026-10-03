@@ -224,26 +224,26 @@ test('address endpoint requires a street and postcode and keeps only that Victor
   assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=312'))).status, 400);
 
   const originalFetch = global.fetch;
-  const originalKey = process.env.GEOSCAPE_API_KEY;
-  delete process.env.GEOSCAPE_API_KEY;
+  const originalKey = process.env.GETADDRESS_API_KEY;
+  delete process.env.GETADDRESS_API_KEY;
   assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'))).status, 503);
 
-  process.env.GEOSCAPE_API_KEY = 'test-only';
-  global.fetch = async () => new Response('{"error":{"code":"PPSS-0029"}}', { status: 401 });
+  process.env.GETADDRESS_API_KEY = 'test-only';
+  global.fetch = async () => new Response('{"message":"Unauthorized"}', { status: 401 });
   const denied = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'));
   assert.equal(denied.status, 503);
-  assert.match((await denied.json()).error, /Predictive API/i);
+  assert.match((await denied.json()).error, /getAddress\.io API key/i);
 
   global.fetch = async (url, options) => {
-    assert.ok(String(url).startsWith('https://api.psma.com.au/v1/predictive/address'));
+    assert.ok(String(url).startsWith('https://api.getaddress.io/autocomplete/'));
+    assert.equal(decodeURIComponent(new URL(url).pathname), '/autocomplete/12 george 3121');
     const params = new URL(url).searchParams;
-    assert.equal(params.get('query'), '12 george');
-    assert.equal(params.get('stateTerritory'), 'VIC');
-    assert.equal(options.headers.Authorization, 'test-only');
+    assert.equal(params.get('api-key'), 'test-only');
+    assert.equal(params.get('top'), '6');
     assert.equal(options.redirect, 'error');
-    return Response.json({ suggest: [
-      { address: '12 GEORGE ST, RICHMOND VIC 3121' },
-      { address: 'UNIT 2, 12 GEORGE ST, RICHMOND VIC 3121' },
+    return Response.json({ suggestions: [
+      { id: 'GAVIC1', address: '12 GEORGE ST, RICHMOND VIC 3121' },
+      { id: 'GAVIC2', address: 'UNIT 2, 12 GEORGE ST, RICHMOND VIC 3121' },
       { address: '12 GEORGE ST, SYDNEY NSW 2000' },
       { address: '12 GEORGE ST, FITZROY VIC 3065' },
       { address: 'NOT AN ADDRESS' },
@@ -256,17 +256,15 @@ test('address endpoint requires a street and postcode and keeps only that Victor
       { street: '12 GEORGE ST', label: '12 GEORGE ST, RICHMOND VIC 3121' },
       { street: 'UNIT 2, 12 GEORGE ST', label: 'UNIT 2, 12 GEORGE ST, RICHMOND VIC 3121' },
     ]);
-    global.fetch = async () => Response.json({ suggest: [
+    global.fetch = async () => Response.json({ suggestions: [
       { address: '12 GEORGE ST, FITZROY VIC 3065' },
       { address: '12 GEORGE ST, SYDNEY NSW 2000' },
     ] });
     const wrongPostcode = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'));
     assert.deepEqual(await wrongPostcode.json(), []);
     global.fetch = async (url) => {
-      const query = new URL(url).searchParams.get('query');
-      if (query === '248 sw') return Response.json({ suggest: [{ address: '248 SWAN ST, RICHMOND VIC 3121' }, { address: '248 SWANSTON ST, MELBOURNE VIC 3000' }] });
-      if (query === '248') return Response.json({ suggest: [{ address: '248 ADDERLEY ST, WEST MELBOURNE VIC 3003' }] });
-      return Response.json({ suggest: [] });
+      assert.equal(decodeURIComponent(new URL(url).pathname), '/autocomplete/248 3121');
+      return Response.json({ suggestions: [{ address: '248 SWAN ST, RICHMOND VIC 3121' }, { address: '248 SWANSTON ST, MELBOURNE VIC 3000' }] });
     };
     const numberOnly = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=248&postcode=3121'));
     assert.deepEqual(await numberOnly.json(), [
@@ -274,6 +272,6 @@ test('address endpoint requires a street and postcode and keeps only that Victor
     ]);
   } finally {
     global.fetch = originalFetch;
-    if (originalKey === undefined) delete process.env.GEOSCAPE_API_KEY; else process.env.GEOSCAPE_API_KEY = originalKey;
+    if (originalKey === undefined) delete process.env.GETADDRESS_API_KEY; else process.env.GETADDRESS_API_KEY = originalKey;
   }
 });
