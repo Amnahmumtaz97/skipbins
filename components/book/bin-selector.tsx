@@ -30,7 +30,7 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
               type="button"
               aria-pressed={selected}
               onClick={() => onChange(bin.id)}
-              className={`selection-card relative cursor-default rounded-2xl border-[1.5px] bg-white p-4 text-left transition hover:-translate-y-0.5 ${
+              className={`selection-card relative cursor-pointer rounded-2xl border-[1.5px] bg-white p-4 text-left transition hover:-translate-y-0.5 ${
                 selected
                   ? "border-[#4d7c0f] shadow-[0_0_0_1.5px_#4d7c0f]"
                   : error
@@ -43,10 +43,10 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
                   <Check size={12} strokeWidth={3} />
                 </span>
               ) : null}
-              <span className="selection-card-copy block cursor-text pr-7 text-[16px] font-bold leading-tight text-[#16241C]">
+              <span className="selection-card-copy block pr-7 text-[16px] font-bold leading-tight text-[#16241C]">
                 {formatBinLabel(bin.id)}
               </span>
-              <span className="selection-card-copy mt-3 grid cursor-text grid-cols-3 rounded-lg bg-[#F6F2E7] px-3 py-2.5">
+              <span className="selection-card-copy mt-3 grid grid-cols-3 rounded-lg bg-[#F6F2E7] px-3 py-2.5">
                 {dimensions.map((dimension, index) => (
                   <span key={dimension.label} className={`${index ? "border-l border-[#DED8C8] pl-2.5" : ""} min-w-0`}>
                     <span className="block text-[9px] font-bold uppercase tracking-[0.08em] text-[#68756C]">{dimension.label}</span>
@@ -54,7 +54,7 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
                   </span>
                 ))}
               </span>
-              <span className={`selection-card-copy mt-3 flex cursor-text items-end justify-between gap-2 ${selected ? "font-bold text-[#0B3B24]" : "font-semibold text-[#16241C]"}`}>
+              <span className={`selection-card-copy mt-3 flex items-end justify-between gap-2 ${selected ? "font-bold text-[#0B3B24]" : "font-semibold text-[#16241C]"}`}>
                 <span>
                   <span className="text-[13px] font-medium text-[#5B6B60]">From </span>
                   <span className="text-[20px] font-bold leading-none tracking-tight">{bin.price}</span>

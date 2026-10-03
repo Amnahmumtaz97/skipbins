@@ -363,7 +363,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} noValidate>
+          <form onSubmit={handleSubmit} noValidate className="booking-flow">
             <fieldset disabled={submitting} className="min-w-0">
             <ValidationMessage message={requestError} />
             <div key={step} className="animate-[fadeStep_280ms_ease]">

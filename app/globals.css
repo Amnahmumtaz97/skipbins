@@ -70,11 +70,15 @@ a {
 }
 
 button.selection-card:not(:disabled) {
-  cursor: default;
+  cursor: pointer;
 }
 
-.selection-card-copy {
-  cursor: text;
+button.selection-card:not(:disabled) * {
+  cursor: pointer;
+}
+
+.booking-flow :where(input:not(:disabled), textarea:not(:disabled)) {
+  cursor: pointer;
 }
 
 @keyframes fadeStep {
