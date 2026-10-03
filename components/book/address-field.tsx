@@ -10,8 +10,9 @@ type AddressSuggestion = { street: string; label: string };
 
 const searchable = (value: string) => /^[a-zA-Z0-9 '/,.#-]{1,80}$/.test(value.trim());
 
-export function AddressField({ value, onChange, onSelectionChange, postcode, error, required, compact }: {
+export function AddressField({ value, displayValue, onChange, onSelectionChange, postcode, error, required, compact }: {
   value: string;
+  displayValue?: string;
   onChange: (value: string, selectedLabel?: string) => void;
   onSelectionChange: (selected: boolean) => void;
   postcode: string;
@@ -20,7 +21,8 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
   compact?: boolean;
 }) {
   const id = useId();
-  const [selectedStreet, setSelectedStreet] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState<string | null>(null);
+  const [selectedStreet, setSelectedStreet] = useState<string | null>(displayValue ? value : null);
   const [trackedPostcode, setTrackedPostcode] = useState(postcode);
   const [lookup, setLookup] = useState<{ query: string; results: AddressSuggestion[]; error?: string } | null>(null);
   const [focused, setFocused] = useState(false);
@@ -28,19 +30,22 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
   const [frequent, setFrequent] = useState<AddressSuggestion[]>([]);
   if (postcode !== trackedPostcode) {
     setTrackedPostcode(postcode);
+    setDraftText(null);
     setSelectedStreet(null);
     setFrequent([]);
   }
+  const text = draftText ?? displayValue ?? value;
   const postcodeReady = /^\d{4}$/.test(postcode);
-  const canSearch = postcodeReady && searchable(value);
+  const canSearch = postcodeReady && searchable(text);
   const chosen = selectedStreet === value && canSearch;
-  const current = lookup?.query === value ? lookup : null;
+  const current = lookup?.query === text ? lookup : null;
   const loading = canSearch && !chosen && !current;
-  const showFrequent = value.trim() === "" || chosen;
+  const showFrequent = text.trim() === "" || chosen;
   const results = showFrequent ? frequent : (current?.results ?? []);
   const open = focused && results.length > 0;
 
   const selectResult = (result: AddressSuggestion) => {
+    setDraftText(result.label);
     setSelectedStreet(result.street);
     rememberAddress({ ...result, postcode });
     setFrequent(frequentAddresses(postcode));
@@ -51,27 +56,27 @@ export function AddressField({ value, onChange, onSelectionChange, postcode, err
   };
 
   useEffect(() => {
-    if (!postcodeReady || !searchable(value)) return;
-    if (selectedStreet === value) return;
+    if (!postcodeReady || !searchable(text)) return;
+    if (chosen) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/addresses?q=${encodeURIComponent(value.trim())}&postcode=${encodeURIComponent(postcode)}`, { signal: controller.signal });
+        const response = await fetch(`/api/addresses?q=${encodeURIComponent(text.trim())}&postcode=${encodeURIComponent(postcode)}`, { signal: controller.signal });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Address search is unavailable. Please try again.");
         if (!Array.isArray(data)) throw new Error("Address search is unavailable. Please try again.");
-        if (!controller.signal.aborted) setLookup({ query: value, results: data });
+        if (!controller.signal.aborted) setLookup({ query: text, results: data });
       } catch (lookupError) {
-        if (!controller.signal.aborted) setLookup({ query: value, results: [], error: lookupError instanceof Error && lookupError.name === "Error" ? lookupError.message : "Couldn't load addresses. Please check your connection and try again." });
+        if (!controller.signal.aborted) setLookup({ query: text, results: [], error: lookupError instanceof Error && lookupError.name === "Error" ? lookupError.message : "Couldn't load addresses. Please check your connection and try again." });
       }
     }, 300);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [value, postcode, postcodeReady, selectedStreet]);
+  }, [chosen, postcode, postcodeReady, text]);
 
   return <div className="flex min-w-0 flex-col text-xs font-bold text-[#14532D]">
     <label htmlFor={id} className="block h-5 leading-5">Delivery address</label>
     <div className="relative mt-1.5">
-    <input id={id} name="street-address" value={value} onChange={(event) => { setSelectedStreet(null); onSelectionChange(false); onChange(event.target.value); setActive(-1); setFocused(true); }}
+    <input id={id} name="street-address" value={text} onChange={(event) => { setDraftText(event.target.value); setSelectedStreet(null); onSelectionChange(false); onChange(event.target.value); setActive(-1); setFocused(true); }}
       autoComplete="off" maxLength={240} required={required} placeholder="Street address" aria-invalid={Boolean(error)} aria-describedby={`${id}-help`}
       role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-results`}
       aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}

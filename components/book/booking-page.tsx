@@ -394,6 +394,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
                     <AddressField
                       required
                       value={form.streetAddress}
+                      displayValue={form.deliveryAddressLabel}
                       postcode={form.address}
                       onChange={updateStreetAddress}
                       onSelectionChange={(confirmed) => setAddressConfirmed(confirmed)}
