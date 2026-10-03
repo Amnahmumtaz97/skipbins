@@ -96,7 +96,7 @@ function databaseError(operation: string, error: { code?: string; message?: stri
 function fromRecord(data: BookingRecord, amountCents: number, customer?: CustomerIdentity): StoredBooking {
   const extras = selectedBookingExtras(data.extras);
   const extrasNote = extras.length
-    ? `Paid disposal extras: ${extras.map((extra) => `${extra.label} x ${extra.quantity}`).join(", ")}`
+    ? `Disposal extras: ${extras.map((extra) => `${extra.label} x ${extra.quantity}${extra.total === 0 ? " (FREE)" : ""}`).join(", ")}`
     : "";
   return {
     id: randomUUID(),

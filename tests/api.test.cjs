@@ -23,7 +23,8 @@ const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
 const { createPendingBooking } = require('../lib/server/booking-service.ts');
 const { newCustomerCode, normalizeCustomerEmail } = require('../lib/server/customer-service.ts');
-const { isAdminUser } = require('../lib/server/admin-auth.ts');
+const { isAdminUser, isSupplierUser, supplierIdFromUser } = require('../lib/server/admin-auth.ts');
+const { isOperationStatus, supplierActionStatuses } = require('../lib/data/operations.ts');
 const { getTestStripe } = require('../lib/server/stripe.ts');
 const quotes = require('../app/api/quotes/route.ts');
 const bookings = require('../app/api/bookings/route.ts');
@@ -43,16 +44,20 @@ test('location searches accept suburbs and partial postcodes while rejecting emp
 });
 test('catalogue allowlists, next-day delivery and 10-to-14-day pickup rules are required', () => {
   assert.equal(validateQuote(valid).postcode, '0800');
-  for (const changes of [{size:'10m3'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-01',pickupDate:'2099-01-03'}, {date:'2099-01-01',pickupDate:'2099-01-16'}, {date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Extended (14 days)'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
+  for (const changes of [{size:'14m3'}, {size:'10m3',waste:'mixed'}, {size:'12m3',waste:'soil'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-01',pickupDate:'2099-01-03'}, {date:'2099-01-01',pickupDate:'2099-01-16'}, {date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Extended (14 days)'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
+  assert.equal(validateQuote({...valid,size:'10m3',waste:'green'}).size, '10m3');
   assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)'}).pickupDate, '2099-01-12');
   assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-15',hirePeriod:'Extended (14 days)'}).pickupDate, '2099-01-15');
 });
 test('bin catalogue uses the approved names and centralized dimensions', () => {
-  assert.deepEqual(bins.map((bin) => bin.size), ['2m³', '3m³', '4m³', '6m³', '8m³', '9m³']);
+  assert.deepEqual(bins.map((bin) => bin.size), ['2m³', '3m³', '4m³', '6m³', '8m³', '9m³', '10m³', '12m³']);
   for (const bin of bins) {
     assert.equal(formatBinLabel(bin.id), `${bin.size} — SKIP BIN`);
     assert.match(bin.dimensions, /^\d(?:\.\d)?m × \d(?:\.\d)?m × \d(?:\.\d)?m$/);
+    assert.match(bin.door, /^(?:No walk-in door|Walk-in door)$/);
   }
+  assert.equal(bins.find((bin) => bin.id === '10m3').dimensions, '4.1m × 1.6m × 1.9m');
+  assert.equal(bins.find((bin) => bin.id === '12m3').dimensions, '5.0m × 2.0m × 1.5m');
 });
 test('quote route rejects invalid JSON, body shape, size and cross-origin requests', async () => {
   assert.equal((await quotes.POST(request({...valid, postcode:''}))).status, 400);
@@ -66,9 +71,9 @@ test('quotes return catalogue bin prices and fail closed on invalid input', asyn
   assert.equal(response.status, 200);
   const data = await response.json();
   assert.equal(data.serviceable, true);
-  assert.equal(data.total, 149);
+  assert.equal(data.total, 350);
   const extended = await quotes.POST(request({ ...valid, hirePeriod: 'Extended (14 days)' }));
-  assert.equal((await extended.json()).total, 209);
+  assert.equal((await extended.json()).total, 490);
 });
 test('customer identities use normalized emails and non-guessable public codes', () => {
   assert.equal(normalizeCustomerEmail('  Customer.Name+Bins@Example.COM '), 'customer.name+bins@example.com');
@@ -80,9 +85,12 @@ test('customer identities use normalized emails and non-guessable public codes',
 });
 test('booking extras are priced from the server catalogue', () => {
   const extras = emptyBookingExtras();
-  extras.excavatorTrack = 2;
+  extras.tyreDisposal = 2;
   extras.mattressDisposal = 1;
-  assert.equal(quoteTotal('2m3', 'Standard (10 days)', extras), 399);
+  extras.carpetDisposal = 1;
+  assert.equal(quoteTotal('2m3', 'Standard (10 days)', extras), 470);
+  extras.mattressDisposal = 2;
+  assert.equal(quoteTotal('2m3', 'Standard (10 days)', extras), 520);
 });
 test('selected delivery address must match the quoted postcode', () => {
   assert.equal(selectedAddressLocationError('12 TEST ST, MELBOURNE VIC 3000', '3000', 'MELBOURNE, VIC 3000'), '');
@@ -173,6 +181,16 @@ test('admin access requires a trusted app role or configured email', () => {
   } finally {
     if (original === undefined) delete process.env.ADMIN_EMAILS; else process.env.ADMIN_EMAILS = original;
   }
+});
+test('supplier access and operations updates use explicit trusted roles', () => {
+  assert.equal(isSupplierUser(null), false);
+  assert.equal(isSupplierUser({ app_metadata:{ role:'customer' } }), false);
+  assert.equal(isSupplierUser({ app_metadata:{ role:'supplier' } }), true);
+  assert.equal(isSupplierUser({ app_metadata:{ roles:['driver','supplier'] } }), true);
+  assert.equal(supplierIdFromUser({ app_metadata:{ supplier_id:'supplier-123' } }), 'supplier-123');
+  assert.equal(supplierIdFromUser({ app_metadata:{} }), undefined);
+  for (const status of supplierActionStatuses) assert.equal(isOperationStatus(status), true);
+  assert.equal(isOperationStatus('admin_override'), false);
 });
 test('admin Stripe diagnostic uses an accepted one-dollar AUD test amount', () => {
   assert.equal(adminStripeTestAmountCents, 100);

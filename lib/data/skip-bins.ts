@@ -15,44 +15,48 @@ export const bins: SkipBin[] = [
     size: "2m³",
     name: "SKIP BIN",
     image: "/images/bin-2m3.png",
-    description: "Perfect for small clear-outs, garden tidy-ups and weekend projects.",
+    description: "Compact top-load bin for small household clean-ups and light garden waste.",
     dimensions: "1.8m × 1.5m × 0.9m",
-    recommendedFor: "Garage cleanout, small garden waste, minor renovation scraps",
-    price: "$149",
-    features: ["Standard 10-day hire", "General household waste", "Fast delivery", "Eco-friendly disposal"],
+    recommendedFor: "Decluttering, small garden tidy-ups, minor DIY waste",
+    price: "$350",
+    door: "No walk-in door",
+    features: ["Standard 10-day hire", "No walk-in door", "Fast delivery", "Eco-friendly disposal"],
   },
   {
     id: "3m3",
     size: "3m³",
     name: "SKIP BIN",
     image: "/images/bin-3m3.png",
-    description: "A step up for larger garden jobs and small bathroom or kitchen tidy-ups.",
+    description: "Small walk-in bin for bathroom strip-outs, garden waste and compact renovations.",
     dimensions: "2.4m × 1.5m × 0.9m",
-    recommendedFor: "Bathroom reno, kitchen cleanout, backyard clear-up",
-    price: "$179",
-    features: ["Standard 10-day hire", "Home renovation projects", "Fast delivery", "Eco-friendly disposal"],
+    recommendedFor: "Bathroom strip-outs, garden waste, small renovations",
+    price: "$450",
+    door: "Walk-in door",
+    features: ["Standard 10-day hire", "Walk-in door", "Fast delivery", "Eco-friendly disposal"],
   },
   {
     id: "4m3",
     size: "4m³",
     name: "SKIP BIN",
     image: "/images/bin-4m3.png",
-    description: "A smart fit for kitchens, bathrooms and medium home renovations.",
+    description: "Versatile walk-in bin for kitchen or bathroom renovations and household clean-ups.",
     dimensions: "3.2m × 1.5m × 0.9m",
-    recommendedFor: "Kitchen and bathroom renovations, mixed household waste",
-    price: "$219",
-    features: ["Standard 10-day hire", "Home renovation projects", "Fast delivery", "Free replacement if needed"],
+    recommendedFor: "Kitchen renovations, bathroom renovations, household clean-ups",
+    price: "$550",
+    door: "Walk-in door",
+    features: ["Standard 10-day hire", "Walk-in door", "Fast delivery", "Free replacement if needed"],
   },
   {
     id: "6m3",
     size: "6m³",
     name: "SKIP BIN",
     image: "/images/bin-6m3.png",
-    description: "Room for larger renovations, building waste and bulky clean-ups.",
+    description: "Popular all-rounder for moving, larger renovations and bulky household waste.",
     dimensions: "3.6m × 1.5m × 1.2m",
-    recommendedFor: "Full house clear-out, major renovation, roofing and flooring",
-    price: "$249",
-    features: ["Standard 10-day hire", "Construction waste", "Fast delivery", "Bulk disposal available"],
+    recommendedFor: "Moving house, larger renovations, bulky household waste",
+    price: "$750",
+    door: "Walk-in door",
+    features: ["Standard 10-day hire", "Walk-in door", "Fast delivery", "Bulk disposal available"],
     popular: true,
   },
   {
@@ -60,27 +64,57 @@ export const bins: SkipBin[] = [
     size: "8m³",
     name: "SKIP BIN",
     image: "/images/bin-8m3.png",
-    description: "Our large-capacity bin for major construction jobs and full property clear-outs.",
+    description: "Large walk-in bin for extensive renovations, property clear-outs and light construction waste.",
     dimensions: "3.7m × 1.6m × 1.4m",
-    recommendedFor: "Large construction, commercial sites, multi-room renovations",
-    price: "$329",
-    features: ["Standard 10-day hire", "Major projects", "Fast delivery", "Commercial ready"],
+    recommendedFor: "Extensive renovations, property clear-outs, light construction waste",
+    price: "$850",
+    door: "Walk-in door",
+    features: ["Standard 10-day hire", "Walk-in door", "Fast delivery", "Commercial ready"],
   },
   {
     id: "9m3",
     size: "9m³",
     name: "SKIP BIN",
     image: "/images/bin-9m3.png",
-    description: "Our biggest bin for large commercial sites and heavy construction waste.",
+    description: "Extra-large walk-in bin for multi-room renovations, building sites and commercial clean-outs.",
     dimensions: "4.0m × 1.6m × 1.5m",
-    recommendedFor: "Commercial demolitions, large builds, multi-dwelling projects",
-    price: "$399",
-    features: ["Standard 10-day hire", "Heavy construction waste", "Fast delivery", "Commercial ready"],
+    recommendedFor: "Multi-room renovations, building sites, commercial clean-outs",
+    price: "$950",
+    door: "Walk-in door",
+    features: ["Standard 10-day hire", "Walk-in door", "Fast delivery", "Commercial ready"],
+  },
+  {
+    id: "10m3",
+    size: "10m³",
+    name: "SKIP BIN",
+    image: "/images/bin-9m3.png",
+    description: "High-capacity walk-in bin for large household clean-ups, shop fit-outs and bulky light waste.",
+    dimensions: "4.1m × 1.6m × 1.9m",
+    recommendedFor: "Large household clean-ups, shop fit-outs, bulky light waste",
+    price: "$1050",
+    door: "Walk-in door",
+    restriction: "No Mixed Heavy Waste or Soil / Dirt. No soil, concrete, bricks, rubble, marble or other heavy material.",
+    disallowedWasteTypes: ["mixed", "soil"],
+    features: ["Standard 10-day hire", "Walk-in door", "Light waste only", "Commercial ready"],
+  },
+  {
+    id: "12m3",
+    size: "12m³",
+    name: "SKIP BIN",
+    image: "/images/bin-9m3.png",
+    description: "Largest-capacity walk-in bin for commercial clear-outs, bulky light waste and major projects.",
+    dimensions: "5.0m × 2.0m × 1.5m",
+    recommendedFor: "Commercial clear-outs, bulky light waste, large-scale projects",
+    price: "$1200",
+    door: "Walk-in door",
+    restriction: "No Mixed Heavy Waste or Soil / Dirt. No soil, concrete, bricks, rubble, marble or other heavy material.",
+    disallowedWasteTypes: ["mixed", "soil"],
+    features: ["Standard 10-day hire", "Walk-in door", "Light waste only", "Maximum capacity"],
   },
 ];
 
 const extraCostWarning =
-  "Mattresses, carpet and e-waste may incur extra costs — check with your supplier after booking.";
+  "Disposal extras: tyres $25 each, first mattress free then $50 each, and carpet $70 per room.";
 
 export const acceptedWaste: WasteCategory[] = [
   {
@@ -228,5 +262,10 @@ export function formatBinLabel(value: string) {
 export function getWasteById(value?: string | null) {
   if (!value) return undefined;
   return acceptedWaste.find((item) => item.id === value || item.label === value);
+}
+
+export function isWasteAllowedForBin(size?: string | null, waste?: string | null) {
+  const bin = getBinBySizeOrId(size);
+  return !bin || !waste || !bin.disallowedWasteTypes?.includes(waste);
 }
 

@@ -8,7 +8,7 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
   const bin = getBinBySizeOrId(form.binSize);
   const waste = acceptedWaste.find((item) => item.id === form.wasteType);
   const extras = selectedBookingExtras(form.extras);
-  const extrasTotal = extras.reduce((sum, extra) => sum + extra.price * extra.quantity, 0);
+  const extrasTotal = extras.reduce((sum, extra) => sum + extra.total, 0);
   const hireTotal = total === null ? null : total - extrasTotal;
   const location = [form.locationLabel || form.address, form.placement].filter(Boolean).join(" · ");
   const deliveryAddress = [form.streetAddress, form.locationLabel || form.address].filter(Boolean).join(", ");
@@ -61,7 +61,7 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
               <span className="font-extrabold">FREE</span>
             </div>
             {extras.map((extra) => (
-              <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={`+${formatCurrency(extra.price * extra.quantity)}`} />
+              <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={extra.total ? `+${formatCurrency(extra.total)}` : "FREE"} />
             ))}
           </div>
           <div className="mt-3 flex items-end justify-between gap-5 border-t border-[#CED9C8] pt-3">
@@ -100,7 +100,7 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
         <PriceRow label="Bin hire" value={hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"} />
         <PriceRow label="Delivery & pickup" value="FREE" />
         {extras.map((extra) => (
-          <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={`+${formatCurrency(extra.price * extra.quantity)}`} />
+          <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={extra.total ? `+${formatCurrency(extra.total)}` : "FREE"} />
         ))}
         <div className="mt-1.5 flex justify-between border-t border-[#E8E1CF] pt-3 text-[14.5px] font-bold text-[#0B3B24]">
           <span>Total</span>

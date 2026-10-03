@@ -1,4 +1,4 @@
-import { acceptedWaste, bins, hirePeriods } from "@/lib/data/skip-bins";
+import { acceptedWaste, bins, hirePeriods, isWasteAllowedForBin } from "@/lib/data/skip-bins";
 import { quoteTotal } from "@/lib/pricing";
 import { isValidPostcode, postcodeError } from "@/lib/postcode";
 import { InputError } from "@/lib/server/request";
@@ -8,6 +8,7 @@ export function validateQuote(data: Record<string, unknown>) {
   if (!isValidPostcode(data.postcode)) throw new InputError(postcodeError);
   if (!bins.some((bin) => bin.id === data.size)) throw new InputError("Please select a bin size.");
   if (!acceptedWaste.some((waste) => waste.id === data.waste)) throw new InputError("Please select a waste type.");
+  if (!isWasteAllowedForBin(data.size as string, data.waste as string)) throw new InputError("The 10m³ and 12m³ bins cannot be used for Mixed Heavy Waste or Soil / Dirt.");
   if (data.date !== undefined) {
     const date = data.date;
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());

@@ -18,7 +18,7 @@ import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
 import { WasteTypeSelector } from "@/components/book/waste-type-selector";
 import { Navbar } from "@/components/home/navbar";
-import { acceptedWaste, bins, placements } from "@/lib/data/skip-bins";
+import { acceptedWaste, bins, getBinBySizeOrId, isWasteAllowedForBin, placements } from "@/lib/data/skip-bins";
 import { emptyBookingExtras, type BookingExtraId } from "@/lib/data/booking-extras";
 import { selectedAddressLocationError } from "@/lib/address-validation";
 import {
@@ -115,6 +115,8 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     cancelled ? "Payment was cancelled. Your booking is not confirmed." : "",
   );
   const estimatedTotal = quoteTotal(form.binSize, form.hirePeriod, form.extras);
+  const selectedBin = getBinBySizeOrId(form.binSize);
+  const availableWaste = acceptedWaste.filter((waste) => isWasteAllowedForBin(form.binSize, waste.id));
   const restoredDraft = useRef(false);
 
   useEffect(() => {
@@ -228,7 +230,9 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
     const nextErrors: Partial<Record<FieldKey, string>> = {};
 
     if (currentStep === 1 && !bins.some((bin) => bin.id === form.binSize)) nextErrors.binSize = "Please select a bin size.";
-    if (currentStep === 2 && !acceptedWaste.some((waste) => waste.id === form.wasteType)) nextErrors.wasteType = "Please select a waste type.";
+    if (currentStep === 2 && !availableWaste.some((waste) => waste.id === form.wasteType)) {
+      nextErrors.wasteType = selectedBin?.restriction ?? "Please select a waste type.";
+    }
     if (currentStep === 3) {
       const postcodeSelected = isResolvedPostcode(form.address) && form.locationLabel.trim() !== form.address.trim();
       if (!postcodeSelected) {
@@ -339,7 +343,7 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
       <div className="mx-auto w-full max-w-[1100px] px-4 pb-14 pt-28 sm:px-6 sm:pt-32">
         <div className="flex justify-center">
           {/* ---- main content ---- */}
-          <div className={step === 6 && !confirmed ? "min-w-0 w-full max-w-[900px]" : "min-w-0 flex-1 max-w-[720px]"}>
+          <div className={(step === 1 || step === 6) && !confirmed ? "min-w-0 w-full max-w-[1100px]" : "min-w-0 flex-1 max-w-[720px]"}>
         <div className="mb-3 flex items-baseline justify-between gap-4">
           <h1 className="m-0 text-[22px] font-semibold tracking-[-0.01em] text-[#0B3B24] sm:text-[27px]">
             {confirmed ? "You're all set" : titles[step - 1]}
@@ -375,12 +379,19 @@ export function BookingPage({ initialSize, initialLocation, initialLocationLabel
               ) : null}
 
               {step === 2 ? (
-                <WasteTypeSelector
-                  accepted={acceptedWaste}
-                  value={form.wasteType}
-                  onChange={(value) => updateField("wasteType", value)}
-                  error={errors.wasteType}
-                />
+                <div>
+                  {selectedBin?.restriction ? (
+                    <p className="mb-3 rounded-xl border border-[#F0D5A9] bg-[#FFF7E8] px-3.5 py-2.5 text-[12px] font-semibold leading-5 text-[#8A4B08]">
+                      {selectedBin.restriction} Only compatible waste options are shown below.
+                    </p>
+                  ) : null}
+                  <WasteTypeSelector
+                    accepted={availableWaste}
+                    value={form.wasteType}
+                    onChange={(value) => updateField("wasteType", value)}
+                    error={errors.wasteType}
+                  />
+                </div>
               ) : null}
 
               {step === 3 ? (

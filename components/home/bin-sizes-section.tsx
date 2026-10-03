@@ -3,7 +3,7 @@ import type { SkipBin } from "@/types/skip-bin";
 
 export function BinSizesSection({ bins }: { bins: SkipBin[] }) {
   return (
-    <section id="bin-sizes" className="mx-auto w-full max-w-[1400px] space-y-7 px-5 py-14 sm:px-8 lg:py-20">
+    <section id="bin-sizes" className="mx-auto w-full max-w-[1400px] space-y-6 px-5 py-12 sm:px-8 lg:py-16">
       <div className="text-center">
         <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-[#65A30D]">Choose your size</p>
         <h2 className="text-4xl font-black leading-tight tracking-[-0.05em] text-[#0B3B24] sm:text-5xl">
@@ -15,7 +15,7 @@ export function BinSizesSection({ bins }: { bins: SkipBin[] }) {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+      <div className="grid gap-4 min-[520px]:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4 xl:gap-5">
         {bins.map((bin) => <BinSizeCard key={bin.id} bin={bin} />)}
       </div>
     </section>

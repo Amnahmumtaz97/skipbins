@@ -26,10 +26,10 @@ import {
   differenceItems,
   faqItems,
   formatBinLabel,
+  getBinBySizeOrId,
   heroSlides,
   images,
-
-
+  isWasteAllowedForBin,
 } from "@/lib/data/skip-bins";
 import { isSundayIso, maxPickupDate, standardPickupDate, tomorrowIsoDate } from "@/lib/booking-utils";
 import { clearBookingDraft } from "@/lib/booking-draft";
@@ -71,14 +71,19 @@ export function HomePage() {
   const [loading, setLoading] = useState(false);
 
   const updateQuote = (field: keyof QuoteState, value: string) => {
-    setQuote((current) => ({
-      ...current,
-      [field]: value,
-      ...(field === "date" ? { pickupDate: value ? standardPickupDate(value) : "" } : {}),
-    }));
+    setQuote((current) => {
+      const next = {
+        ...current,
+        [field]: value,
+        ...(field === "date" ? { pickupDate: value ? standardPickupDate(value) : "" } : {}),
+      };
+      if (field === "size" && !isWasteAllowedForBin(value, current.waste)) next.waste = "";
+      return next;
+    });
     setQuoteErrors((current) => {
       const next = { ...current };
       delete next[field];
+      if (field === "size") delete next.waste;
       return next;
     });
   };
@@ -127,6 +132,7 @@ export function HomePage() {
       if (locationError) nextErrors.streetAddress = locationError;
     }
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
+    else if (!isWasteAllowedForBin(quote.size, quote.waste)) nextErrors.waste = getBinBySizeOrId(quote.size)?.restriction ?? "Choose a compatible waste type.";
     if (!quote.date || quote.date < tomorrowIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date from tomorrow onward.";
     if (!quote.date || !quote.pickupDate || quote.pickupDate < standardPickupDate(quote.date) || quote.pickupDate > maxPickupDate(quote.date) || isSundayIso(quote.pickupDate)) {
       nextErrors.pickupDate = "Pickup must be 10 to 14 days after delivery.";
@@ -222,7 +228,7 @@ export function HomePage() {
                     value={quote.waste}
                     onChange={(value) => updateQuote("waste", value)}
                     error={quoteErrors.waste}
-                    options={acceptedWaste.map((item) => ({ value: item.id, label: item.label }))}
+                    options={acceptedWaste.filter((item) => isWasteAllowedForBin(quote.size, item.id)).map((item) => ({ value: item.id, label: item.label }))}
                   />
                 </div>
                 <div className="col-span-2">

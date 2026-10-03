@@ -16,7 +16,7 @@ export function WelcomeOfferModal() {
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (pathname.startsWith("/admin")) return;
+    if (pathname.startsWith("/admin") || pathname.startsWith("/supplier") || pathname.startsWith("/supply")) return;
     try {
       if (window.localStorage.getItem(storageKey)) return;
       window.localStorage.setItem(storageKey, "1");
@@ -55,7 +55,7 @@ export function WelcomeOfferModal() {
     }
   };
 
-  if (!open || pathname.startsWith("/admin")) return null;
+  if (!open || pathname.startsWith("/admin") || pathname.startsWith("/supplier") || pathname.startsWith("/supply")) return null;
 
   return (
     <div

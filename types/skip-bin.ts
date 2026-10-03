@@ -10,6 +10,9 @@ export type SkipBin = {
   recommendedFor: string;
   price: string;
   features: string[];
+  door: "No walk-in door" | "Walk-in door";
+  restriction?: string;
+  disallowedWasteTypes?: string[];
   popular?: boolean;
 };
 

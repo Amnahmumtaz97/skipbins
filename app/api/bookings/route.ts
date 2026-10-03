@@ -38,6 +38,24 @@ export async function POST(request: Request) {
 
     const selectedExtras = selectedBookingExtras(extras);
     const extrasTotal = bookingExtrasTotal(extras);
+    const extraLineItems = selectedExtras.flatMap((extra) => [
+      ...(extra.freeQuantity > 0 ? [{
+        quantity: extra.freeQuantity,
+        price_data: {
+          currency: "aud" as const,
+          unit_amount: 0,
+          product_data: { name: `${extra.label} — first one free` },
+        },
+      }] : []),
+      ...(extra.chargeableQuantity > 0 ? [{
+        quantity: extra.chargeableQuantity,
+        price_data: {
+          currency: "aud" as const,
+          unit_amount: extra.price * 100,
+          product_data: { name: extra.freeQuantity > 0 ? `Additional ${extra.label}` : extra.label },
+        },
+      }] : []),
+    ]);
     const amountCents = Math.round((quote.total + extrasTotal) * 100);
     const stripe = getStripe();
     const customerDetails = {
@@ -94,14 +112,7 @@ export async function POST(request: Request) {
             ...(binImageUrl ? { images: [binImageUrl] } : {}),
           },
         },
-      }, ...selectedExtras.map((extra) => ({
-        quantity: extra.quantity,
-        price_data: {
-          currency: "aud" as const,
-          unit_amount: extra.price * 100,
-          product_data: { name: extra.label },
-        },
-      }))],
+      }, ...extraLineItems],
       metadata: {
         bookingId: booking.id,
         customerId: customer.id,
