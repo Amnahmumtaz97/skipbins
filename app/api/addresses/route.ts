@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Choose a Victorian postcode before searching for a street." }, { status: 400 });
   }
 
-  const apiKey = process.env.GETADDRESS_API_KEY?.trim();
+  const apiKey =
+    process.env.GET_ADDRESS_API_KEY?.trim()
+    || process.env.GETADDRESS_API_KEY?.trim();
   if (!apiKey) {
     return Response.json({ error: "Address search is temporarily unavailable. Please try again later." }, { status: 503 });
   }

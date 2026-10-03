@@ -224,11 +224,13 @@ test('address endpoint requires a street and postcode and keeps only that Victor
   assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=312'))).status, 400);
 
   const originalFetch = global.fetch;
-  const originalKey = process.env.GETADDRESS_API_KEY;
+  const originalKey = process.env.GET_ADDRESS_API_KEY;
+  const originalLegacyKey = process.env.GETADDRESS_API_KEY;
+  delete process.env.GET_ADDRESS_API_KEY;
   delete process.env.GETADDRESS_API_KEY;
   assert.equal((await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'))).status, 503);
 
-  process.env.GETADDRESS_API_KEY = 'test-only';
+  process.env.GET_ADDRESS_API_KEY = 'test-only';
   global.fetch = async () => new Response('{"message":"Unauthorized"}', { status: 401 });
   const denied = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=12+george&postcode=3121'));
   assert.equal(denied.status, 503);
@@ -272,6 +274,7 @@ test('address endpoint requires a street and postcode and keeps only that Victor
     ]);
   } finally {
     global.fetch = originalFetch;
-    if (originalKey === undefined) delete process.env.GETADDRESS_API_KEY; else process.env.GETADDRESS_API_KEY = originalKey;
+    if (originalKey === undefined) delete process.env.GET_ADDRESS_API_KEY; else process.env.GET_ADDRESS_API_KEY = originalKey;
+    if (originalLegacyKey === undefined) delete process.env.GETADDRESS_API_KEY; else process.env.GETADDRESS_API_KEY = originalLegacyKey;
   }
 });
