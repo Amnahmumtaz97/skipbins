@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { ValidationMessage } from "@/components/book/validation-message";
-import { isSundayIso, todayIsoDate } from "@/lib/booking-utils";
+import { todayIsoDate } from "@/lib/booking-utils";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
@@ -30,16 +30,56 @@ function toIso(date: Date) {
 }
 
 function monthLabel(year: number, month: number) {
-  return new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric" }).format(new Date(year, month, 1));
+  return new Intl.DateTimeFormat("en-AU", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month, 1));
 }
 
 function displayDate(value: string) {
   const date = parseIso(value);
   if (!date) return "";
-  return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
-export function DatePicker({ label, name = "delivery-date", value, onChange, min, max, error, compact }: DatePickerProps) {
+export function DatePicker({
+  label,
+  name = "delivery-date",
+  value,
+  onChange,
+  min,
+  max,
+  error,
+  compact,
+}: DatePickerProps) {
+  const [policy, setPolicy] = useState<{
+    closedWeekdays: number[];
+    blockedDates: { start: string; end: string }[];
+  }>({ closedWeekdays: [0], blockedDates: [] });
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/booking-policy", { signal: controller.signal })
+      .then(async (response) => {
+        if (response.ok) {
+          const data = await response.json();
+          if (
+            Array.isArray(data.closedWeekdays) &&
+            Array.isArray(data.blockedDates)
+          )
+            setPolicy(data);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+  const unavailable = (iso: string) =>
+    policy.closedWeekdays.includes(new Date(`${iso}T00:00:00Z`).getUTCDay()) ||
+    (name !== "pickup-date" &&
+      policy.blockedDates.some((r) => r.start <= iso && r.end >= iso));
   const minDate = min ?? todayIsoDate();
   const today = todayIsoDate();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -48,7 +88,10 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
   const [open, setOpen] = useState(false);
   const [panel, setPanel] = useState({ top: 0, left: 0, width: 228 });
   const selected = parseIso(value) ?? parseIso(minDate) ?? new Date();
-  const [view, setView] = useState(() => ({ year: selected.getFullYear(), month: selected.getMonth() }));
+  const [view, setView] = useState(() => ({
+    year: selected.getFullYear(),
+    month: selected.getMonth(),
+  }));
 
   const days = useMemo(() => {
     const first = new Date(view.year, view.month, 1);
@@ -57,7 +100,11 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
     return Array.from({ length: 42 }, (_, index) => {
       const date = new Date(start);
       date.setDate(start.getDate() + index);
-      return { iso: toIso(date), day: date.getDate(), inMonth: date.getMonth() === view.month };
+      return {
+        iso: toIso(date),
+        day: date.getDate(),
+        inMonth: date.getMonth() === view.month,
+      };
     });
   }, [view.month, view.year]);
 
@@ -65,10 +112,16 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
     const rect = buttonRef.current?.getBoundingClientRect();
     if (!rect) return;
     const width = 228;
-    const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+    const left = Math.min(
+      Math.max(8, rect.right - width),
+      window.innerWidth - width - 8,
+    );
     const below = rect.bottom + 8;
     const height = 268;
-    const top = below + height > window.innerHeight - 8 ? Math.max(8, rect.top - height - 8) : below;
+    const top =
+      below + height > window.innerHeight - 8
+        ? Math.max(8, rect.top - height - 8)
+        : below;
     setPanel({ top, left, width });
   };
 
@@ -87,7 +140,11 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
     if (!open) return;
     const close = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      if (
+        rootRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      )
+        return;
       setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
@@ -114,106 +171,120 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
   };
 
   const pick = (iso: string) => {
-    if (iso < minDate || (max && iso > max) || isSundayIso(iso)) return;
+    if (iso < minDate || (max && iso > max) || unavailable(iso)) return;
     onChange(iso);
     setOpen(false);
   };
 
-  const calendar = open && typeof document !== "undefined"
-    ? createPortal(
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-label={label}
-          style={{ top: panel.top, left: panel.left, width: panel.width }}
-          className="fixed z-[80] rounded-xl border border-[#dfe8d7] bg-[#FAF9F3] p-2 text-[#172018] shadow-[0_14px_30px_rgba(11,59,36,0.16)]"
-        >
-          <div className="mb-1 flex items-center justify-between gap-1">
-            <p className="m-0 px-1 text-xs font-extrabold text-[#0B3B24]">{monthLabel(view.year, view.month)}</p>
-            <div className="flex">
+  const calendar =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label={label}
+            style={{ top: panel.top, left: panel.left, width: panel.width }}
+            className="fixed z-[80] rounded-xl border border-[#dfe8d7] bg-[#FAF9F3] p-2 text-[#172018] shadow-[0_14px_30px_rgba(11,59,36,0.16)]"
+          >
+            <div className="mb-1 flex items-center justify-between gap-1">
+              <p className="m-0 px-1 text-xs font-extrabold text-[#0B3B24]">
+                {monthLabel(view.year, view.month)}
+              </p>
+              <div className="flex">
+                <button
+                  type="button"
+                  aria-label="Previous month"
+                  onClick={() => shiftMonth(-1)}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#14532D] transition hover:bg-[#DDECCB]"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next month"
+                  onClick={() => shiftMonth(1)}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#14532D] transition hover:bg-[#DDECCB]"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-7">
+              {WEEKDAYS.map((day) => (
+                <span
+                  key={day}
+                  className="py-0.5 text-center text-[10px] font-bold text-[#405347]"
+                >
+                  {day}
+                </span>
+              ))}
+              {days.map((cell) => {
+                const disabled =
+                  cell.iso < minDate ||
+                  Boolean(max && cell.iso > max) ||
+                  unavailable(cell.iso);
+                const selectedDay = cell.iso === value;
+                const isToday = cell.iso === today;
+                return (
+                  <button
+                    key={cell.iso}
+                    type="button"
+                    disabled={disabled}
+                    aria-pressed={selectedDay}
+                    onClick={() => pick(cell.iso)}
+                    className={`mx-auto flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-semibold transition ${
+                      selectedDay
+                        ? "bg-[#0B3B24] text-white"
+                        : disabled
+                          ? "cursor-not-allowed text-[#C7D2C9]"
+                          : isToday
+                            ? "bg-[#DDECCB] text-[#0B3B24] ring-1 ring-[#65A30D] hover:bg-[#cce3b1]"
+                            : cell.inMonth
+                              ? "text-[#172018] hover:bg-[#DDECCB] hover:text-[#0B3B24]"
+                              : "text-[#8A968C] hover:bg-[#DDECCB] hover:text-[#0B3B24]"
+                    }`}
+                  >
+                    {cell.day}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-1 flex items-center justify-between border-t border-[#E8E1CF] px-1 pt-1.5">
               <button
                 type="button"
-                aria-label="Previous month"
-                onClick={() => shiftMonth(-1)}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-[#14532D] transition hover:bg-[#DDECCB]"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="text-[11px] font-bold text-[#14532D] transition hover:text-[#65A30D]"
               >
-                <ChevronLeft size={14} />
+                Clear
               </button>
               <button
                 type="button"
-                aria-label="Next month"
-                onClick={() => shiftMonth(1)}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-[#14532D] transition hover:bg-[#DDECCB]"
+                disabled={today < minDate || unavailable(today)}
+                onClick={() => pick(today)}
+                className="text-[11px] font-bold text-[#65A30D] transition hover:text-[#0B3B24] disabled:text-[#C7D2C9]"
               >
-                <ChevronRight size={14} />
+                Today
               </button>
             </div>
-          </div>
-          <div className="grid grid-cols-7">
-            {WEEKDAYS.map((day) => (
-              <span key={day} className="py-0.5 text-center text-[10px] font-bold text-[#405347]">
-                {day}
-              </span>
-            ))}
-            {days.map((cell) => {
-              const disabled = cell.iso < minDate || Boolean(max && cell.iso > max) || isSundayIso(cell.iso);
-              const selectedDay = cell.iso === value;
-              const isToday = cell.iso === today;
-              return (
-                <button
-                  key={cell.iso}
-                  type="button"
-                  disabled={disabled}
-                  aria-pressed={selectedDay}
-                  onClick={() => pick(cell.iso)}
-                  className={`mx-auto flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-semibold transition ${
-                    selectedDay
-                      ? "bg-[#0B3B24] text-white"
-                      : disabled
-                        ? "cursor-not-allowed text-[#C7D2C9]"
-                        : isToday
-                          ? "bg-[#DDECCB] text-[#0B3B24] ring-1 ring-[#65A30D] hover:bg-[#cce3b1]"
-                          : cell.inMonth
-                            ? "text-[#172018] hover:bg-[#DDECCB] hover:text-[#0B3B24]"
-                            : "text-[#8A968C] hover:bg-[#DDECCB] hover:text-[#0B3B24]"
-                  }`}
-                >
-                  {cell.day}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-1 flex items-center justify-between border-t border-[#E8E1CF] px-1 pt-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setOpen(false);
-              }}
-              className="text-[11px] font-bold text-[#14532D] transition hover:text-[#65A30D]"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              disabled={today < minDate || isSundayIso(today)}
-              onClick={() => pick(today)}
-              className="text-[11px] font-bold text-[#65A30D] transition hover:text-[#0B3B24] disabled:text-[#C7D2C9]"
-            >
-              Today
-            </button>
-          </div>
-        </div>,
-        document.body,
-      )
-    : null;
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div
       ref={rootRef}
       className={`relative flex min-w-0 flex-col ${compact ? "gap-1.5 text-[13px] font-semibold text-[#0B3B24]" : "text-xs font-bold text-[#14532D]"}`}
     >
-      <label htmlFor={`${name}-button`} className={compact ? undefined : "block h-5 leading-5"}>{label}</label>
+      <label
+        htmlFor={`${name}-button`}
+        className={compact ? undefined : "block h-5 leading-5"}
+      >
+        {label}
+      </label>
       <input type="hidden" name={name} value={value} />
       <button
         ref={buttonRef}
@@ -226,8 +297,14 @@ export function DatePicker({ label, name = "delivery-date", value, onChange, min
           compact ? "" : "mt-1.5 h-14"
         } ${error ? "border-red-500" : "border-[#cbd8c5]"}`}
       >
-        <span className={value ? "text-[#172018]" : "text-[#9aa59a]"}>{value ? displayDate(value) : "Select a date"}</span>
-        <Calendar size={16} className="shrink-0 text-[#14532D]" aria-hidden="true" />
+        <span className={value ? "text-[#172018]" : "text-[#9aa59a]"}>
+          {value ? displayDate(value) : "Select a date"}
+        </span>
+        <Calendar
+          size={16}
+          className="shrink-0 text-[#14532D]"
+          aria-hidden="true"
+        />
       </button>
       {calendar}
       <ValidationMessage message={error} />

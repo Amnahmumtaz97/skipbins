@@ -1,11 +1,21 @@
 "use client";
 
-
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { ArrowRight, BadgeDollarSign, Calendar, Check, CircleHelp, Leaf, Loader2, Recycle, ShieldCheck, Truck } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeDollarSign,
+  Calendar,
+  Check,
+  CircleHelp,
+  Leaf,
+  Loader2,
+  Recycle,
+  ShieldCheck,
+  Truck,
+} from "lucide-react";
 import { AddressField } from "@/components/book/address-field";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
@@ -31,7 +41,11 @@ import {
   images,
   isWasteAllowedForBin,
 } from "@/lib/data/skip-bins";
-import { isSundayIso, maxPickupDate, standardPickupDate, tomorrowIsoDate } from "@/lib/booking-utils";
+import {
+  maxPickupDate,
+  standardPickupDate,
+  tomorrowIsoDate,
+} from "@/lib/booking-utils";
 import { clearBookingDraft } from "@/lib/booking-draft";
 
 type QuoteState = {
@@ -57,10 +71,22 @@ const emptyQuote: QuoteState = {
 };
 
 const heroBenefits = [
-  { icon: BadgeDollarSign, title: "All-Inclusive Pricing", detail: "No Hidden Fees" },
-  { icon: Truck, title: "Same Day Delivery", detail: "Fast & Flexible Service" },
+  {
+    icon: BadgeDollarSign,
+    title: "All-Inclusive Pricing",
+    detail: "No Hidden Fees",
+  },
+  {
+    icon: Truck,
+    title: "Same Day Delivery",
+    detail: "Fast & Flexible Service",
+  },
   { icon: ShieldCheck, title: "Permit Help", detail: "We Handle Councils" },
-  { icon: Recycle, title: "Responsible Recycling", detail: "More Recovery, Less Landfill" },
+  {
+    icon: Recycle,
+    title: "Responsible Recycling",
+    detail: "More Recovery, Less Landfill",
+  },
 ];
 
 export function HomePage() {
@@ -75,9 +101,12 @@ export function HomePage() {
       const next = {
         ...current,
         [field]: value,
-        ...(field === "date" ? { pickupDate: value ? standardPickupDate(value) : "" } : {}),
+        ...(field === "date"
+          ? { pickupDate: value ? standardPickupDate(value) : "" }
+          : {}),
       };
-      if (field === "size" && !isWasteAllowedForBin(value, current.waste)) next.waste = "";
+      if (field === "size" && !isWasteAllowedForBin(value, current.waste))
+        next.waste = "";
       return next;
     });
     setQuoteErrors((current) => {
@@ -108,7 +137,11 @@ export function HomePage() {
 
   const updateStreetAddress = (value: string, selectedLabel = "") => {
     setAddressConfirmed(Boolean(selectedLabel));
-    setQuote((current) => ({ ...current, streetAddress: value, deliveryAddressLabel: selectedLabel }));
+    setQuote((current) => ({
+      ...current,
+      streetAddress: value,
+      deliveryAddressLabel: selectedLabel,
+    }));
     setQuoteErrors((current) => {
       const next = { ...current };
       delete next.streetAddress;
@@ -121,20 +154,37 @@ export function HomePage() {
     if (loading) return;
     const nextErrors: Partial<QuoteState> = {};
     if (!quote.size) nextErrors.size = "Please select a bin size.";
-    const postcodeSelected = isResolvedPostcode(quote.postcode) && quote.postcodeLabel.trim() !== quote.postcode.trim();
+    const postcodeSelected =
+      isResolvedPostcode(quote.postcode) &&
+      quote.postcodeLabel.trim() !== quote.postcode.trim();
     if (!postcodeSelected) nextErrors.postcode = postcodeSelectionError;
     if (!postcodeSelected) {
-      nextErrors.streetAddress = "Select a suburb or postcode first before choosing an address.";
+      nextErrors.streetAddress =
+        "Select a suburb or postcode first before choosing an address.";
     } else if (!quote.streetAddress.trim() || !addressConfirmed) {
-      nextErrors.streetAddress = "Select a delivery address from the suggestions.";
+      nextErrors.streetAddress =
+        "Select a delivery address from the suggestions.";
     } else {
-      const locationError = selectedAddressLocationError(quote.deliveryAddressLabel, quote.postcode, quote.postcodeLabel);
+      const locationError = selectedAddressLocationError(
+        quote.deliveryAddressLabel,
+        quote.postcode,
+        quote.postcodeLabel,
+      );
       if (locationError) nextErrors.streetAddress = locationError;
     }
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
-    else if (!isWasteAllowedForBin(quote.size, quote.waste)) nextErrors.waste = getBinBySizeOrId(quote.size)?.restriction ?? "Choose a compatible waste type.";
-    if (!quote.date || quote.date < tomorrowIsoDate() || isSundayIso(quote.date)) nextErrors.date = "Please select a delivery date from tomorrow onward.";
-    if (!quote.date || !quote.pickupDate || quote.pickupDate < standardPickupDate(quote.date) || quote.pickupDate > maxPickupDate(quote.date) || isSundayIso(quote.pickupDate)) {
+    else if (!isWasteAllowedForBin(quote.size, quote.waste))
+      nextErrors.waste =
+        getBinBySizeOrId(quote.size)?.restriction ??
+        "Choose a compatible waste type.";
+    if (!quote.date || quote.date < tomorrowIsoDate())
+      nextErrors.date = "Please select a delivery date from tomorrow onward.";
+    if (
+      !quote.date ||
+      !quote.pickupDate ||
+      quote.pickupDate < standardPickupDate(quote.date) ||
+      quote.pickupDate > maxPickupDate(quote.date)
+    ) {
       nextErrors.pickupDate = "Pickup must be 10 to 14 days after delivery.";
     }
 
@@ -198,7 +248,9 @@ export function HomePage() {
             >
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-base font-extrabold text-[#0B3B24] sm:text-lg">Get an instant quote</p>
+                  <p className="text-base font-extrabold text-[#0B3B24] sm:text-lg">
+                    Get an instant quote
+                  </p>
                   <p className="mt-1 text-xs leading-5 text-[#405347] sm:text-sm">
                     Choose a size and we&apos;ll take care of the rest.
                   </p>
@@ -208,7 +260,10 @@ export function HomePage() {
                 </div>
               </div>
 
-              <fieldset disabled={loading} className="grid min-w-0 grid-cols-2 items-start gap-4">
+              <fieldset
+                disabled={loading}
+                className="grid min-w-0 grid-cols-2 items-start gap-4"
+              >
                 <div className="min-w-0">
                   <StyledSelect
                     label="Bin size"
@@ -217,7 +272,10 @@ export function HomePage() {
                     value={quote.size}
                     onChange={(value) => updateQuote("size", value)}
                     error={quoteErrors.size}
-                    options={bins.map((bin) => ({ value: bin.id, label: formatBinLabel(bin.id) }))}
+                    options={bins.map((bin) => ({
+                      value: bin.id,
+                      label: formatBinLabel(bin.id),
+                    }))}
                   />
                 </div>
                 <div className="min-w-0">
@@ -228,7 +286,11 @@ export function HomePage() {
                     value={quote.waste}
                     onChange={(value) => updateQuote("waste", value)}
                     error={quoteErrors.waste}
-                    options={acceptedWaste.filter((item) => isWasteAllowedForBin(quote.size, item.id)).map((item) => ({ value: item.id, label: item.label }))}
+                    options={acceptedWaste
+                      .filter((item) =>
+                        isWasteAllowedForBin(quote.size, item.id),
+                      )
+                      .map((item) => ({ value: item.id, label: item.label }))}
                   />
                 </div>
                 <div className="col-span-2">
@@ -245,7 +307,10 @@ export function HomePage() {
                     value={quote.streetAddress}
                     displayValue={quote.deliveryAddressLabel}
                     postcode={quote.postcode}
-                    postcodeSelected={isResolvedPostcode(quote.postcode) && quote.postcodeLabel.trim() !== quote.postcode.trim()}
+                    postcodeSelected={
+                      isResolvedPostcode(quote.postcode) &&
+                      quote.postcodeLabel.trim() !== quote.postcode.trim()
+                    }
                     onChange={updateStreetAddress}
                     onSelectionChange={setAddressConfirmed}
                     error={quoteErrors.streetAddress}
@@ -263,7 +328,11 @@ export function HomePage() {
                   label="Pickup date"
                   name="pickup-date"
                   value={quote.pickupDate}
-                  min={quote.date ? standardPickupDate(quote.date) : tomorrowIsoDate()}
+                  min={
+                    quote.date
+                      ? standardPickupDate(quote.date)
+                      : tomorrowIsoDate()
+                  }
                   max={quote.date ? maxPickupDate(quote.date) : undefined}
                   error={quoteErrors.pickupDate}
                   onChange={(value) => updateQuote("pickupDate", value)}
@@ -275,16 +344,25 @@ export function HomePage() {
                 aria-busy={loading}
                 className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#14532D] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0B3B24]"
               >
-                {loading ? <><Loader2 size={16} className="animate-spin" /> Continuing…</> : "Get my quote"}
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Continuing…
+                  </>
+                ) : (
+                  "Get my quote"
+                )}
                 <ArrowRight size={16} />
               </button>
             </form>
           </div>
         </div>
-
       </section>
 
-      <section id="service-benefits" aria-label="Service benefits" className="w-full overflow-hidden bg-[#0B3B24]">
+      <section
+        id="service-benefits"
+        aria-label="Service benefits"
+        className="w-full overflow-hidden bg-[#0B3B24]"
+      >
         <div className="benefits-marquee-track flex w-max">
           {[0, 1].map((copy) => (
             <div
@@ -301,8 +379,12 @@ export function HomePage() {
                     <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 whitespace-nowrap">
-                    <strong className="block text-sm font-extrabold leading-5 text-white">{title}</strong>
-                    <span className="block text-xs leading-5 text-white/70">{detail}</span>
+                    <strong className="block text-sm font-extrabold leading-5 text-white">
+                      {title}
+                    </strong>
+                    <span className="block text-xs leading-5 text-white/70">
+                      {detail}
+                    </span>
                   </span>
                 </div>
               ))}
@@ -330,8 +412,9 @@ export function HomePage() {
         <div className="grid items-center gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
           <div>
             <p className="max-w-xl text-lg leading-8 text-[#405347]">
-              A cleaner project is more than an empty driveway. We make responsible disposal simple, from the moment
-              your skip bin arrives to the moment every useful material is sorted and recovered.
+              A cleaner project is more than an empty driveway. We make
+              responsible disposal simple, from the moment your skip bin arrives
+              to the moment every useful material is sorted and recovered.
             </p>
             <div className="mt-8 flex items-end gap-4 border-b border-[#dfe8d7] pb-7">
               <strong className="text-7xl font-black leading-none tracking-[-0.08em] text-[#65A30D] sm:text-8xl">
@@ -355,8 +438,12 @@ export function HomePage() {
               sizes="(max-width: 1024px) 100vw, 55vw"
             />
             <div className="absolute bottom-5 left-5 rounded-2xl bg-[#FAF9F3]/95 px-5 py-4 shadow-[0_12px_28px_rgba(11,59,36,0.14)] backdrop-blur-sm">
-              <p className="text-sm font-extrabold text-[#0B3B24]">Sorted with purpose</p>
-              <p className="mt-1 text-xs text-[#405347]">Less landfill. More recovery.</p>
+              <p className="text-sm font-extrabold text-[#0B3B24]">
+                Sorted with purpose
+              </p>
+              <p className="mt-1 text-xs text-[#405347]">
+                Less landfill. More recovery.
+              </p>
             </div>
           </div>
         </div>
@@ -375,7 +462,8 @@ export function HomePage() {
             Ready to clear the way?
           </h2>
           <p className="mx-auto mt-4 max-w-md text-[#405347]">
-            Tell us what you&apos;re working on and we&apos;ll help you choose the right bin.
+            Tell us what you&apos;re working on and we&apos;ll help you choose
+            the right bin.
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -399,11 +487,10 @@ export function HomePage() {
         <span className="font-extrabold text-[#0B3B24]">
           Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
         </span>
-        <span>© 2026 Premium Skip Bin Hire Australia · Waste less, live more.</span>
+        <span>
+          © 2026 Premium Skip Bin Hire Australia · Waste less, live more.
+        </span>
       </footer>
     </main>
   );
 }
-
-
-

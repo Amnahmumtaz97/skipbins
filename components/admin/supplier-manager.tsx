@@ -1,50 +1,488 @@
 "use client";
-
-import { FormEvent, useState } from "react";
-import { CircleAlert, Settings2, Plus, Save, Truck, X } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { Plus, Pencil, Save, Download, ArrowUpRight, Star } from "lucide-react";
 import { bins } from "@/lib/data/skip-bins";
-import type { OperationsBooking, SupplierRecord } from "@/lib/server/operations-service";
-
-export function SupplierManager({ initialSuppliers, bookings, setupRequired, setupMessage }: { initialSuppliers: SupplierRecord[]; bookings: OperationsBooking[]; setupRequired: boolean; setupMessage: string }) {
-  const [suppliers, setSuppliers] = useState(initialSuppliers);
-  const [inventory, setInventory] = useState<Record<string, Record<string, number>>>(() => Object.fromEntries(initialSuppliers.map((supplier) => [supplier.id, { ...supplier.bin_inventory }])));
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState("");
-  const [error, setError] = useState("");
-  const editing = suppliers.find((supplier) => supplier.id === editingId) ?? null;
-
-  async function addSupplier(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setSaving("new"); setError("");
-    const data = new FormData(event.currentTarget);
-    const body = { name: data.get("name"), contactName: data.get("contactName"), email: data.get("email"), phone: data.get("phone"), serviceArea: data.get("serviceArea"), authUserId: data.get("authUserId") };
-    try { const response = await fetch("/api/admin/suppliers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Could not add supplier."); setSuppliers((current) => [...current, result.supplier]); setInventory((current) => ({ ...current, [result.supplier.id]: { ...result.supplier.bin_inventory } })); setAdding(false); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not add supplier."); }
-    finally { setSaving(""); }
+import { exportCsv } from "@/lib/admin-config";
+import type {
+  OperationsBooking,
+  SupplierRecord,
+} from "@/lib/server/operations-service";
+import {
+  PageHeading,
+  Stat,
+  Notice,
+  Dialog,
+  Field,
+} from "@/components/admin/portal-ui";
+export function SupplierManager({
+  initialSuppliers,
+  bookings,
+  setupRequired,
+  setupMessage,
+}: {
+  initialSuppliers: SupplierRecord[];
+  bookings: OperationsBooking[];
+  setupRequired: boolean;
+  setupMessage: string;
+}) {
+  const [suppliers, setSuppliers] = useState(initialSuppliers),
+    [query, setQuery] = useState(""),
+    [filter, setFilter] = useState("active"),
+    [adding, setAdding] = useState(false),
+    [editing, setEditing] = useState<SupplierRecord | null>(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [success, setSuccess] = useState(""),
+    [createAccount, setCreateAccount] = useState(false);
+  async function send(url: string, body: unknown, method = "PATCH") {
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "Could not save supplier.");
+      setSuppliers((current) =>
+        [
+          ...current.filter((s) => s.id !== result.supplier.id),
+          result.supplier,
+        ].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      setAdding(false);
+      setEditing(null);
+      setSuccess("Supplier changes saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save supplier.");
+    } finally {
+      setBusy(false);
+    }
   }
-
-  async function saveSupplier(supplier: SupplierRecord) {
-    setSaving(supplier.id); setError("");
-    const binInventory = Object.fromEntries(bins.map((bin) => [bin.id, Number(inventory[supplier.id]?.[bin.id] ?? 0)]));
-    try { const response = await fetch(`/api/admin/suppliers/${supplier.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ binInventory }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Could not save inventory."); setSuppliers((current) => current.map((item) => item.id === supplier.id ? result.supplier : item)); setEditingId(null); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not save inventory."); }
-    finally { setSaving(""); }
+  function add(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const d = new FormData(e.currentTarget);
+    if (createAccount && d.get("password") !== d.get("confirmPassword")) {
+      setError("The passwords do not match.");
+      return;
+    }
+    send(
+      "/api/admin/suppliers",
+      {
+        name: d.get("name"),
+        contactName: d.get("contactName"),
+        email: d.get("email"),
+        phone: d.get("phone"),
+        serviceArea: d.get("serviceArea"),
+        abn: d.get("abn"),
+        password: createAccount ? d.get("password") : undefined,
+      },
+      "POST",
+    );
   }
-
-  async function toggleStatus(supplier: SupplierRecord) {
-    setSaving(supplier.id); setError("");
-    try { const response = await fetch(`/api/admin/suppliers/${supplier.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: supplier.status === "active" ? "paused" : "active" }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Could not update supplier."); setSuppliers((current) => current.map((item) => item.id === supplier.id ? result.supplier : item)); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : "Could not update supplier."); }
-    finally { setSaving(""); }
-  }
-
-  return <div><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#65A30D]">Network management</p><h1 className="mt-1 text-[30px] font-extrabold tracking-[-0.04em] text-[#0B3B24]">Suppliers</h1><p className="mt-2 text-[13px] text-[#66746B]">Company details, workload and stock capacity in one register.</p></div><button type="button" onClick={() => setAdding((value) => !value)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0B3B24] px-4 py-3 text-[11px] font-extrabold text-white">{adding ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{adding ? "Close" : "Add supplier"}</button></div>
-    {setupRequired ? <div className="mt-5 flex gap-3 rounded-2xl border border-[#ECD4A1] bg-[#FFF7E6] p-4 text-[#7B5310]"><CircleAlert className="h-5 w-5 shrink-0" /><p className="text-[11px] leading-5">{setupMessage}</p></div> : null}{error ? <p role="alert" className="mt-4 rounded-xl bg-[#FFF0ED] px-4 py-3 text-[11px] font-bold text-[#93382C]">{error}</p> : null}
-    {adding ? <form onSubmit={addSupplier} className="mt-5 rounded-2xl border border-[#DDE5D8] bg-white p-5 shadow-sm"><h2 className="text-[15px] font-extrabold text-[#0B3B24]">New supplier profile</h2><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"><Field name="name" label="Business name" required /><Field name="contactName" label="Contact name" /><Field name="email" label="Email" type="email" /><Field name="phone" label="Phone" /><Field name="serviceArea" label="Service area" /><Field name="authUserId" label="Supabase Auth user ID" /></div><button disabled={saving === "new" || setupRequired} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#65A30D] px-4 py-2.5 text-[11px] font-extrabold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Create supplier</button></form> : null}
-    <div className="mt-6 overflow-x-auto rounded-2xl border border-[#D6DFD2] bg-white shadow-sm"><table className="w-full min-w-[700px] border-collapse text-left text-[10px]"><thead className="bg-[#EAF0E6] text-[#405347]"><tr>{["Company", "Contact", "Status", "Active jobs", "Total stock", "Settings"].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap border-b border-r border-[#CBD7C7] px-3 py-3 font-extrabold uppercase tracking-[.07em] last:border-r-0">{heading}</th>)}</tr></thead><tbody>{suppliers.map((supplier, index) => { const assigned = bookings.filter((booking) => booking.supplier_id === supplier.id && !["collected", "cancelled"].includes(booking.operation_status)).length; const total = bins.reduce((sum, bin) => sum + Number(inventory[supplier.id]?.[bin.id] ?? 0), 0); return <tr key={supplier.id} className={`align-middle hover:bg-[#F5F8F2] ${index % 2 ? "bg-[#FBFCFA]" : "bg-white"}`}><Cell><div className="flex items-center gap-2"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#EAF4DF] text-[#397520]"><Truck className="h-3.5 w-3.5" /></span><strong className="text-[11px] text-[#0B3B24]">{supplier.name}</strong></div></Cell><Cell><strong className="block text-[#314B3D]">{supplier.contact_name || "—"}</strong><span className="mt-1 block text-[#7B887F]">{supplier.email || supplier.phone || "No contact set"}</span></Cell><Cell><button type="button" disabled={saving === supplier.id} onClick={() => toggleStatus(supplier)} className={`rounded-full px-2.5 py-1 text-[8px] font-extrabold uppercase disabled:opacity-50 ${supplier.status === "active" ? "bg-[#E7F4E2] text-[#2F6B24]" : "bg-[#FFF1D6] text-[#8A5700]"}`}>{supplier.status}</button></Cell><Cell><strong className="text-[12px] text-[#0B3B24]">{assigned}</strong></Cell><Cell><strong className="text-[12px] text-[#0B3B24]">{total}</strong></Cell><Cell><button type="button" onClick={() => setEditingId(supplier.id)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#EEF3EA] px-3 py-2 text-[9px] font-extrabold text-[#315B28]"><Settings2 className="h-3 w-3" />Details & capacity</button></Cell></tr>; })}</tbody></table>{!suppliers.length ? <p className="px-6 py-12 text-center text-[12px] text-[#718078]">No suppliers yet. Add the first supplier to begin allocation.</p> : null}</div>
-    {editing ? <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#061C11]/60 p-4" role="dialog" aria-modal="true" aria-label={`Capacity settings for ${editing.name}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingId(null); }}><section className="max-h-[90vh] w-full max-w-[650px] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-extrabold uppercase tracking-[.1em] text-[#65A30D]">Supplier settings</p><h2 className="mt-1 text-[20px] font-extrabold text-[#0B3B24]">{editing.name}</h2></div><button type="button" onClick={() => setEditingId(null)} aria-label="Close supplier settings" className="rounded-lg bg-[#EEF3EA] p-2 text-[#405347]"><X className="h-4 w-4" /></button></div><div className="mt-4 grid gap-2 rounded-xl bg-[#F4F8F0] p-4 text-[11px] text-[#526159] sm:grid-cols-2"><p><b>Contact:</b> {editing.contact_name || "—"}</p><p><b>Phone:</b> {editing.phone || "—"}</p><p><b>Email:</b> {editing.email || "—"}</p><p><b>Service area:</b> {editing.service_area || "—"}</p></div><h3 className="mt-5 text-[12px] font-extrabold text-[#0B3B24]">Set bin capacity</h3><p className="mt-1 text-[10px] text-[#718078]">Enter the number of bins this supplier currently has available.</p><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{bins.map((bin) => <label key={bin.id} className="rounded-xl border border-[#DDE5D8] bg-[#FAFBF8] p-3 text-[9px] font-extrabold uppercase text-[#526159]">{bin.size}<input type="number" min="0" max="999" value={inventory[editing.id]?.[bin.id] ?? 0} onChange={(event) => setInventory((current) => ({ ...current, [editing.id]: { ...current[editing.id], [bin.id]: Math.max(0, Number(event.target.value)) } }))} className="mt-2 h-10 w-full rounded-lg border border-[#C9D5C5] bg-white px-2 text-center text-[12px] font-bold text-[#0B3B24] outline-none focus:border-[#65A30D]" /></label>)}</div><button type="button" disabled={saving === editing.id} onClick={() => saveSupplier(editing)} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0B3B24] px-4 py-3 text-[11px] font-extrabold text-white disabled:opacity-50"><Save className="h-4 w-4" />Save bin capacity</button></section></div> : null}
-  </div>;
+  const visible = suppliers.filter(
+    (s) =>
+      `${s.name} ${s.contact_name} ${s.email} ${s.service_area}`
+        .toLowerCase()
+        .includes(query.toLowerCase()) &&
+      (filter === "all" || s.status === filter),
+  );
+  const activeJobs = (id: string) =>
+    bookings.filter(
+      (b) =>
+        b.supplier_id === id &&
+        !["collected", "cancelled"].includes(b.operation_status),
+    );
+  return (
+    <div>
+      <PageHeading
+        eyebrow="SUPPLIER NETWORK"
+        title="Suppliers"
+        description="Manage supplier profiles, service coverage, accounts and bin capacity."
+        actions={
+          <>
+            <button
+              className="portal-button-secondary"
+              onClick={() =>
+                exportCsv(
+                  "suppliers.csv",
+                  [
+                    "Company",
+                    "Contact",
+                    "Email",
+                    "Phone",
+                    "Coverage",
+                    "Status",
+                    "Active jobs",
+                  ],
+                  visible.map((s) => [
+                    s.name,
+                    s.contact_name,
+                    s.email,
+                    s.phone,
+                    s.service_area,
+                    s.status,
+                    activeJobs(s.id).length,
+                  ]),
+                )
+              }
+            >
+              <Download size={15} />
+              Export
+            </button>
+            <button
+              className="portal-button"
+              disabled={setupRequired}
+              onClick={() => {
+                setAdding(true);
+                setError("");
+              }}
+            >
+              <Plus size={16} />
+              Add supplier
+            </button>
+          </>
+        }
+      />
+      <Notice message={setupRequired ? setupMessage : error} />
+      <Notice message={success} success />
+      <div className="portal-stats">
+        <Stat label="Total suppliers" value={suppliers.length} />
+        <Stat
+          label="Active suppliers"
+          value={suppliers.filter((s) => s.status === "active").length}
+        />
+        <Stat
+          label="Assigned jobs"
+          value={
+            bookings.filter(
+              (b) =>
+                b.supplier_id &&
+                !["collected", "cancelled"].includes(b.operation_status),
+            ).length
+          }
+        />
+        <Stat
+          label="Listed stock"
+          value={suppliers
+            .filter((s) => s.status === "active")
+            .reduce(
+              (sum, s) =>
+                sum + Object.values(s.bin_inventory).reduce((n, v) => n + v, 0),
+              0,
+            )}
+        />
+      </div>
+      <section className="portal-panel">
+        <div className="portal-toolbar">
+          <Field label="Search suppliers">
+            <input
+              placeholder="Company, contact, email or postcode"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </Field>
+          <select
+            aria-label="Supplier filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="active">Active & approved</option>
+            <option value="all">Show all suppliers</option>
+            <option value="paused">Paused suppliers</option>
+          </select>
+        </div>
+        <div className="portal-table-wrap">
+          <table className="portal-table mobile-cards">
+            <thead>
+              <tr>
+                {[
+                  "Business",
+                  "Contact",
+                  "Coverage",
+                  "Workload",
+                  "Status",
+                  "Actions",
+                ].map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((s) => (
+                <tr key={s.id}>
+                  <td data-label="Business">
+                    <strong>{s.name}</strong>
+                    <small>{s.abn ? `ABN ${s.abn}` : "Supplier profile"}</small>
+                    {s.rating !== undefined && s.rating > 0 && (
+                      <small>
+                        <Star
+                          size={12}
+                          style={{
+                            display: "inline",
+                            color: "#d4a633",
+                            fill: "#d4a633",
+                          }}
+                        />{" "}
+                        {s.rating.toFixed(1)} / 5
+                      </small>
+                    )}
+                  </td>
+                  <td data-label="Contact">
+                    <strong>{s.contact_name || "—"}</strong>
+                    <small>
+                      <a href={`mailto:${s.email}`}>
+                        {s.email || s.phone || "No contact set"}
+                      </a>
+                    </small>
+                  </td>
+                  <td data-label="Coverage">
+                    {s.service_area || "Victoria statewide"}
+                  </td>
+                  <td data-label="Workload">
+                    <strong>{activeJobs(s.id).length} jobs</strong>
+                    <small>
+                      {Object.values(s.bin_inventory).reduce(
+                        (n, v) => n + v,
+                        0,
+                      )}{" "}
+                      bins listed
+                    </small>
+                  </td>
+                  <td data-label="Status">
+                    <button
+                      disabled={busy}
+                      className={`portal-badge ${s.status === "paused" ? "warning" : ""}`}
+                      aria-label={`${s.status === "active" ? "Pause" : "Activate"} ${s.name}`}
+                      onClick={() =>
+                        send(`/api/admin/suppliers/${s.id}`, {
+                          status: s.status === "active" ? "paused" : "active",
+                        })
+                      }
+                    >
+                      {s.status}
+                    </button>
+                  </td>
+                  <td data-label="Actions">
+                    <div className="portal-actions">
+                      <button
+                        className="portal-button-secondary"
+                        onClick={() => {
+                          setEditing(structuredClone(s));
+                          setError("");
+                        }}
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                      <Link
+                        href={`/admin/suppliers/${s.id}`}
+                        className="portal-button-secondary"
+                      >
+                        <ArrowUpRight size={14} />
+                        Workspace
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!visible.length && (
+            <p className="portal-empty">
+              No suppliers match your search. Add a supplier or change the
+              filter.
+            </p>
+          )}
+        </div>
+      </section>
+      {adding && (
+        <Dialog
+          title="Create supplier profile"
+          onClose={() => !busy && setAdding(false)}
+        >
+          <form onSubmit={add}>
+            <div className="portal-grid">
+              {[
+                ["name", "Business name", "text"],
+                ["contactName", "Contact name", "text"],
+                ["email", "Email address", "email"],
+                ["phone", "Phone", "tel"],
+                ["abn", "ABN", "text"],
+                [
+                  "serviceArea",
+                  "Victorian postcodes (comma separated)",
+                  "text",
+                ],
+              ].map(([name, label, type]) => (
+                <Field label={label} key={name}>
+                  <input
+                    name={name}
+                    type={type}
+                    maxLength={name === "serviceArea" ? 250 : 120}
+                    required={
+                      name === "name" || (createAccount && name === "email")
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+            <p className="portal-help">
+              Leave coverage blank for statewide Victoria. Enter verified
+              Victorian postcodes to limit supplier coverage.
+            </p>
+            <label className="portal-check">
+              <input
+                type="checkbox"
+                checked={createAccount}
+                onChange={(e) => setCreateAccount(e.target.checked)}
+              />
+              Create a supplier login account
+            </label>
+            {createAccount && (
+              <div className="portal-grid" style={{ marginTop: 16 }}>
+                <Field label="Password (at least 12 characters)">
+                  <input
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    maxLength={128}
+                    required
+                  />
+                </Field>
+                <Field label="Confirm password">
+                  <input
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    maxLength={128}
+                    required
+                  />
+                </Field>
+              </div>
+            )}
+            <Notice message={error} />
+            <div className="portal-footer-actions">
+              <button
+                type="button"
+                className="portal-button-secondary"
+                disabled={busy}
+                onClick={() => setAdding(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="portal-button"
+                disabled={busy || setupRequired}
+              >
+                <Plus size={16} />
+                {busy ? "Creating…" : "Create supplier"}
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+      {editing && (
+        <Dialog
+          title={`Edit ${editing.name}`}
+          onClose={() => !busy && setEditing(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              send(`/api/admin/suppliers/${editing.id}`, {
+                name: editing.name,
+                contactName: editing.contact_name,
+                email: editing.email,
+                phone: editing.phone,
+                abn: editing.abn ?? "",
+                serviceArea: editing.service_area,
+                binInventory: editing.bin_inventory,
+                rating: editing.rating ?? 0,
+              });
+            }}
+          >
+            <div className="portal-grid">
+              {(
+                [
+                  ["name", "Business name"],
+                  ["contact_name", "Contact name"],
+                  ["email", "Email"],
+                  ["phone", "Phone"],
+                  ["abn", "ABN"],
+                  ["service_area", "Victorian postcodes (comma separated)"],
+                ] as const
+              ).map(([key, label]) => (
+                <Field key={key} label={label}>
+                  <input
+                    required={key === "name"}
+                    type={key === "email" ? "email" : "text"}
+                    value={editing[key] ?? ""}
+                    onChange={(e) =>
+                      setEditing({ ...editing, [key]: e.target.value })
+                    }
+                  />
+                </Field>
+              ))}
+              <Field label="Supplier rating (0–5)">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  value={editing.rating ?? 0}
+                  onChange={(e) =>
+                    setEditing({ ...editing, rating: Number(e.target.value) })
+                  }
+                />
+              </Field>
+            </div>
+            <h3 className="portal-section-label">Bin capacity</h3>
+            <div className="portal-grid">
+              {bins.map((b) => (
+                <Field key={b.id} label={`${b.size} units`}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="999"
+                    value={editing.bin_inventory[b.id] ?? 0}
+                    onChange={(e) =>
+                      setEditing({
+                        ...editing,
+                        bin_inventory: {
+                          ...editing.bin_inventory,
+                          [b.id]: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+            <Notice message={error} />
+            <div className="portal-footer-actions">
+              <button
+                type="button"
+                disabled={busy}
+                className="portal-button-secondary"
+                onClick={() => setEditing(null)}
+              >
+                Cancel
+              </button>
+              <button className="portal-button" disabled={busy}>
+                <Save size={16} />
+                {busy ? "Saving…" : "Save supplier"}
+              </button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+    </div>
+  );
 }
-
-function Cell({ children }: { children: React.ReactNode }) { return <td className="border-b border-r border-[#E1E7DE] px-3 py-3 text-[#526159] last:border-r-0">{children}</td>; }
-function Field({ name, label, type = "text", required = false }: { name: string; label: string; type?: string; required?: boolean }) { return <label className="text-[10px] font-bold text-[#526159]">{label}<input name={name} type={type} required={required} className="mt-1.5 h-10 w-full rounded-lg border border-[#D7E0D3] px-3 text-[12px] outline-none focus:border-[#65A30D]" /></label>; }

@@ -98,23 +98,10 @@ revoke all on public.customers from anon, authenticated;
 revoke all on public.suppliers from anon, authenticated;
 revoke all on public.supplier_applications from anon, authenticated;
 
--- Inserts go through /api/bookings after validation. Prefer SUPABASE_SECRET_KEY
--- (bypasses RLS). The insert policy lets the server publishable key persist
--- bookings when a secret key is not configured. Direct table reads stay closed.
-grant insert on public.bookings to anon, authenticated;
-revoke update, delete on public.bookings from anon, authenticated;
-
+-- Bookings are reserved atomically by the server-only service role.
+-- Run admin-portal-migration.sql after this schema to add the reservation RPC.
+revoke insert, update, delete on public.bookings from anon, authenticated;
 drop policy if exists "Anyone can create a booking" on public.bookings;
 drop policy if exists "Create bookings" on public.bookings;
-create policy "Create bookings"
-  on public.bookings
-  for insert
-  to anon, authenticated
-  with check (true);
-
 drop policy if exists "No public booking reads" on public.bookings;
-create policy "No public booking reads"
-  on public.bookings
-  for select
-  to anon, authenticated
-  using (false);
+create policy "No public booking reads" on public.bookings for select to anon, authenticated using (false);

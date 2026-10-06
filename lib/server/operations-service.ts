@@ -1,5 +1,7 @@
+import { readAllRows } from "@/lib/server/admin-database";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { InputError } from "@/lib/server/request";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { isOperationStatus, type OperationStatus } from "@/lib/data/operations";
 
@@ -13,6 +15,8 @@ export type SupplierRecord = {
   status: "active" | "paused";
   bin_inventory: Record<string, number>;
   auth_user_id: string | null;
+  abn?: string;
+  rating?: number;
 };
 
 export type OperationsBooking = {
@@ -39,6 +43,7 @@ export type OperationsBooking = {
   supplier_notes: string;
   created_at: string;
   manageable: boolean;
+  booking_source?: "direct" | "ppc" | "manual";
 };
 
 export type OperationsSnapshot = {
@@ -47,13 +52,18 @@ export type OperationsSnapshot = {
   setupRequired: boolean;
   serverConfigured: boolean;
   supplierSchemaReady: boolean;
+  error: string;
 };
 
 function adminDatabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const key =
+    process.env.SUPABASE_SECRET_KEY?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 function localBookingsFile() {
@@ -62,25 +72,30 @@ function localBookingsFile() {
 
 async function localRows(): Promise<Record<string, unknown>[]> {
   try {
-    const parsed = JSON.parse(await readFile(localBookingsFile(), "utf8")) as unknown;
-    return Array.isArray(parsed) ? parsed as Record<string, unknown>[] : [];
+    const parsed = JSON.parse(
+      await readFile(localBookingsFile(), "utf8"),
+    ) as unknown;
+    return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
   } catch {
     return [];
   }
 }
 
 function text(row: Record<string, unknown>, key: string, fallback = "") {
-  return typeof row[key] === "string" ? row[key] as string : fallback;
+  return typeof row[key] === "string" ? (row[key] as string) : fallback;
 }
 
 function number(row: Record<string, unknown>, key: string) {
-  return typeof row[key] === "number" ? row[key] as number : 0;
+  return typeof row[key] === "number" ? (row[key] as number) : 0;
 }
 
 function normalizeSupplier(row: Record<string, unknown>): SupplierRecord {
-  const inventory = row.bin_inventory && typeof row.bin_inventory === "object" && !Array.isArray(row.bin_inventory)
-    ? row.bin_inventory as Record<string, number>
-    : {};
+  const inventory =
+    row.bin_inventory &&
+    typeof row.bin_inventory === "object" &&
+    !Array.isArray(row.bin_inventory)
+      ? (row.bin_inventory as Record<string, number>)
+      : {};
   return {
     id: text(row, "id"),
     name: text(row, "name", "Unnamed supplier"),
@@ -91,20 +106,28 @@ function normalizeSupplier(row: Record<string, unknown>): SupplierRecord {
     status: text(row, "status") === "paused" ? "paused" : "active",
     bin_inventory: inventory,
     auth_user_id: text(row, "auth_user_id") || null,
+    abn: text(row, "abn"),
+    rating: number(row, "rating"),
   };
 }
 
-function normalizeBooking(row: Record<string, unknown>, index: number, suppliers: Map<string, SupplierRecord>): OperationsBooking {
+function normalizeBooking(
+  row: Record<string, unknown>,
+  index: number,
+  suppliers: Map<string, SupplierRecord>,
+): OperationsBooking {
   const paymentStatus = text(row, "status", "pending");
   const storedOperation = row.operation_status;
   const supplierId = text(row, "supplier_id") || null;
-  const operationStatus: OperationStatus = supplierId && isOperationStatus(storedOperation)
-    ? storedOperation
-    : paymentStatus !== "paid"
-      ? "payment_pending"
-      : isOperationStatus(storedOperation) && storedOperation !== "payment_pending"
-        ? storedOperation
-        : "unassigned";
+  const operationStatus: OperationStatus =
+    supplierId && isOperationStatus(storedOperation)
+      ? storedOperation
+      : paymentStatus !== "paid"
+        ? "payment_pending"
+        : isOperationStatus(storedOperation) &&
+            storedOperation !== "payment_pending"
+          ? storedOperation
+          : "unassigned";
   return {
     id: text(row, "id", `legacy-${index}`),
     reference: text(row, "reference", "Legacy booking"),
@@ -125,80 +148,177 @@ function normalizeBooking(row: Record<string, unknown>, index: number, suppliers
     access: text(row, "access"),
     notes: text(row, "notes"),
     supplier_id: supplierId,
-    supplier_name: supplierId ? suppliers.get(supplierId)?.name ?? "Unknown supplier" : null,
+    supplier_name: supplierId
+      ? (suppliers.get(supplierId)?.name ?? "Unknown supplier")
+      : null,
     supplier_notes: text(row, "supplier_notes"),
     created_at: text(row, "created_at"),
     manageable: Boolean(text(row, "id")),
+    booking_source:
+      row.booking_source === "ppc" || row.booking_source === "manual"
+        ? row.booking_source
+        : "direct",
   };
 }
 
 export async function getOperationsSnapshot(): Promise<OperationsSnapshot> {
   const client = adminDatabase();
   let setupRequired = false;
+  let snapshotError = "";
   let supplierSchemaReady = false;
   let bookingRows: Record<string, unknown>[] = [];
   let supplierRows: Record<string, unknown>[] = [];
 
   if (client) {
     const [bookingsResult, suppliersResult] = await Promise.all([
-      client.from("bookings").select("*").order("created_at", { ascending: false }).limit(500),
-      client.from("suppliers").select("*").order("name", { ascending: true }),
+      readAllRows(client, "bookings"),
+      readAllRows(client, "suppliers", "*", "name", true),
     ]);
-    if (!bookingsResult.error) bookingRows = (bookingsResult.data ?? []) as Record<string, unknown>[];
+    if (!bookingsResult.error) bookingRows = bookingsResult.data;
+    else
+      snapshotError =
+        "Booking records could not be loaded. Reports are unavailable until the database connection is restored.";
     if (!suppliersResult.error) {
       supplierRows = (suppliersResult.data ?? []) as Record<string, unknown>[];
       supplierSchemaReady = true;
-    }
-    else setupRequired = true;
+    } else setupRequired = true;
   }
 
-  if (!bookingRows.length && process.env.NODE_ENV !== "production") bookingRows = await localRows();
+  if (!client && process.env.NODE_ENV !== "production")
+    bookingRows = await localRows();
   const suppliers = supplierRows.map(normalizeSupplier);
-  const supplierMap = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
-  const bookings = bookingRows.map((row, index) => normalizeBooking(row, index, supplierMap));
+  const supplierMap = new Map(
+    suppliers.map((supplier) => [supplier.id, supplier]),
+  );
+  const bookings = bookingRows.map((row, index) =>
+    normalizeBooking(row, index, supplierMap),
+  );
   return {
     bookings,
     suppliers,
     setupRequired: setupRequired || !client,
     serverConfigured: Boolean(client),
     supplierSchemaReady,
+    error: snapshotError,
   };
 }
 
-export async function getSupplierByUser(userId: string, metadataSupplierId?: string) {
+export async function getSupplierByUser(
+  userId: string,
+  metadataSupplierId?: string,
+) {
   const client = adminDatabase();
   if (!client) return null;
   let query = client.from("suppliers").select("*");
-  query = metadataSupplierId ? query.eq("id", metadataSupplierId) : query.eq("auth_user_id", userId);
+  query = metadataSupplierId
+    ? query.eq("id", metadataSupplierId)
+    : query.eq("auth_user_id", userId);
   const { data, error } = await query.maybeSingle();
-  return error || !data ? null : normalizeSupplier(data as Record<string, unknown>);
+  return error || !data
+    ? null
+    : normalizeSupplier(data as Record<string, unknown>);
 }
 
-export async function getSupplierOperations(userId: string, metadataSupplierId?: string) {
+export async function getSupplierOperations(
+  userId: string,
+  metadataSupplierId?: string,
+) {
   const supplier = await getSupplierByUser(userId, metadataSupplierId);
   if (!supplier) return { supplier: null, bookings: [] as OperationsBooking[] };
   const snapshot = await getOperationsSnapshot();
-  return { supplier, bookings: snapshot.bookings.filter((booking) => booking.supplier_id === supplier.id) };
+  return {
+    supplier,
+    bookings: snapshot.bookings.filter(
+      (booking) => booking.supplier_id === supplier.id,
+    ),
+  };
 }
 
-export async function updateOrderOperations(input: { bookingId: string; supplierId?: string | null; status?: OperationStatus; notes?: string }) {
-  const changes: Record<string, unknown> = { updated_at: new Date().toISOString() };
+export async function updateOrderOperations(input: {
+  bookingId: string;
+  supplierId?: string | null;
+  status?: OperationStatus;
+  notes?: string;
+  source?: "direct" | "ppc" | "manual";
+}) {
+  const db = adminDatabase();
+  if (db) {
+    const { data: current, error: readError } = await db
+      .from("bookings")
+      .select("status,supplier_id,postcode")
+      .eq("id", input.bookingId)
+      .single();
+    if (readError || !current) throw new Error("Order not found");
+    if (input.supplierId) {
+      const { data: supplier, error } = await db
+        .from("suppliers")
+        .select("status,service_area")
+        .eq("id", input.supplierId)
+        .single();
+      if (error || supplier?.status !== "active")
+        throw new InputError("Choose an active supplier.");
+      if (
+        supplier.service_area &&
+        !supplier.service_area
+          .split(",")
+          .map((p: string) => p.trim())
+          .includes(current.postcode)
+      )
+        throw new InputError(
+          "This supplier does not cover the booking postcode.",
+        );
+    }
+    const nextSupplier =
+      input.supplierId === undefined ? current.supplier_id : input.supplierId;
+    if (
+      input.status &&
+      !["payment_pending", "cancelled", "issue", "unassigned"].includes(
+        input.status,
+      ) &&
+      !nextSupplier
+    )
+      throw new InputError("Assign a supplier before advancing this booking.");
+    if (
+      current.status !== "paid" &&
+      ((input.status &&
+        !["payment_pending", "cancelled", "issue"].includes(input.status)) ||
+        input.supplierId)
+    )
+      throw new InputError("Payment is required before dispatch.");
+    if (
+      input.supplierId === null &&
+      input.status === undefined &&
+      current.status !== "paid"
+    )
+      input.status = "payment_pending";
+  }
+  const changes: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
   if (input.supplierId !== undefined) {
     changes.supplier_id = input.supplierId;
     changes.assigned_at = input.supplierId ? new Date().toISOString() : null;
-    if (input.status === undefined) changes.operation_status = input.supplierId ? "assigned" : "unassigned";
+    if (input.status === undefined)
+      changes.operation_status = input.supplierId ? "assigned" : "unassigned";
   }
   if (input.status !== undefined) changes.operation_status = input.status;
   if (input.notes !== undefined) changes.supplier_notes = input.notes;
+  if (input.source !== undefined) changes.booking_source = input.source;
 
   const client = adminDatabase();
   if (client) {
-    const { data, error } = await client.from("bookings").update(changes).eq("id", input.bookingId).select("id").maybeSingle();
+    const { data, error } = await client
+      .from("bookings")
+      .update(changes)
+      .eq("id", input.bookingId)
+      .select("id")
+      .maybeSingle();
     if (error) throw new Error(`Could not update order: ${error.message}`);
     if (!data) throw new Error("Order not found");
     return;
   }
-  if (process.env.NODE_ENV === "production") throw new Error("Operations database is not configured");
+  if (process.env.NODE_ENV === "production")
+    throw new Error("Operations database is not configured");
   const rows = await localRows();
   const row = rows.find((item) => item.id === input.bookingId);
   if (!row) throw new Error("Order not found");
@@ -211,15 +331,27 @@ export type SupplierInput = Omit<SupplierRecord, "id">;
 export async function createSupplier(input: SupplierInput) {
   const client = adminDatabase();
   if (!client) throw new Error("Operations database is not configured");
-  const { data, error } = await client.from("suppliers").insert(input).select("*").single();
+  const { data, error } = await client
+    .from("suppliers")
+    .insert(input)
+    .select("*")
+    .single();
   if (error) throw new Error(`Could not create supplier: ${error.message}`);
   return normalizeSupplier(data as Record<string, unknown>);
 }
 
-export async function updateSupplier(supplierId: string, changes: Partial<SupplierInput>) {
+export async function updateSupplier(
+  supplierId: string,
+  changes: Partial<SupplierInput>,
+) {
   const client = adminDatabase();
   if (!client) throw new Error("Operations database is not configured");
-  const { data, error } = await client.from("suppliers").update({ ...changes, updated_at: new Date().toISOString() }).eq("id", supplierId).select("*").maybeSingle();
+  const { data, error } = await client
+    .from("suppliers")
+    .update({ ...changes, updated_at: new Date().toISOString() })
+    .eq("id", supplierId)
+    .select("*")
+    .maybeSingle();
   if (error) throw new Error(`Could not update supplier: ${error.message}`);
   if (!data) throw new Error("Supplier not found");
   return normalizeSupplier(data as Record<string, unknown>);
@@ -237,7 +369,9 @@ export type SupplierApplication = {
   created_at: string;
 };
 
-function normalizeApplication(row: Record<string, unknown>): SupplierApplication {
+function normalizeApplication(
+  row: Record<string, unknown>,
+): SupplierApplication {
   const status = text(row, "status");
   return {
     id: text(row, "id"),
@@ -255,29 +389,45 @@ function normalizeApplication(row: Record<string, unknown>): SupplierApplication
 export async function listSupplierApplications() {
   const client = adminDatabase();
   if (!client) return [] as SupplierApplication[];
-  const { data, error } = await client.from("supplier_applications").select("*").order("created_at", { ascending: false });
+  const { data, error } = await client
+    .from("supplier_applications")
+    .select("*")
+    .order("created_at", { ascending: false });
   if (error) return [] as SupplierApplication[];
   return (data as Record<string, unknown>[]).map(normalizeApplication);
 }
 
-export async function createSupplierApplication(input: { companyName: string; contactName: string; phone: string; email: string; abn: string; password: string }) {
+export async function createSupplierApplication(input: {
+  companyName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  abn: string;
+  password: string;
+}) {
   const client = adminDatabase();
   if (!client) throw new Error("Supplier applications are not configured");
-  const { data: authData, error: authError } = await client.auth.admin.createUser({
-    email: input.email,
-    password: input.password,
-    email_confirm: true,
-    app_metadata: { role: "supplier_pending" },
-  });
-  if (authError || !authData.user) throw new Error(authError?.message || "Could not create supplier account");
-  const { data, error } = await client.from("supplier_applications").insert({
-    auth_user_id: authData.user.id,
-    company_name: input.companyName,
-    contact_name: input.contactName,
-    phone: input.phone,
-    email: input.email,
-    abn: input.abn,
-  }).select("*").single();
+  const { data: authData, error: authError } =
+    await client.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      app_metadata: { role: "supplier_pending" },
+    });
+  if (authError || !authData.user)
+    throw new Error(authError?.message || "Could not create supplier account");
+  const { data, error } = await client
+    .from("supplier_applications")
+    .insert({
+      auth_user_id: authData.user.id,
+      company_name: input.companyName,
+      contact_name: input.contactName,
+      phone: input.phone,
+      email: input.email,
+      abn: input.abn,
+    })
+    .select("*")
+    .single();
   if (error) {
     await client.auth.admin.deleteUser(authData.user.id).catch(() => undefined);
     throw new Error(`Could not submit supplier application: ${error.message}`);
@@ -285,43 +435,86 @@ export async function createSupplierApplication(input: { companyName: string; co
   return normalizeApplication(data as Record<string, unknown>);
 }
 
-export async function reviewSupplierApplication(applicationId: string, decision: "approved" | "rejected", adminUserId: string) {
+export async function reviewSupplierApplication(
+  applicationId: string,
+  decision: "approved" | "rejected",
+  adminUserId: string,
+) {
   const client = adminDatabase();
   if (!client) throw new Error("Operations database is not configured");
-  const { data, error } = await client.from("supplier_applications").select("*").eq("id", applicationId).maybeSingle();
+  const { data, error } = await client
+    .from("supplier_applications")
+    .select("*")
+    .eq("id", applicationId)
+    .maybeSingle();
   if (error || !data) throw new Error("Supplier application not found");
   const application = normalizeApplication(data as Record<string, unknown>);
-  if (application.status !== "pending") throw new Error("This application has already been reviewed");
+  if (application.status !== "pending")
+    throw new Error("This application has already been reviewed");
 
   if (decision === "approved") {
-    const { data: supplierData, error: supplierError } = await client.from("suppliers").insert({
-      auth_user_id: application.auth_user_id,
-      name: application.company_name,
-      contact_name: application.contact_name,
-      email: application.email,
-      phone: application.phone,
-      service_area: "",
-      status: "active",
-      bin_inventory: {},
-    }).select("*").single();
-    if (supplierError || !supplierData) throw new Error(supplierError?.message || "Could not create supplier profile");
+    const { data: supplierData, error: supplierError } = await client
+      .from("suppliers")
+      .insert({
+        auth_user_id: application.auth_user_id,
+        name: application.company_name,
+        contact_name: application.contact_name,
+        email: application.email,
+        phone: application.phone,
+        service_area: "",
+        status: "active",
+        bin_inventory: {},
+      })
+      .select("*")
+      .single();
+    if (supplierError || !supplierData)
+      throw new Error(
+        supplierError?.message || "Could not create supplier profile",
+      );
     const supplier = normalizeSupplier(supplierData as Record<string, unknown>);
-    const { data: authData } = await client.auth.admin.getUserById(application.auth_user_id);
+    const { data: authData } = await client.auth.admin.getUserById(
+      application.auth_user_id,
+    );
     const metadata = authData.user?.app_metadata ?? {};
-    const { error: metadataError } = await client.auth.admin.updateUserById(application.auth_user_id, {
-      app_metadata: { ...metadata, role: "supplier", supplier_id: supplier.id },
-    });
+    const { error: metadataError } = await client.auth.admin.updateUserById(
+      application.auth_user_id,
+      {
+        app_metadata: {
+          ...metadata,
+          role: "supplier",
+          supplier_id: supplier.id,
+        },
+      },
+    );
     if (metadataError) {
       await client.from("suppliers").delete().eq("id", supplier.id);
-      throw new Error(`Could not activate supplier login: ${metadataError.message}`);
+      throw new Error(
+        `Could not activate supplier login: ${metadataError.message}`,
+      );
     }
   } else {
-    const { data: authData } = await client.auth.admin.getUserById(application.auth_user_id);
+    const { data: authData } = await client.auth.admin.getUserById(
+      application.auth_user_id,
+    );
     const metadata = authData.user?.app_metadata ?? {};
-    const { error: metadataError } = await client.auth.admin.updateUserById(application.auth_user_id, { app_metadata: { ...metadata, role: "supplier_rejected" } });
-    if (metadataError) throw new Error(`Could not update supplier login: ${metadataError.message}`);
+    const { error: metadataError } = await client.auth.admin.updateUserById(
+      application.auth_user_id,
+      { app_metadata: { ...metadata, role: "supplier_rejected" } },
+    );
+    if (metadataError)
+      throw new Error(
+        `Could not update supplier login: ${metadataError.message}`,
+      );
   }
 
-  const { error: reviewError } = await client.from("supplier_applications").update({ status: decision, reviewed_at: new Date().toISOString(), reviewed_by: adminUserId }).eq("id", applicationId);
-  if (reviewError) throw new Error(`Could not complete review: ${reviewError.message}`);
+  const { error: reviewError } = await client
+    .from("supplier_applications")
+    .update({
+      status: decision,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: adminUserId,
+    })
+    .eq("id", applicationId);
+  if (reviewError)
+    throw new Error(`Could not complete review: ${reviewError.message}`);
 }

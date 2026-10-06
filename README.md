@@ -89,3 +89,24 @@ account's converted settlement-currency minimum, and does not create a row in
 the bookings table. A user with `app_metadata.role` set to `admin` is also
 accepted. Set `STRIPE_TEST_SECRET_KEY` to an `sk_test_` key; when omitted, the
 tool only falls back to `STRIPE_SECRET_KEY` if that key is also in test mode.
+
+## Admin portal upgrade
+
+Run these SQL files in the Supabase SQL Editor, in order, before deploying:
+
+1. `supabase/schema.sql`
+2. `supabase/operations-migration.sql`
+3. `supabase/supplier-applications-migration.sql`
+4. `supabase/admin-portal-migration.sql`
+
+The last migration adds private business settings, per-waste bin rates, verified VIC locality coverage, customer status, booking sources, supplier details, and `reserve_admin_booking`. Only the server service role can write these records. It also removes public booking inserts so clients cannot bypass stock reservations. No records or personal information from the demo video are included.
+
+The portal includes bookings with daily and advanced filters, supplier allocation and notes, customer history, supplier editing and login-account creation, payout reconciliation, pricing and stock, date overrides, Victorian suburb/postcode coverage, and a business profile with opening hours and bank details. Supplier workspaces remain inside the administrator session.
+
+`AUSPOST_API_KEY` is required for verified Victorian locality search and checkout validation. Coverage can include all Victorian localities or an explicit set of suburbs, with individual exclusions. Supplier coverage uses verified Victorian postcodes, not zones. Prices default to the site's existing catalogue and can be changed per bin/waste combination. Extended hire retains the existing 40% uplift. Weight allowances and excess-tonne rates are recorded for post-weighing reconciliation; they are not automatically charged at checkout. Use blocked delivery days to implement specific holiday closures; the holiday preference is stored in the profile.
+
+Stock limits distinguish blank (unlimited) from zero (unavailable). Paid jobs and active pending reservations consume stock through pickup plus turnaround. The PostgreSQL reservation function uses a per-bin transaction lock so simultaneous checkouts cannot claim the last bin. Pending holds last 31 minutes; Stripe checkout expires after 30 minutes.
+
+Reports use Melbourne dates, include paid non-cancelled bookings, distinguish creation-date revenue from delivery-date payable jobs, and apply PPC exclusions per supplier. Commission and processing fee percentages are configurable estimates, starting at zero; no bank transfer or Stripe payout is initiated by exporting a report. CSVs use per-booking cent rounding and escape formula-leading text.
+
+Validation: `npm run test:admin`, `node node_modules/typescript/bin/tsc --noEmit --incremental false`, and `npm run build`. The retained behavior tests use mocked providers and never write live records. Responsive browser checks used synthetic data at 390, 768 and 1440 pixels with intercepted save requests. The temporary preview route was removed after verification.

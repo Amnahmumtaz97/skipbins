@@ -3,7 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { selectedBookingExtras, type BookingExtraQuantities } from "@/lib/data/booking-extras";
+import {
+  selectedBookingExtras,
+  type BookingExtraQuantities,
+} from "@/lib/data/booking-extras";
 import type { CustomerIdentity } from "@/lib/server/customer-service";
 
 export type BookingRecord = {
@@ -85,15 +88,26 @@ function supabase(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const key = writeKey();
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
-function databaseError(operation: string, error: { code?: string; message?: string }) {
+function databaseError(
+  operation: string,
+  error: { code?: string; message?: string },
+) {
   const code = error.code ? ` (${error.code})` : "";
-  return new Error(`${operation}${code}: ${error.message || "Unknown database error"}`);
+  return new Error(
+    `${operation}${code}: ${error.message || "Unknown database error"}`,
+  );
 }
 
-function fromRecord(data: BookingRecord, amountCents: number, customer?: CustomerIdentity): StoredBooking {
+function fromRecord(
+  data: BookingRecord,
+  amountCents: number,
+  customer?: CustomerIdentity,
+): StoredBooking {
   const extras = selectedBookingExtras(data.extras);
   const extrasNote = extras.length
     ? `Disposal extras: ${extras.map((extra) => `${extra.label} x ${extra.quantity}${extra.total === 0 ? " (FREE)" : ""}`).join(", ")}`
@@ -125,41 +139,38 @@ async function persistLocally(row: StoredBooking) {
   const existing = await readLocal();
   const index = existing.findIndex((item) => item.id === row.id);
   if (index >= 0) existing[index] = row;
-  else existing.push({ ...row, created_at: new Date().toISOString() } as StoredBooking);
+  else
+    existing.push({
+      ...row,
+      created_at: new Date().toISOString(),
+    } as StoredBooking);
   await writeLocal(existing);
 }
 
-export async function createPendingBooking(data: BookingRecord, amountCents: number, customer?: CustomerIdentity) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
-  const key = writeKey();
-  if (!url || !key) throw new Error("Booking provider is not configured");
-
+export async function createPendingBooking(
+  data: BookingRecord,
+  amountCents: number,
+  customer?: CustomerIdentity,
+  source: "direct" | "ppc" | "manual" = "direct",
+) {
   const row = fromRecord(data, amountCents, customer);
   const client = supabase();
-  if (client) {
-    const { error } = await client.from("bookings").insert(row);
-    if (!error) {
-      if (process.env.NODE_ENV !== "production") await persistLocally(row);
-      return { id: row.id, reference: row.reference };
-    }
-    if (row.customer_id && ["42703", "PGRST204"].includes(error.code ?? "")) {
-      const legacyRow = { ...row };
-      delete legacyRow.customer_id;
-      const { error: legacyError } = await client.from("bookings").insert(legacyRow);
-      if (!legacyError) {
-        if (process.env.NODE_ENV !== "production") await persistLocally(row);
-        return { id: row.id, reference: row.reference };
-      }
-      if (process.env.NODE_ENV === "production") throw databaseError("Could not create booking", legacyError);
-    }
-    if (process.env.NODE_ENV === "production") throw databaseError("Could not create booking", error);
-  }
-
-  await persistLocally(row);
+  if (!client) throw new Error("Booking provider is not configured");
+  const { data: saved, error } = await client.rpc("reserve_admin_booking", {
+    payload: { ...row, booking_source: source },
+  });
+  if (error || !saved?.length)
+    throw databaseError(
+      "Could not reserve booking",
+      error ?? { message: "Reservation not returned" },
+    );
+  if (process.env.NODE_ENV !== "production") await persistLocally(row);
   return { id: row.id, reference: row.reference };
 }
-
-export async function attachCheckoutSession(bookingId: string, sessionId: string) {
+export async function attachCheckoutSession(
+  bookingId: string,
+  sessionId: string,
+) {
   const client = supabase();
   if (client) {
     const { data, error } = await client
@@ -168,7 +179,8 @@ export async function attachCheckoutSession(bookingId: string, sessionId: string
       .eq("id", bookingId)
       .select("id")
       .maybeSingle();
-    if (error && process.env.NODE_ENV === "production") throw databaseError("Could not attach Stripe session", error);
+    if (error && process.env.NODE_ENV === "production")
+      throw databaseError("Could not attach Stripe session", error);
     if (data) return;
   }
   const existing = await readLocal();
@@ -178,24 +190,41 @@ export async function attachCheckoutSession(bookingId: string, sessionId: string
     await writeLocal(existing);
     return;
   }
-  if (process.env.NODE_ENV === "production") throw new Error("Booking not found");
+  if (process.env.NODE_ENV === "production")
+    throw new Error("Booking not found");
 }
 
-export async function markBookingPaid(lookup: { id?: string; stripeSessionId?: string }) {
+export async function markBookingPaid(lookup: {
+  id?: string;
+  stripeSessionId?: string;
+}) {
   const client = supabase();
   if (client) {
-    let query = client.from("bookings").update({ status: "paid" }).eq("status", "pending");
-    if (lookup.stripeSessionId) query = query.eq("stripe_session_id", lookup.stripeSessionId);
+    let query = client
+      .from("bookings")
+      .update({ status: "paid" })
+      .eq("status", "pending");
+    if (lookup.stripeSessionId)
+      query = query.eq("stripe_session_id", lookup.stripeSessionId);
     else if (lookup.id) query = query.eq("id", lookup.id);
     else return null;
-    const { data, error } = await query.select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes").maybeSingle();
+    const { data, error } = await query
+      .select(
+        "id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes",
+      )
+      .maybeSingle();
     if (!error && data) return data as StoredBooking;
-    if (error && process.env.NODE_ENV === "production") throw databaseError("Could not mark booking paid", error);
+    if (error && process.env.NODE_ENV === "production")
+      throw databaseError("Could not mark booking paid", error);
   }
 
   const existing = await readLocal();
   const row = existing.find((item) =>
-    Boolean((lookup.id && item.id === lookup.id) || (lookup.stripeSessionId && item.stripe_session_id === lookup.stripeSessionId)),
+    Boolean(
+      (lookup.id && item.id === lookup.id) ||
+        (lookup.stripeSessionId &&
+          item.stripe_session_id === lookup.stripeSessionId),
+    ),
   );
   if (!row) return null;
   if (lookup.stripeSessionId) row.stripe_session_id = lookup.stripeSessionId;
@@ -209,7 +238,9 @@ export async function getBookingByCheckoutSession(sessionId: string) {
   if (client) {
     const { data, error } = await client
       .from("bookings")
-      .select("id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes")
+      .select(
+        "id, reference, status, amount_cents, stripe_session_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes",
+      )
       .eq("stripe_session_id", sessionId)
       .maybeSingle();
     if (!error && data) return data as StoredBooking;

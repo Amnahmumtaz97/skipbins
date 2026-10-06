@@ -1,7 +1,37 @@
+import Link from "next/link";
+import { Plus } from "lucide-react";
 import { OrderManager } from "@/components/admin/order-manager";
+import { PageHeading } from "@/components/admin/portal-ui";
 import { getOperationsSnapshot } from "@/lib/server/operations-service";
-
-export default async function AdminOrdersPage() {
-  const { bookings, suppliers } = await getOperationsSnapshot();
-  return <div className="mx-auto max-w-[1500px]"><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#65A30D]">Dispatch board</p><h1 className="mt-1 text-[30px] font-extrabold tracking-[-0.04em] text-[#0B3B24]">Orders</h1><p className="mt-2 text-[13px] text-[#66746B]">Assign suppliers and move each order from payment to collection.</p><div className="mt-6"><OrderManager initialBookings={bookings} suppliers={suppliers} /></div></div>;
+import { todayIsoDate } from "@/lib/booking-utils";
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string }>;
+}) {
+  const [snapshot, params] = await Promise.all([
+    getOperationsSnapshot(),
+    searchParams,
+  ]);
+  return (
+    <div>
+      <PageHeading
+        eyebrow="DISPATCH & FULFILMENT"
+        title="Bookings"
+        description="Allocate suppliers, manage daily movements and track every booking."
+        actions={
+          <Link className="portal-button" href="/book" target="_blank">
+            <Plus size={16} />
+            New booking
+          </Link>
+        }
+      />
+      <OrderManager
+        initialBookings={snapshot.bookings}
+        suppliers={snapshot.suppliers}
+        today={todayIsoDate()}
+        initialSelectedId={params.order}
+      />
+    </div>
+  );
 }
