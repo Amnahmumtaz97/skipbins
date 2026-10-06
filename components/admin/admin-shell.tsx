@@ -11,7 +11,6 @@ import {
   MapPin,
   SlidersHorizontal,
   Settings,
-  Boxes,
   UserPlus,
   CreditCard,
   LogOut,
@@ -34,7 +33,7 @@ const links = [
     label: "Pricing & availability",
     icon: SlidersHorizontal,
   },
-  { href: "/admin/inventory", label: "Bin inventory", icon: Boxes },
+
   { href: "/admin/profile", label: "Business profile", icon: Settings },
   { href: "/admin/stripe-test", label: "Payment testing", icon: CreditCard },
 ];

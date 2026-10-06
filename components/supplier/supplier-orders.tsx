@@ -1,58 +1,474 @@
 "use client";
-
-import { useMemo, useState, type ReactNode } from "react";
-import { CalendarDays, CheckCircle2, CircleAlert, Eye, MapPin, Navigation, Phone, Search, TriangleAlert, X } from "lucide-react";
-import { operationStatusLabels, operationStatusTone, supplierActionStatuses, type OperationStatus } from "@/lib/data/operations";
+import { useMemo, useRef, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CheckCircle2,
+  Download,
+  Eye,
+  Navigation,
+  Phone,
+  Save,
+  X,
+} from "lucide-react";
+import {
+  operationStatusLabels,
+  operationStatusTone,
+  supplierActionStatuses,
+  type OperationStatus,
+} from "@/lib/data/operations";
+import { exportCsv } from "@/lib/admin-config";
 import type { OperationsBooking } from "@/lib/server/operations-service";
-
 type ViewFilter = "all" | "today" | "action" | "issues" | "completed";
-const nextStatus: Partial<Record<OperationStatus, OperationStatus>> = { unassigned: "accepted", assigned: "accepted", accepted: "scheduled", scheduled: "delivered", delivered: "collection_due", collection_due: "collected" };
-const filters: { id: ViewFilter; label: string }[] = [{ id: "all", label: "All" }, { id: "today", label: "Today" }, { id: "action", label: "Needs action" }, { id: "issues", label: "Issues" }, { id: "completed", label: "Completed" }];
-
-export function SupplierOrders({ initialBookings, compact = false }: { initialBookings: OperationsBooking[]; compact?: boolean }) {
+const nextStatus: Partial<Record<OperationStatus, OperationStatus>> = {
+  assigned: "accepted",
+  accepted: "scheduled",
+  scheduled: "delivered",
+  delivered: "collection_due",
+  collection_due: "collected",
+};
+const filters: { id: ViewFilter; label: string }[] = [
+  { id: "all", label: "All jobs" },
+  { id: "today", label: "Today" },
+  { id: "action", label: "Needs action" },
+  { id: "issues", label: "Issues" },
+  { id: "completed", label: "Completed" },
+];
+export function SupplierOrders({
+  initialBookings,
+  compact = false,
+  initialSelectedId,
+}: {
+  initialBookings: OperationsBooking[];
+  compact?: boolean;
+  initialSelectedId?: string;
+}) {
+  const router = useRouter();
   const [bookings, setBookings] = useState(initialBookings);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ViewFilter>("all");
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(initialBookings.map((booking) => [booking.id, booking.supplier_notes])));
-  const selected = bookings.find((booking) => booking.id === selectedId) ?? null;
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-
-  const visible = useMemo(() => bookings.filter((booking) => {
-    const matchesSearch = `${booking.reference} ${booking.full_name} ${booking.street_address} ${booking.postcode}`.toLowerCase().includes(query.toLowerCase());
-    if (!matchesSearch) return false;
-    if (filter === "today") return booking.delivery_date === today || booking.pickup_date === today;
-    if (filter === "action") return ["assigned", "collection_due"].includes(booking.operation_status) || isOverdue(booking, today);
-    if (filter === "issues") return booking.operation_status === "issue";
-    if (filter === "completed") return booking.operation_status === "collected";
-    return true;
-  }).sort((a, b) => (a.delivery_date || "9999").localeCompare(b.delivery_date || "9999")).slice(0, compact ? 8 : undefined), [bookings, compact, filter, query, today]);
-
-  async function update(booking: OperationsBooking, changes: { status?: OperationStatus; notes?: string }) {
-    setSaving(booking.id); setError("");
+  const [message, setMessage] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialSelectedId ?? null,
+  );
+  const selected = bookings.find((b) => b.id === selectedId) ?? null;
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const visible = useMemo(
+    () =>
+      bookings
+        .filter((b) => {
+          if (
+            !`${b.reference} ${b.full_name} ${b.street_address} ${b.postcode} ${b.bin_size}`
+              .toLowerCase()
+              .includes(query.toLowerCase())
+          )
+            return false;
+          if (filter === "today")
+            return b.delivery_date === today || b.pickup_date === today;
+          if (filter === "action")
+            return (
+              ["assigned", "collection_due"].includes(b.operation_status) ||
+              isOverdue(b, today)
+            );
+          if (filter === "issues") return b.operation_status === "issue";
+          if (filter === "completed") return b.operation_status === "collected";
+          return true;
+        })
+        .sort((a, b) =>
+          (a.delivery_date || "9999").localeCompare(b.delivery_date || "9999"),
+        )
+        .slice(0, compact ? 6 : undefined),
+    [bookings, compact, filter, query, today],
+  );
+  async function update(
+    booking: OperationsBooking,
+    changes: { status?: OperationStatus; notes?: string },
+  ) {
+    if (saving) return;
+    setSaving(booking.id);
+    setError("");
+    setMessage("");
     try {
-      const response = await fetch(`/api/supplier/orders/${encodeURIComponent(booking.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
+      const response = await fetch(
+        `/api/supplier/orders/${encodeURIComponent(booking.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(changes),
+        },
+      );
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? "Could not update the job.");
-      setBookings((current) => current.map((item) => item.id === booking.id ? { ...item, ...(changes.status ? { operation_status: changes.status } : {}), ...(changes.notes !== undefined ? { supplier_notes: changes.notes } : {}) } : item));
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not update the job."); }
-    finally { setSaving(""); }
+      if (!response.ok)
+        throw new Error(result.error ?? "Could not update the job.");
+      setBookings((current) =>
+        current.map((b) =>
+          b.id === booking.id
+            ? {
+                ...b,
+                ...(changes.status ? { operation_status: changes.status } : {}),
+                ...(changes.notes !== undefined
+                  ? { supplier_notes: changes.notes }
+                  : {}),
+              }
+            : b,
+        ),
+      );
+      setMessage(`${booking.reference} updated.`);
+      router.refresh();
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not update the job.",
+      );
+    } finally {
+      setSaving("");
+    }
   }
-
-  return <div>
-    {!compact ? <div className="rounded-t-2xl border border-[#D6DFD2] bg-white p-3"><label className="relative block"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#718078]" /><span className="sr-only">Search assigned orders</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search job number, customer, address or postcode" className="h-10 w-full rounded-lg border border-[#D7E0D3] bg-[#FAFBF8] pl-10 pr-3 text-[12px] outline-none focus:border-[#65A30D]" /></label><div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" aria-label="Order filters">{filters.map((item) => <button key={item.id} type="button" onClick={() => setFilter(item.id)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-[10px] font-extrabold transition ${filter === item.id ? "bg-[#0B3B24] text-white" : "bg-[#EEF3EA] text-[#526159] hover:bg-[#E1EADB]"}`}>{item.label}</button>)}</div></div> : null}
-    {error ? <p role="alert" className={`flex gap-2 bg-[#FFF0ED] p-3 text-[11px] font-bold text-[#93382C] ${compact ? "mb-3 rounded-xl" : "border-x border-[#E9C8C1]"}`}><CircleAlert className="h-4 w-4 shrink-0" />{error}</p> : null}
-    <div className={`overflow-x-auto border border-[#D6DFD2] bg-white shadow-sm ${compact ? "rounded-2xl" : "rounded-b-2xl border-t-0"}`}><table className="w-full min-w-[800px] border-collapse text-left text-[10px]"><thead className="bg-[#EAF0E6] text-[#405347]"><tr>{["Job", "Schedule", "Address", "Bin", "Status", "Next step", "Details"].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap border-b border-r border-[#CBD7C7] px-3 py-3 font-extrabold uppercase tracking-[.07em] last:border-r-0">{heading}</th>)}</tr></thead><tbody>{visible.map((booking, index) => { const advance = nextStatus[booking.operation_status]; const overdue = isOverdue(booking, today); return <tr key={booking.id} className={`align-middle hover:bg-[#F5F8F2] ${booking.operation_status === "issue" || overdue ? "bg-[#FFF9F7]" : index % 2 ? "bg-[#FBFCFA]" : "bg-white"}`}><Cell><strong className="block whitespace-nowrap font-mono text-[11px] text-[#0B3B24]">{booking.reference}</strong><span className="mt-1 block max-w-[135px] truncate text-[#7B887F]">{booking.full_name}</span></Cell><Cell><span className="block whitespace-nowrap"><b>Out:</b> {booking.delivery_date || "TBC"}</span><span className="mt-1 block whitespace-nowrap"><b>Back:</b> {booking.pickup_date || "TBC"}</span></Cell><Cell><span className="block max-w-[180px] truncate text-[#314B3D]">{booking.street_address}, {booking.postcode}</span></Cell><Cell><strong className="whitespace-nowrap text-[12px] text-[#0B3B24]">{booking.bin_size.replace("m3", "m³")}</strong><span className="mt-1 block max-w-[100px] truncate capitalize text-[#7B887F]">{booking.waste_type}</span></Cell><Cell><span className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[8px] font-extrabold uppercase ${operationStatusTone(booking.operation_status)}`}>{operationStatusLabels[booking.operation_status]}</span>{overdue ? <span className="mt-1 flex items-center gap-1 text-[8px] font-extrabold uppercase text-[#93382C]"><TriangleAlert className="h-2.5 w-2.5" />Overdue</span> : null}</Cell><Cell>{advance ? <button type="button" disabled={saving === booking.id} onClick={() => update(booking, { status: advance })} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#0B3B24] px-3 py-2 text-[9px] font-extrabold text-white disabled:opacity-45">{advance === "collected" ? <CheckCircle2 className="h-3 w-3" /> : null}{operationStatusLabels[advance]}</button> : <span className="text-[#8A958E]">No next step</span>}</Cell><Cell><button type="button" onClick={() => setSelectedId(booking.id)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#EEF3EA] px-3 py-2 text-[9px] font-extrabold text-[#315B28]"><Eye className="h-3 w-3" />View & update</button></Cell></tr>; })}</tbody></table>{!visible.length ? <p className="px-6 py-12 text-center text-[12px] text-[#718078]">No assigned orders match this view.</p> : null}</div>
-    {selected ? <JobModal booking={selected} note={notes[selected.id] ?? ""} saving={saving === selected.id} onNoteChange={(value) => setNotes((current) => ({ ...current, [selected.id]: value }))} onUpdate={(changes) => update(selected, changes)} onClose={() => setSelectedId(null)} /> : null}
-  </div>;
+  return (
+    <div>
+      {!compact && (
+        <div className="supplier-order-tools">
+          <input
+            aria-label="Search assigned orders"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search job, customer, address, bin or postcode"
+          />
+          <button
+            className="portal-button-secondary"
+            onClick={() =>
+              exportCsv(
+                "supplier-orders.csv",
+                [
+                  "Job",
+                  "Customer",
+                  "Delivery",
+                  "Pickup",
+                  "Address",
+                  "Postcode",
+                  "Bin",
+                  "Stage",
+                ],
+                visible.map((b) => [
+                  b.reference,
+                  b.full_name,
+                  b.delivery_date,
+                  b.pickup_date,
+                  b.street_address,
+                  b.postcode,
+                  b.bin_size,
+                  operationStatusLabels[b.operation_status],
+                ]),
+              )
+            }
+          >
+            <Download size={16} />
+            Export CSV
+          </button>
+          <div className="portal-actions w-full">
+            {filters.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={filter === item.id}
+                onClick={() => setFilter(item.id)}
+                className="portal-button-secondary"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {error && !selected && (
+        <p role="alert" className="supplier-notice supplier-alert">
+          {error}
+        </p>
+      )}
+      {message && !selected && (
+        <p role="status" className="supplier-notice">
+          {message}
+        </p>
+      )}
+      <div className="portal-table-wrap">
+        <table className="portal-table mobile-cards supplier-table">
+          <thead>
+            <tr>
+              {[
+                "Job",
+                "Schedule",
+                "Address",
+                "Bin",
+                "Stage",
+                "Next step",
+                "Details",
+              ].map((h) => (
+                <th key={h} scope="col">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((b) => {
+              const advance = nextStatus[b.operation_status];
+              return (
+                <tr key={b.id}>
+                  <td data-label="Job">
+                    <strong>{b.reference}</strong>
+                    <span className="mt-1 block">{b.full_name}</span>
+                  </td>
+                  <td data-label="Schedule">
+                    <span className="block">Out: {b.delivery_date}</span>
+                    <span className="block">
+                      Back: {b.pickup_date || "TBC"}
+                    </span>
+                  </td>
+                  <td data-label="Address">
+                    {b.street_address}, VIC {b.postcode}
+                  </td>
+                  <td data-label="Bin">
+                    <strong>{b.bin_size.replace("m3", "m³")}</strong>
+                    <span className="block capitalize">{b.waste_type}</span>
+                  </td>
+                  <td data-label="Stage">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${operationStatusTone(b.operation_status)}`}
+                    >
+                      {operationStatusLabels[b.operation_status]}
+                    </span>
+                    {isOverdue(b, today) && (
+                      <span className="mt-2 block text-xs font-bold text-[#a34335]">
+                        Overdue collection
+                      </span>
+                    )}
+                  </td>
+                  <td data-label="Next step">
+                    {advance ? (
+                      <button
+                        className="portal-button"
+                        disabled={Boolean(saving)}
+                        onClick={() => update(b, { status: advance })}
+                      >
+                        {advance === "collected" && <CheckCircle2 size={15} />}
+                        {saving === b.id
+                          ? "Saving…"
+                          : operationStatusLabels[advance]}
+                      </button>
+                    ) : (
+                      <span>No next step</span>
+                    )}
+                  </td>
+                  <td data-label="Details">
+                    <button
+                      type="button"
+                      className="portal-button-secondary"
+                      onClick={() => {
+                        setSelectedId(b.id);
+                        setError("");
+                        setMessage("");
+                      }}
+                    >
+                      <Eye size={15} />
+                      View job
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!visible.length && (
+          <p className="supplier-empty">No assigned orders match this view.</p>
+        )}
+      </div>
+      {selected && (
+        <JobModal
+          key={selected.id}
+          booking={selected}
+          saving={Boolean(saving)}
+          error={error}
+          message={message}
+          onUpdate={(changes) => update(selected, changes)}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+    </div>
+  );
 }
-
-function JobModal({ booking, note, saving, onNoteChange, onUpdate, onClose }: { booking: OperationsBooking; note: string; saving: boolean; onNoteChange: (value: string) => void; onUpdate: (changes: { status?: OperationStatus; notes?: string }) => void; onClose: () => void }) {
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#061C11]/60 p-4" role="dialog" aria-modal="true" aria-label={`Job ${booking.reference}`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="max-h-[90vh] w-full max-w-[700px] overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-[10px] font-bold text-[#65A30D]">{booking.reference}</p><h2 className="mt-1 text-[20px] font-extrabold text-[#0B3B24]">Job details and controls</h2></div><button type="button" onClick={onClose} aria-label="Close job details" className="rounded-lg bg-[#EEF3EA] p-2 text-[#405347]"><X className="h-4 w-4" /></button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><Detail icon={MapPin} label="Delivery address" value={`${booking.street_address}, ${booking.postcode}`} wide /><Detail icon={CalendarDays} label="Schedule" value={`Delivery: ${booking.delivery_date}\nPickup: ${booking.pickup_date || "TBC"}`} /><Detail label="Bin and placement" value={`${booking.bin_size.replace("m3", "m³")} · ${booking.waste_type}\n${booking.placement || "Placement TBC"}`} /><Detail label="Customer" value={`${booking.full_name}\n${booking.phone}`} /><div className="rounded-xl bg-[#F4F8F0] p-3"><p className="text-[9px] font-extrabold uppercase tracking-[.08em] text-[#718078]">Contact tools</p><div className="mt-2 flex gap-2"><a href={`tel:${booking.phone}`} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-[10px] font-bold text-[#315B28]"><Phone className="h-3 w-3" />Call</a><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${booking.street_address}, ${booking.postcode}`)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-[10px] font-bold text-[#315B28]"><Navigation className="h-3 w-3" />Directions</a></div></div>{booking.access || booking.notes ? <Detail label="Site notes" value={[booking.access, booking.notes].filter(Boolean).join(" · ")} wide /> : null}</div><div className="mt-4 border-t border-[#E1E7DE] pt-4"><label className="text-[10px] font-extrabold uppercase tracking-[.08em] text-[#718078]">Change workflow status<select defaultValue="" disabled={saving} onChange={(event) => { if (event.target.value) onUpdate({ status: event.target.value as OperationStatus }); event.target.value = ""; }} className="mt-2 h-10 w-full rounded-lg border border-[#C9D5C5] bg-white px-3 text-[11px] font-bold normal-case tracking-normal text-[#314B3D]"><option value="">Select a new status…</option>{supplierActionStatuses.filter((status) => status !== booking.operation_status).map((status) => <option key={status} value={status}>{operationStatusLabels[status]}</option>)}</select></label><label className="mt-4 block text-[10px] font-extrabold uppercase tracking-[.08em] text-[#718078]">Supplier note<textarea value={note} onChange={(event) => onNoteChange(event.target.value)} maxLength={500} placeholder="Add delivery, access or collection update…" className="mt-2 min-h-24 w-full resize-y rounded-lg border border-[#C9D5C5] p-3 text-[11px] font-medium normal-case tracking-normal outline-none focus:border-[#65A30D]" /></label><button type="button" disabled={saving} onClick={() => onUpdate({ notes: note })} className="mt-2 w-full rounded-lg bg-[#0B3B24] px-3 py-2.5 text-[10px] font-extrabold text-white disabled:opacity-45">Save supplier note</button></div></section></div>;
+function JobModal({
+  booking,
+  saving,
+  error,
+  message,
+  onUpdate,
+  onClose,
+}: {
+  booking: OperationsBooking;
+  saving: boolean;
+  error: string;
+  message: string;
+  onUpdate: (changes: { status?: OperationStatus; notes?: string }) => void;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [note, setNote] = useState(booking.supplier_notes);
+  const [stage, setStage] = useState<OperationStatus>(booking.operation_status);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="portal-dialog supplier-job-dialog"
+      aria-labelledby="job-title"
+      onCancel={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < bounds.left ||
+            event.clientX > bounds.right ||
+            event.clientY < bounds.top ||
+            event.clientY > bounds.bottom
+          )
+            onClose();
+        }
+      }}
+    >
+      <div className="portal-dialog-title">
+        <div>
+          <p className="portal-eyebrow">{booking.reference}</p>
+          <h2 id="job-title">Job details & controls</h2>
+        </div>
+        <button type="button" aria-label="Close job" onClick={onClose}>
+          <X size={22} />
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="supplier-notice supplier-alert">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p role="status" className="supplier-notice">
+          {message}
+        </p>
+      )}
+      <div className="supplier-info-grid">
+        <Detail
+          label="Delivery address"
+          value={`${booking.street_address}, VIC ${booking.postcode}`}
+        />
+        <Detail
+          label="Customer"
+          value={`${booking.full_name} · ${booking.phone}`}
+        />
+        <Detail
+          label="Delivery / collection"
+          value={`${booking.delivery_date} / ${booking.pickup_date || "TBC"}`}
+        />
+        <Detail
+          label="Bin / placement"
+          value={`${booking.bin_size.replace("m3", "m³")} · ${booking.waste_type} · ${booking.placement || "TBC"}`}
+        />
+        <Detail
+          label="Site instructions"
+          value={
+            [booking.access, booking.notes].filter(Boolean).join(" · ") ||
+            "No additional instructions"
+          }
+        />
+      </div>
+      <div className="portal-actions my-5">
+        <a className="portal-button-secondary" href={`tel:${booking.phone}`}>
+          <Phone size={16} />
+          Call customer
+        </a>
+        <a
+          className="portal-button-secondary"
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${booking.street_address}, VIC ${booking.postcode}`)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <Navigation size={16} />
+          Directions
+        </a>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onUpdate({
+            ...(stage !== booking.operation_status ? { status: stage } : {}),
+            notes: note,
+          });
+        }}
+      >
+        <label className="supplier-field">
+          Workflow stage
+          <select
+            value={stage}
+            disabled={saving}
+            onChange={(e) => setStage(e.target.value as OperationStatus)}
+          >
+            <option value={booking.operation_status}>
+              {operationStatusLabels[booking.operation_status]}
+            </option>
+            {supplierActionStatuses
+              .filter((s) => s !== booking.operation_status)
+              .map((s) => (
+                <option key={s} value={s}>
+                  {operationStatusLabels[s]}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="supplier-field mt-5">
+          Supplier notes
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={500}
+            rows={4}
+            placeholder="Record delivery, access, collection or issue details"
+          />
+        </label>
+        <div className="portal-footer-actions">
+          <button
+            type="button"
+            className="portal-button-secondary"
+            onClick={() => window.print()}
+          >
+            Print job sheet
+          </button>
+          <button type="submit" className="portal-button" disabled={saving}>
+            <Save size={16} />
+            {saving ? "Saving…" : "Save update"}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
 }
-
-function Cell({ children }: { children: ReactNode }) { return <td className="border-b border-r border-[#E1E7DE] px-3 py-3 text-[#526159] last:border-r-0">{children}</td>; }
-function Detail({ icon: Icon, label, value, wide = false }: { icon?: typeof MapPin; label: string; value: string; wide?: boolean }) { return <div className={`rounded-xl bg-[#F4F8F0] p-3 ${wide ? "sm:col-span-2" : ""}`}><p className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-[.08em] text-[#718078]">{Icon ? <Icon className="h-3 w-3" /> : null}{label}</p><p className="mt-1 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#314B3D]">{value}</p></div>; }
-function isOverdue(booking: OperationsBooking, today: string) { return Boolean(booking.pickup_date) && booking.pickup_date < today && !["collected", "cancelled"].includes(booking.operation_status); }
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-[#eef3ea] p-4">
+      <p className="text-xs font-bold text-[#405347]">{label}</p>
+      <p className="mt-2 break-words text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+function isOverdue(b: OperationsBooking, today: string) {
+  return (
+    Boolean(b.pickup_date) &&
+    b.pickup_date < today &&
+    !["collected", "cancelled"].includes(b.operation_status)
+  );
+}

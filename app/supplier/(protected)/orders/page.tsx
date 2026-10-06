@@ -1,6 +1,43 @@
 import { SupplierOrders } from "@/components/supplier/supplier-orders";
-import { supplierIdFromUser } from "@/lib/server/admin-auth";
-import { getSupplierOperations } from "@/lib/server/operations-service";
-import { createClient } from "@/lib/supabase/server";
-
-export default async function SupplierOrdersPage() { const { data: { user } } = await (await createClient()).auth.getUser(); const { bookings } = await getSupplierOperations(user!.id, supplierIdFromUser(user)); return <div className="mx-auto max-w-[1300px]"><p className="text-[10px] font-extrabold uppercase tracking-[.16em] text-[#65A30D]">Job register</p><h1 className="mt-1 text-[30px] font-extrabold tracking-[-.04em] text-[#0B3B24]">Assigned orders</h1><p className="mt-2 text-[12px] text-[#66746B]">Delivery, on-hire and collection work assigned to your business.</p><div className="mt-6"><SupplierOrders initialBookings={bookings} /></div></div>; }
+import { getSupplierWorkspace } from "@/lib/server/supplier-workspace";
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ job?: string }>;
+}) {
+  const [{ supplier, bookings, loadError }, params] = await Promise.all([
+    getSupplierWorkspace(),
+    searchParams,
+  ]);
+  if (loadError)
+    return (
+      <div className="portal-panel" role="alert">
+        {loadError}
+      </div>
+    );
+  if (!supplier)
+    return (
+      <div className="portal-panel">
+        Your supplier profile is not linked. Ask the administrator to link your
+        account.
+      </div>
+    );
+  return (
+    <div>
+      <div className="portal-heading">
+        <div>
+          <p className="portal-eyebrow">Job register · {supplier.name}</p>
+          <h1>Assigned orders</h1>
+          <p>
+            Accept deliveries, manage collections, report issues and keep
+            customers informed.
+          </p>
+        </div>
+      </div>
+      <SupplierOrders
+        initialBookings={bookings}
+        initialSelectedId={params.job}
+      />
+    </div>
+  );
+}

@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Plus, Pencil, Save, Download, ArrowUpRight, Star } from "lucide-react";
-import { bins } from "@/lib/data/skip-bins";
+
 import { exportCsv } from "@/lib/admin-config";
 import type {
   OperationsBooking,
@@ -102,7 +102,7 @@ export function SupplierManager({
       <PageHeading
         eyebrow="SUPPLIER NETWORK"
         title="Suppliers"
-        description="Manage supplier profiles, service coverage, accounts and bin capacity."
+        description="Manage supplier profiles, service coverage and accounts."
         actions={
           <>
             <button
@@ -165,16 +165,6 @@ export function SupplierManager({
                 !["collected", "cancelled"].includes(b.operation_status),
             ).length
           }
-        />
-        <Stat
-          label="Listed stock"
-          value={suppliers
-            .filter((s) => s.status === "active")
-            .reduce(
-              (sum, s) =>
-                sum + Object.values(s.bin_inventory).reduce((n, v) => n + v, 0),
-              0,
-            )}
         />
       </div>
       <section className="portal-panel">
@@ -245,13 +235,6 @@ export function SupplierManager({
                   </td>
                   <td data-label="Workload">
                     <strong>{activeJobs(s.id).length} jobs</strong>
-                    <small>
-                      {Object.values(s.bin_inventory).reduce(
-                        (n, v) => n + v,
-                        0,
-                      )}{" "}
-                      bins listed
-                    </small>
                   </td>
                   <td data-label="Status">
                     <button
@@ -403,7 +386,7 @@ export function SupplierManager({
                 phone: editing.phone,
                 abn: editing.abn ?? "",
                 serviceArea: editing.service_area,
-                binInventory: editing.bin_inventory,
+
                 rating: editing.rating ?? 0,
               });
             }}
@@ -443,28 +426,7 @@ export function SupplierManager({
                 />
               </Field>
             </div>
-            <h3 className="portal-section-label">Bin capacity</h3>
-            <div className="portal-grid">
-              {bins.map((b) => (
-                <Field key={b.id} label={`${b.size} units`}>
-                  <input
-                    type="number"
-                    min="0"
-                    max="999"
-                    value={editing.bin_inventory[b.id] ?? 0}
-                    onChange={(e) =>
-                      setEditing({
-                        ...editing,
-                        bin_inventory: {
-                          ...editing.bin_inventory,
-                          [b.id]: Number(e.target.value),
-                        },
-                      })
-                    }
-                  />
-                </Field>
-              ))}
-            </div>
+
             <Notice message={error} />
             <div className="portal-footer-actions">
               <button

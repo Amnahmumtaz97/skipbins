@@ -1,4 +1,3 @@
-import { bins } from "@/lib/data/skip-bins";
 import { isAdminUser } from "@/lib/server/admin-auth";
 import { adminDatabase } from "@/lib/server/admin-database";
 import {
@@ -56,7 +55,6 @@ export async function POST(request: Request) {
       ...fields,
       status: "active",
       auth_user_id: authUserId || null,
-      bin_inventory: Object.fromEntries(bins.map((b) => [b.id, 0])),
     } as SupplierInput);
     return Response.json(
       { supplier },

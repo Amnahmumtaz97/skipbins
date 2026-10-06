@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:admin": "node scripts/test-admin.cjs"
+    "test:admin": "node scripts/test-admin.cjs",
+    "seed:demo": "node scripts/seed-demo.cjs",
+    "test:supplier": "node scripts/test-supplier.cjs"
   },
   "dependencies": {
     "@stripe/stripe-js": "^9.17.0",

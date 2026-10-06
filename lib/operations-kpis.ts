@@ -85,15 +85,7 @@ export function buildAdminKpis(
       ? Math.round((suppliersWithWork.size / activeSuppliers.length) * 100)
       : 0,
     activeSuppliers: activeSuppliers.length,
-    totalInventory: activeSuppliers.reduce(
-      (total, supplier) =>
-        total +
-        Object.values(supplier.bin_inventory).reduce(
-          (sum, amount) => sum + Number(amount || 0),
-          0,
-        ),
-      0,
-    ),
+
     pipeline,
   };
 }

@@ -1,5 +1,5 @@
 import { validateSupplierFields } from "@/lib/server/supplier-validation";
-import { bins } from "@/lib/data/skip-bins";
+
 import { isAdminUser } from "@/lib/server/admin-auth";
 import { updateSupplier } from "@/lib/server/operations-service";
 import { InputError, apiError, readJson } from "@/lib/server/request";
@@ -36,25 +36,7 @@ export async function PATCH(
         throw new InputError("Choose a valid supplier status.");
       changes.status = body.status;
     }
-    if (body.binInventory !== undefined) {
-      if (
-        !body.binInventory ||
-        typeof body.binInventory !== "object" ||
-        Array.isArray(body.binInventory)
-      )
-        throw new InputError("Enter valid bin availability.");
-      const values = body.binInventory as Record<string, unknown>;
-      changes.bin_inventory = Object.fromEntries(
-        bins.map((bin) => {
-          const quantity = Number(values[bin.id] ?? 0);
-          if (!Number.isInteger(quantity) || quantity < 0 || quantity > 999)
-            throw new InputError(
-              "Bin quantities must be whole numbers between 0 and 999.",
-            );
-          return [bin.id, quantity];
-        }),
-      );
-    }
+
     if (!Object.keys(changes).length)
       throw new InputError("Choose a supplier update.");
     const supplier = await updateSupplier(id, changes);

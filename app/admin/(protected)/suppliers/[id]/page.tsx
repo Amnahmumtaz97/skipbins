@@ -43,13 +43,7 @@ export default async function Page({
           label="Completed jobs"
           value={jobs.filter((b) => b.operation_status === "collected").length}
         />
-        <Stat
-          label="Listed bins"
-          value={Object.values(supplier.bin_inventory).reduce(
-            (s, v) => s + v,
-            0,
-          )}
-        />
+
         <Stat label="Supplier status" value={supplier.status} />
       </div>
       <OrderManager

@@ -4,6 +4,6 @@ import { todayIsoDate } from "@/lib/booking-utils";
 export default async function Page() {
   const workspace = await getSupplierWorkspace();
   return (
-    <SupplierWorkspace {...workspace} today={todayIsoDate()} view="overview" />
+    <SupplierWorkspace {...workspace} today={todayIsoDate()} view="earnings" />
   );
 }

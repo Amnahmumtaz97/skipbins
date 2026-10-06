@@ -8,7 +8,6 @@ import {
   Trash2,
   Download,
   MapPin,
-  ShieldCheck,
 } from "lucide-react";
 import { bins, acceptedWaste } from "@/lib/data/skip-bins";
 import {
@@ -106,7 +105,7 @@ export function ConfigManager({
     pricing: [
       "CATALOGUE & CAPACITY",
       "Pricing & availability",
-      "Set prices by waste type, manage stock and control booking dates.",
+      "Set prices by waste type, control booking dates.",
     ],
     coverage: [
       "VICTORIA SERVICE COVERAGE",
@@ -210,12 +209,6 @@ export function ConfigManager({
                   </p>
                   <dl>
                     <div>
-                      <dt>Available stock</dt>
-                      <dd>
-                        {r.stock === null ? "Unlimited" : `${r.stock} bins`}
-                      </dd>
-                    </div>
-                    <div>
                       <dt>Turnaround</dt>
                       <dd>
                         {r.turnaround} day{r.turnaround === 1 ? "" : "s"}
@@ -239,7 +232,7 @@ export function ConfigManager({
                     onClick={() => setEditing(structuredClone(r))}
                   >
                     <Pencil size={14} />
-                    Edit pricing & stock
+                    Edit pricing
                   </button>
                 </article>
               ))}
@@ -278,64 +271,16 @@ export function ConfigManager({
       )}
       {section === "coverage" && (
         <>
-          <div className="portal-stats">
-            <Stat label="Service state" value="Victoria" detail="VIC only" />
-            <Stat
-              label="Coverage mode"
-              value={
-                settings.coverageMode === "victoria" ? "Statewide" : "Selected"
-              }
-            />
-            <Stat
-              label="Active suburbs"
-              value={coverage.filter((c) => c.active).length}
-            />
-            <Stat
-              label="Listed postcodes"
-              value={new Set(coverage.map((c) => c.postcode)).size}
-            />
-          </div>
           <section className="portal-panel">
-            <h2>Coverage policy</h2>
+            <h2>
+              {settings.coverageMode === "victoria"
+                ? "Exclude a suburb"
+                : "Add a suburb you serve"}
+            </h2>
             <p>
-              Statewide serves verified Victorian locations. Selected coverage
-              serves only the active suburbs listed below.
-            </p>
-            <div className="portal-toolbar">
-              <Field label="Service coverage">
-                <select
-                  value={settings.coverageMode}
-                  onChange={(e) =>
-                    setSettings((s) => ({
-                      ...s,
-                      coverageMode: e.target
-                        .value as PortalSettings["coverageMode"],
-                    }))
-                  }
-                >
-                  <option value="victoria">
-                    All Victorian suburbs & postcodes
-                  </option>
-                  <option value="selected">
-                    Selected Victorian suburbs only
-                  </option>
-                </select>
-              </Field>
-              <button
-                className="portal-button"
-                disabled={!ready || busy}
-                onClick={() => saveSettings()}
-              >
-                <ShieldCheck size={16} />
-                Save policy
-              </button>
-            </div>
-          </section>
-          <section className="portal-panel">
-            <h2>Add a service suburb</h2>
-            <p>
-              Search and select a Victorian locality. No zones or zone
-              surcharges are used.
+              {settings.coverageMode === "victoria"
+                ? "All Victorian suburbs are served automatically. Add a suburb here only if you cannot deliver there."
+                : "Search for a Victorian suburb and add it to your delivery area."}
             </p>
             <div className="portal-grid">
               <PostcodeField
@@ -355,11 +300,16 @@ export function ConfigManager({
                   className="portal-button"
                   disabled={!ready || busy || !selectedLocation.suburb}
                   onClick={() =>
-                    saveCoverage({ ...selectedLocation, active: true })
+                    saveCoverage({
+                      ...selectedLocation,
+                      active: settings.coverageMode === "selected",
+                    })
                   }
                 >
                   <Plus size={16} />
-                  Add suburb
+                  {settings.coverageMode === "victoria"
+                    ? "Exclude suburb"
+                    : "Add suburb"}
                 </button>
               </div>
             </div>
@@ -438,8 +388,9 @@ export function ConfigManager({
             </table>
             {!coverage.length && (
               <p className="portal-empty">
-                No individual suburbs listed. Statewide mode covers verified
-                Victorian locations.
+                {settings.coverageMode === "victoria"
+                  ? "No suburb exclusions. You serve all verified Victorian suburbs."
+                  : "No suburbs included. Add the Victorian suburbs you serve to enable bookings."}
               </p>
             )}
           </div>
@@ -496,21 +447,7 @@ export function ConfigManager({
                   }
                 />
               </Field>
-              <Field label="Stock (blank = unlimited)">
-                <input
-                  type="number"
-                  min="0"
-                  max="9999"
-                  value={editing.stock ?? ""}
-                  onChange={(e) =>
-                    setEditing({
-                      ...editing,
-                      stock:
-                        e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                />
-              </Field>
+
               <Field label="Days after pickup before reuse">
                 <input
                   type="number"
@@ -675,7 +612,7 @@ function RuleList({
       {adding && (
         <div
           className="portal-panel"
-          style={{ marginTop: 16, background: "#f6f9fa" }}
+          style={{ marginTop: 16, background: "var(--color-cream)" }}
         >
           <div className="portal-grid">
             <Field label={single ? "Date" : "Start date"}>

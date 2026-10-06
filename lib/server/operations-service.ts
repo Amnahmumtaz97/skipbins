@@ -13,7 +13,7 @@ export type SupplierRecord = {
   phone: string;
   service_area: string;
   status: "active" | "paused";
-  bin_inventory: Record<string, number>;
+
   auth_user_id: string | null;
   abn?: string;
   rating?: number;
@@ -90,12 +90,6 @@ function number(row: Record<string, unknown>, key: string) {
 }
 
 function normalizeSupplier(row: Record<string, unknown>): SupplierRecord {
-  const inventory =
-    row.bin_inventory &&
-    typeof row.bin_inventory === "object" &&
-    !Array.isArray(row.bin_inventory)
-      ? (row.bin_inventory as Record<string, number>)
-      : {};
   return {
     id: text(row, "id"),
     name: text(row, "name", "Unnamed supplier"),
@@ -104,7 +98,7 @@ function normalizeSupplier(row: Record<string, unknown>): SupplierRecord {
     phone: text(row, "phone"),
     service_area: text(row, "service_area"),
     status: text(row, "status") === "paused" ? "paused" : "active",
-    bin_inventory: inventory,
+
     auth_user_id: text(row, "auth_user_id") || null,
     abn: text(row, "abn"),
     rating: number(row, "rating"),
@@ -224,10 +218,12 @@ export async function getSupplierOperations(
   metadataSupplierId?: string,
 ) {
   const supplier = await getSupplierByUser(userId, metadataSupplierId);
-  if (!supplier) return { supplier: null, bookings: [] as OperationsBooking[] };
+  if (!supplier)
+    return { supplier: null, bookings: [] as OperationsBooking[], error: "" };
   const snapshot = await getOperationsSnapshot();
   return {
     supplier,
+    error: snapshot.error,
     bookings: snapshot.bookings.filter(
       (booking) => booking.supplier_id === supplier.id,
     ),
@@ -463,7 +459,6 @@ export async function reviewSupplierApplication(
         phone: application.phone,
         service_area: "",
         status: "active",
-        bin_inventory: {},
       })
       .select("*")
       .single();

@@ -233,7 +233,7 @@ export default async function AdminPage() {
               },
               {
                 href: "/admin/pricing",
-                label: "Pricing & stock",
+                label: "Pricing & dates",
                 detail: "Prices, capacity & blocked dates",
                 icon: SlidersHorizontal,
               },
