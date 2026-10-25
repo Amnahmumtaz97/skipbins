@@ -9,6 +9,11 @@ const resolve = Module._resolveFilename;
 Module._resolveFilename = function (name, ...rest) {
   return resolve.call(this, name.startsWith('@/') ? path.join(__dirname, '..', name.slice(2)) : name, ...rest);
 };
+const loadModule = Module._load;
+Module._load = function (name, ...rest) {
+  if (name === 'server-only') return {};
+  return loadModule.call(this, name, ...rest);
+};
 require.extensions['.ts'] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText, filename);
@@ -19,6 +24,7 @@ const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { emptyBookingExtras } = require('../lib/data/booking-extras.ts');
 const { selectedAddressLocationError } = require('../lib/address-validation.ts');
 const { formatBookingAddress } = require('../lib/booking-address.ts');
+const { checkoutDecision, stripeCheckoutIdempotencyKey, verifiedBookingPayment } = require('../lib/server/checkout-policy.ts');
 const { adminStripeTestAmountCents, adminStripeTestAmountLabel } = require('../lib/data/admin-stripe-test.ts');
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
@@ -128,7 +134,7 @@ test('contact validates input and cannot acknowledge an undelivered message', as
 });
 test('booking validates all inputs and never returns a simulated reference', async () => {
   assert.equal((await bookings.POST(request({}))).status, 400);
-  const body = {address:'0800',locationLabel:'DARWIN, NT 0800',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'1 Test Street',deliveryAddressLabel:'1 TEST STREET, DARWIN NT 0800',access:'',notes:'',placement:'Driveway'};
+  const body = {submissionId:'123e4567-e89b-42d3-a456-426614174000',address:'3121',locationLabel:'RICHMOND, VIC 3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-11',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'1 Test Street',deliveryAddressLabel:'1 TEST STREET, RICHMOND VIC 3121',access:'',notes:'',placement:'Driveway'};
   assert.equal((await bookings.POST(request({...body,phone:'bad'}))).status, 400);
   const missingPlacement = await bookings.POST(request({...body,placement:''}));
   assert.equal(missingPlacement.status, 400);
@@ -139,9 +145,9 @@ test('booking validates all inputs and never returns a simulated reference', asy
   const invalidExtras = await bookings.POST(request({...body,extras:{excavatorTrack:999}}));
   assert.equal(invalidExtras.status, 400);
   assert.match((await invalidExtras.json()).error, /extras/i);
-  const mismatchedAddress = await bookings.POST(request({...body,address:'3000',locationLabel:'MELBOURNE, VIC 3000',deliveryAddressLabel:'1 TEST STREET, LEUMEAH NSW 2560'}));
+  const mismatchedAddress = await bookings.POST(request({...body,address:'3000',locationLabel:'MELBOURNE, VIC 3000',deliveryAddressLabel:'1 TEST STREET, RICHMOND VIC 3121'}));
   assert.equal(mismatchedAddress.status, 400);
-  assert.equal((await mismatchedAddress.json()).error, 'This address is in LEUMEAH 2560, but your quote was for MELBOURNE 3000. Please check before continuing.');
+  assert.equal((await mismatchedAddress.json()).error, 'This address is in RICHMOND 3121, but your quote was for MELBOURNE 3000. Please check before continuing.');
   const response = await bookings.POST(request(body));
   assert.ok(response.status === 400 || response.status === 503);
   const data = await response.json();
@@ -187,6 +193,95 @@ test('pending bookings leave the unique Stripe session ID unset until Stripe cre
     if (originalPublishableKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; else process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalPublishableKey;
     if (originalSecretKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = originalSecretKey;
   }
+});
+test('repeated booking submission ID returns the original order and amount', async () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalSecretKey = process.env.SUPABASE_SECRET_KEY;
+  process.env.NODE_ENV = 'production';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.SUPABASE_SECRET_KEY = 'test-secret';
+  const originalFetch = global.fetch;
+  const submissionId = '123e4567-e89b-42d3-a456-426614174000';
+  let persisted = null;
+  let inserted = 0;
+  global.fetch = async (url, options = {}) => {
+    const address = String(url);
+    if (address.includes('/rest/v1/bookings') && address.includes('select=reference')) {
+      return new Response(JSON.stringify(persisted ? [{ reference:persisted.reference }] : []), { status:200, headers:{'content-type':'application/json'} });
+    }
+    if (address.includes('/rest/v1/bookings') && address.includes('id=eq.')) {
+      return new Response(JSON.stringify(persisted ? [persisted] : []), { status:200, headers:{'content-type':'application/json'} });
+    }
+    if (address.includes('/rest/v1/rpc/reserve_booking_submission')) {
+      const { payload } = JSON.parse(options.body);
+      if (!persisted) { persisted = payload; inserted += 1; }
+      return new Response(JSON.stringify([{ id:persisted.id, reference:persisted.reference }]), { status:200, headers:{'content-type':'application/json'} });
+    }
+    throw new Error(`Unexpected fake Supabase request: ${address}`);
+  };
+  const input = { address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-11',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' };
+  try {
+    const first = await createPendingBooking(input, 14900, undefined, 'direct', submissionId);
+    const second = await createPendingBooking({ ...input, fullName:'Changed data' }, 9900, undefined, 'direct', submissionId);
+    assert.equal(inserted, 1);
+    assert.equal(first.id, second.id);
+    assert.equal(second.reference, first.reference);
+    assert.equal(second.amount_cents, 14900);
+    assert.equal(second.full_name, 'Test');
+  } finally {
+    global.fetch = originalFetch;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalSecretKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = originalSecretKey;
+  }
+});
+test('abandoned checkout keeps the booking pending and reuses its open Stripe session', () => {
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'open', paymentStatus:'unpaid', attemptStatus:'open' }), 'reuse');
+});
+test('Pay Again reuses an open session for the saved order', () => {
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'open', paymentStatus:'unpaid', attemptStatus:'open' }), 'reuse');
+});
+test('opening the same pending order repeatedly does not create another session', () => {
+  const state = { bookingStatus:'pending', sessionStatus:'open', paymentStatus:'unpaid', attemptStatus:'open' };
+  assert.deepEqual([checkoutDecision(state), checkoutDecision(state), checkoutDecision(state)], ['reuse','reuse','reuse']);
+});
+test('double-click and network retries use the same Stripe idempotency key', () => {
+  const key = stripeCheckoutIdempotencyKey('123e4567-e89b-42d3-a456-426614174000', 1);
+  assert.equal(key, stripeCheckoutIdempotencyKey('123e4567-e89b-42d3-a456-426614174000', 1));
+});
+test('repeated signed webhook delivery leaves an already-paid order paid', () => {
+  assert.equal(checkoutDecision({ bookingStatus:'paid', sessionStatus:'complete', paymentStatus:'paid', attemptStatus:'paid' }), 'paid');
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'stripe-checkout-reliability-migration.sql'), 'utf8');
+  assert.match(migration, /when status = 'paid' then 'paid'/i);
+});
+test('a successful Stripe payment can be reconciled while the webhook is delayed', () => {
+  assert.equal(verifiedBookingPayment({ expectedBookingId:'booking-1', metadataBookingId:'booking-1', expectedAmount:14900, amountTotal:14900, currency:'aud' }), true);
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'complete', paymentStatus:'paid', attemptStatus:'processing' }), 'paid');
+});
+test('success URL revisit confirms only the associated paid session', () => {
+  assert.equal(verifiedBookingPayment({ expectedBookingId:'booking-1', metadataBookingId:'booking-1', expectedAmount:14900, amountTotal:14900, currency:'AUD' }), true);
+  assert.equal(verifiedBookingPayment({ expectedBookingId:'booking-1', metadataBookingId:'booking-2', expectedAmount:14900, amountTotal:14900, currency:'aud' }), false);
+});
+test('expired checkout creates a replacement attempt for the same order', () => {
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'expired', paymentStatus:'unpaid', attemptStatus:'expired' }), 'retry');
+  assert.notEqual(stripeCheckoutIdempotencyKey('booking-1', 1), stripeCheckoutIdempotencyKey('booking-1', 2));
+});
+test('concurrent requests for one booking attempt share the Stripe idempotency key', () => {
+  const keys = Array.from({ length: 8 }, () => stripeCheckoutIdempotencyKey('booking-1', 3));
+  assert.equal(new Set(keys).size, 1);
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'stripe-checkout-reliability-migration.sql'), 'utf8');
+  assert.match(migration, /pg_advisory_xact_lock\(hashtextextended\(booking_id::text, 0\)\)/i);
+  assert.match(migration, /primary key \(booking_id, attempt\)/i);
+});
+test('failed payment attempt can be retried and a later success wins', () => {
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'complete', paymentStatus:'unpaid', attemptStatus:'failed' }), 'retry');
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'open', paymentStatus:'unpaid', attemptStatus:'open' }), 'reuse');
+  assert.equal(checkoutDecision({ bookingStatus:'pending', sessionStatus:'complete', paymentStatus:'paid', attemptStatus:'failed' }), 'paid');
+});
+test('payment reconciliation rejects amount, currency and metadata mismatches', () => {
+  assert.equal(verifiedBookingPayment({ expectedBookingId:'booking-1', metadataBookingId:'booking-1', expectedAmount:14900, amountTotal:14899, currency:'aud' }), false);
+  assert.equal(verifiedBookingPayment({ expectedBookingId:'booking-1', metadataBookingId:'booking-1', expectedAmount:14900, amountTotal:14900, currency:'usd' }), false);
 });
 test('stripe webhook rejects missing signatures', async () => {
   const response = await stripeWebhook.POST(new Request('https://skipbins.test/api/stripe/webhook', {

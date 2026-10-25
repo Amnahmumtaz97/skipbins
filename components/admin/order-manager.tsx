@@ -204,6 +204,7 @@ export function OrderManager({
       `bookings-${today}.csv`,
       [
         "Reference",
+        "Booked",
         "Customer",
         "Email",
         "Phone",
@@ -219,6 +220,7 @@ export function OrderManager({
       ],
       visible.map((b) => [
         b.reference,
+        formatBookingDate(b.created_at),
         b.full_name,
         b.email,
         b.phone,
@@ -407,6 +409,9 @@ export function OrderManager({
                 <td data-label="Booking">
                   <strong>{b.reference}</strong>
                   <small>
+                    Booked {formatBookingDate(b.created_at)}
+                  </small>
+                  <small>
                     <span
                       className={`portal-badge ${b.payment_status === "paid" ? "" : "warning"}`}
                     >
@@ -563,6 +568,9 @@ function OrderEditor({
         }}
       >
         <div className="portal-grid">
+          <Field label="Date booked">
+            <input value={formatBookingDate(booking.created_at)} readOnly />
+          </Field>
           <Field label="Customer">
             <input
               value={draft.fullName}
@@ -709,4 +717,16 @@ function OrderEditor({
       </form>
     </Dialog>
   );
+}
+
+function formatBookingDate(value: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Australia/Melbourne",
+  }).format(date);
 }

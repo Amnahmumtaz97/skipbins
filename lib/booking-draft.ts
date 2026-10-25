@@ -5,10 +5,41 @@ import { normalizeBookingExtras } from "@/lib/data/booking-extras";
 const draftKey = "skipbins-booking-draft";
 const awaitingKey = "skipbins-awaiting-payment";
 const checkoutClientSecretKey = "skipbins-checkout-client-secret";
+const bookingSubmissionKey = "skipbins-booking-submission-id";
 
 export function saveBookingDraft(form: BookingFormState) {
   sessionStorage.setItem(draftKey, JSON.stringify(form));
   sessionStorage.setItem(awaitingKey, "1");
+}
+
+export function getBookingSubmissionId(form: BookingFormState) {
+  const fingerprint = JSON.stringify(form);
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(bookingSubmissionKey) ?? "null") as
+      | { fingerprint?: unknown; id?: unknown }
+      | null;
+    if (
+      saved?.fingerprint === fingerprint &&
+      typeof saved.id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(saved.id)
+    ) return saved.id;
+    const id = crypto.randomUUID();
+    sessionStorage.setItem(bookingSubmissionKey, JSON.stringify({ fingerprint, id }));
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+export function loadBookingSubmissionId() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(bookingSubmissionKey) ?? "null") as
+      | { id?: unknown }
+      | null;
+    return typeof saved?.id === "string" ? saved.id : null;
+  } catch {
+    return null;
+  }
 }
 
 export function isAwaitingPayment() {
@@ -27,6 +58,7 @@ export function clearBookingDraft() {
   sessionStorage.removeItem(draftKey);
   sessionStorage.removeItem(awaitingKey);
   sessionStorage.removeItem(checkoutClientSecretKey);
+  sessionStorage.removeItem(bookingSubmissionKey);
 }
 
 export function loadBookingDraft(): BookingFormState | null {

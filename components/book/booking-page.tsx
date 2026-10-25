@@ -50,6 +50,7 @@ import {
 import { quoteTotal } from "@/lib/pricing";
 import {
   isAwaitingPayment,
+  getBookingSubmissionId,
   loadBookingDraft,
   saveBookingDraft,
   saveCheckoutClientSecret,
@@ -467,10 +468,12 @@ export function BookingPage({
     setSubmitting(true);
     setRequestError("");
     try {
+      const submissionId = getBookingSubmissionId(form);
+      saveBookingDraft(form);
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, submissionId }),
         signal: AbortSignal.timeout(20000),
       });
       const result = await response.json();
@@ -478,6 +481,14 @@ export function BookingPage({
         throw new Error(
           result.error || "We couldn't confirm your booking. Please try again.",
         );
+      if (result.status === "paid" && typeof result.sessionId === "string") {
+        router.push(`/book/success?session_id=${encodeURIComponent(result.sessionId)}`);
+        return;
+      }
+      if (result.status === "processing" && typeof result.sessionId === "string") {
+        router.push(`/book/success?session_id=${encodeURIComponent(result.sessionId)}`);
+        return;
+      }
       if (
         typeof result.clientSecret === "string" &&
         result.clientSecret.startsWith("cs_")

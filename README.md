@@ -71,14 +71,14 @@ sent to the browser. Create an Australian address API key in getAddress.io.
 `GETADDRESS_API_KEY` is also accepted for deployments already using that name.
 
 The server secret is required because checkout creates or reuses a private
-customer record, stores its Stripe Customer ID, and updates the booking with
-its Stripe Checkout session ID. The public key can insert bookings under the
-included RLS policy, but it intentionally cannot read customer records or
-update bookings.
+customer record, reserves a booking through a server-only database function,
+and records Stripe Checkout sessions and payment state. Public browser keys
+cannot reserve or update bookings.
 
 Configure the Stripe webhook endpoint as
 `https://your-domain.example/api/stripe/webhook` and subscribe it to
-`checkout.session.completed`.
+`checkout.session.completed`, `checkout.session.async_payment_succeeded`, and
+`checkout.session.async_payment_failed`.
 
 ## Admin payment test
 
@@ -98,8 +98,10 @@ Run these SQL files in the Supabase SQL Editor, in order, before deploying:
 2. `supabase/operations-migration.sql`
 3. `supabase/supplier-applications-migration.sql`
 4. `supabase/admin-portal-migration.sql`
+5. `supabase/order-numbers-migration.sql`
+6. `supabase/stripe-checkout-reliability-migration.sql`
 
-The last migration adds private business settings, per-waste bin rates, verified VIC locality coverage, customer status, booking sources, supplier details, and `reserve_admin_booking`. Only the server service role can write these records. It also removes public booking inserts so clients cannot bypass stock reservations. No records or personal information from the demo video are included.
+The admin portal migration adds private business settings, per-waste bin rates, verified VIC locality coverage, customer status, booking sources, supplier details, and `reserve_admin_booking`. The order-number migration adds the order counter. The Stripe reliability migration adds an idempotent booking submission reservation function and a unique, server-only checkout-attempt ledger. Only the server service role can write these records. It also removes public booking inserts so clients cannot bypass stock reservations. No records or personal information from the demo video are included.
 
 The portal includes bookings with daily and advanced filters, supplier allocation and notes, customer history, supplier editing and login-account creation, payout reconciliation, pricing and stock, date overrides, Victorian suburb/postcode coverage, and a business profile with opening hours and bank details. Supplier workspaces remain inside the administrator session.
 
