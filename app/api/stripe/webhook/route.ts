@@ -22,7 +22,11 @@ export async function POST(request: Request) {
     if (typeof session.id === "string") {
       const bookingId = typeof session.metadata?.bookingId === "string" ? session.metadata.bookingId : undefined;
       if (bookingId) await attachCheckoutSession(bookingId, session.id).catch(() => undefined);
-      await markBookingPaid({ id: bookingId, stripeSessionId: session.id });
+      await markBookingPaid({
+        id: bookingId,
+        stripeSessionId: session.id,
+        sandbox: session.livemode === false,
+      });
     }
   }
 

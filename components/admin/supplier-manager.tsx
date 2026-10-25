@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Plus, Pencil, Save, Download, ArrowUpRight, Star } from "lucide-react";
 
 import { exportCsv } from "@/lib/admin-config";
+import { supplierAreaLabel } from "@/lib/supplier-area";
 import type {
   OperationsBooking,
   SupplierRecord,
@@ -95,7 +96,8 @@ export function SupplierManager({
     bookings.filter(
       (b) =>
         b.supplier_id === id &&
-        !["collected", "cancelled"].includes(b.operation_status),
+        !["collected", "cancelled"].includes(b.operation_status) &&
+        !b.deleted,
     );
   return (
     <div>
@@ -162,7 +164,8 @@ export function SupplierManager({
             bookings.filter(
               (b) =>
                 b.supplier_id &&
-                !["collected", "cancelled"].includes(b.operation_status),
+                !["collected", "cancelled"].includes(b.operation_status) &&
+                !b.deleted,
             ).length
           }
         />
@@ -231,7 +234,7 @@ export function SupplierManager({
                     </small>
                   </td>
                   <td data-label="Coverage">
-                    {s.service_area || "Victoria statewide"}
+                    {supplierAreaLabel(s.service_area)}
                   </td>
                   <td data-label="Workload">
                     <strong>{activeJobs(s.id).length} jobs</strong>
@@ -306,7 +309,7 @@ export function SupplierManager({
                   <input
                     name={name}
                     type={type}
-                    maxLength={name === "serviceArea" ? 250 : 120}
+                    maxLength={name === "serviceArea" ? 4000 : 120}
                     required={
                       name === "name" || (createAccount && name === "email")
                     }
@@ -315,8 +318,8 @@ export function SupplierManager({
               ))}
             </div>
             <p className="portal-help">
-              Leave coverage blank for statewide Victoria. Enter verified
-              Victorian postcodes to limit supplier coverage.
+              Leave coverage blank to use the admin delivery area. Postcodes
+              entered here override that area for this supplier.
             </p>
             <label className="portal-check">
               <input

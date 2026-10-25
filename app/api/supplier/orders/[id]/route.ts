@@ -1,5 +1,6 @@
 import { isOperationStatus, supplierActionStatuses } from "@/lib/data/operations";
 import { isSupplierUser, supplierIdFromUser } from "@/lib/server/admin-auth";
+import { verifiedOrderDetails } from "@/lib/server/order-details";
 import { getSupplierOperations, updateOrderOperations } from "@/lib/server/operations-service";
 import { InputError, apiError, readJson } from "@/lib/server/request";
 import { createClient } from "@/lib/supabase/server";
@@ -15,10 +16,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const notes = body.notes === undefined ? undefined : typeof body.notes === "string" ? body.notes.trim() : null;
     if (status === null) throw new InputError("Choose a valid job status.");
     if (notes === null || (notes !== undefined && notes.length > 500)) throw new InputError("Supplier notes must be 500 characters or fewer.");
-    if (status === undefined && notes === undefined) throw new InputError("Choose a status or add a supplier note.");
+    const details = await verifiedOrderDetails(body.details, "supplier");
+    if (status === undefined && notes === undefined && details === undefined) throw new InputError("Choose a status, address, date, or note to save.");
     const { bookings } = await getSupplierOperations(user.id, supplierIdFromUser(user));
     if (!bookings.some((booking) => booking.id === id)) return Response.json({ error: "This order is not assigned to your supplier account." }, { status: 403 });
-    await updateOrderOperations({ bookingId: id, status, notes });
+    await updateOrderOperations({ bookingId: id, status, notes, details });
     return Response.json({ updated: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return apiError(error); }
 }

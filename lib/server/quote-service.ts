@@ -8,14 +8,16 @@ import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
 import { InputError } from "@/lib/server/request";
 import {
   addDaysIso,
-  maxPickupDate,
+  hireForDates,
   standardPickupDate,
   todayIsoDate,
 } from "@/lib/booking-utils";
+import { hireExtensionAmount } from "@/lib/pricing";
 import { isIsoDate, rateForDate } from "@/lib/admin-config";
 import { getPortalConfig } from "@/lib/server/portal-service";
 import { victorianLocalities } from "@/lib/server/victorian-localities";
 import { adminDatabase } from "@/lib/server/admin-database";
+import { bookablePostcodes } from "@/lib/server/supplier-coverage";
 export function validateQuote(data: Record<string, unknown>) {
   if (!isResolvedPostcode(data.postcode))
     throw new InputError(postcodeSelectionError);
@@ -36,10 +38,11 @@ export function validateQuote(data: Record<string, unknown>) {
     data.pickupDate !== undefined &&
     (!isIsoDate(data.pickupDate) ||
       typeof data.date !== "string" ||
-      data.pickupDate < standardPickupDate(data.date) ||
-      data.pickupDate > maxPickupDate(data.date))
+      !hireForDates(data.date, data.pickupDate))
   )
-    throw new InputError("Pickup must be 10 to 14 days after delivery.");
+    throw new InputError(
+      "Pickup must be from the delivery date, up to 24 days later.",
+    );
   if (
     data.hirePeriod !== undefined &&
     !hirePeriods.some((p) => p === data.hirePeriod)
@@ -50,9 +53,7 @@ export function validateQuote(data: Record<string, unknown>) {
     typeof data.pickupDate === "string" &&
     typeof data.hirePeriod === "string" &&
     data.hirePeriod !==
-      (data.pickupDate === standardPickupDate(data.date)
-        ? "Standard (10 days)"
-        : "Extended (14 days)")
+      hireForDates(data.date, data.pickupDate)?.period
   )
     throw new InputError(
       "Please select the rental period that matches your pickup date.",
@@ -90,21 +91,11 @@ export async function lookupQuote(
       "We only service verified Victorian suburbs and postcodes.",
     );
   if (!config.ready) throw new Error("Booking configuration unavailable");
-  const { settings, rates, coverage } = config;
-  // When suburbs share a postcode, require the selected suburb to apply coverage correctly.
-  if (
-    !input.suburb &&
-    (settings.coverageMode === "selected" ||
-      coverage.some((c) => c.postcode === input.postcode))
-  )
+  const { settings, rates } = config;
+  if (!input.suburb)
     throw new InputError("Select a Victorian suburb from the suggestions.");
-  const entry = coverage.find(
-    (c) => c.postcode === input.postcode && c.suburb === locality.suburb,
-  );
-  if (
-    entry?.active === false ||
-    (settings.coverageMode === "selected" && !entry?.active)
-  )
+  const covered = await bookablePostcodes();
+  if (!covered?.includes(input.postcode))
     throw new InputError("Delivery is not available in this Victorian suburb.");
   const rate = rates.find(
     (r) => r.binId === input.size && r.wasteId === input.waste,
@@ -150,6 +141,7 @@ export async function lookupQuote(
         )
         .eq("bin_size", input.size)
         .neq("operation_status", "cancelled")
+        .not("operation_status", "like", "deleted%")
         .lte("delivery_date", end)
         .gte("pickup_date", addDaysIso(input.date, -30));
       if (error) throw error;
@@ -175,12 +167,12 @@ export async function lookupQuote(
         );
     }
   }
-  const total =
-    Math.round(
-      result.price *
-        (input.hirePeriod === "Extended (14 days)" ? 1.4 : 1) *
-        100,
-    ) / 100;
+  const extension =
+    input.date && input.pickupDate
+      ? hireForDates(input.date, input.pickupDate)
+      : null;
+  const fee = extension ? extension.fee : hireExtensionAmount(input.hirePeriod);
+  const total = Math.round((result.price + fee) * 100) / 100;
   if (total <= 0)
     throw new InputError("This bin does not have a valid booking price.");
   return { serviceable: true, total };

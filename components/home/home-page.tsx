@@ -42,6 +42,7 @@ import {
   isWasteAllowedForBin,
 } from "@/lib/data/skip-bins";
 import {
+  hireForDates,
   maxPickupDate,
   standardPickupDate,
   tomorrowIsoDate,
@@ -78,7 +79,7 @@ const heroBenefits = [
   },
   {
     icon: Truck,
-    title: "Same Day Delivery",
+    title: "Next Day Delivery",
     detail: "Fast & Flexible Service",
   },
   { icon: ShieldCheck, title: "Permit Help", detail: "We Handle Councils" },
@@ -182,10 +183,10 @@ export function HomePage() {
     if (
       !quote.date ||
       !quote.pickupDate ||
-      quote.pickupDate < standardPickupDate(quote.date) ||
-      quote.pickupDate > maxPickupDate(quote.date)
+      !hireForDates(quote.date, quote.pickupDate)
     ) {
-      nextErrors.pickupDate = "Pickup must be 10 to 14 days after delivery.";
+      nextErrors.pickupDate =
+        "Choose a pickup date from the delivery date, up to 24 days later.";
     }
 
     setQuoteErrors(nextErrors);
@@ -211,42 +212,42 @@ export function HomePage() {
     <main className="min-h-screen overflow-x-hidden bg-[#F4F7EC] text-[#172018]">
       <Navbar />
 
-      <section className="relative min-h-[700px] w-full overflow-hidden px-4 pb-10 pt-28 sm:min-h-[740px] sm:px-8 sm:pb-14 sm:pt-32 lg:min-h-[760px] lg:px-10 lg:pb-20 lg:pt-36">
+      <section className="relative w-full overflow-hidden px-4 pb-6 pt-20 sm:px-8 sm:pb-8 sm:pt-24 lg:px-10 lg:pb-6 lg:pt-24">
         <HeroCarousel slides={heroSlides} />
         <div className="absolute inset-0 bg-gradient-to-r from-[#DDECCB]/62 via-[#14532D]/32 to-[#0B3B24]/48" />
 
-        <div className="relative z-10 grid items-center gap-8 lg:grid-cols-2 lg:gap-12 xl:gap-16">
-          <div className="max-w-xl py-8 pl-2 sm:py-12 sm:pl-6 lg:py-20 lg:pl-12">
-            <h1 className="text-[clamp(2.5rem,5vw,5rem)] font-black leading-[0.96] tracking-[-0.065em] text-[#0B3B24]">
+        <div className="relative z-10 grid items-center gap-5 lg:grid-cols-2 lg:gap-8 xl:gap-10">
+          <div className="max-w-xl py-2 pl-2 sm:py-3 sm:pl-6 lg:py-4 lg:pl-10">
+            <h1 className="text-[clamp(2.25rem,4.2vw,4rem)] font-black leading-[0.96] tracking-[-0.065em] text-[#0B3B24]">
               Skip more,
               <br />
               spend <span className="text-[#65A30D]">less.</span>
             </h1>
-            <p className="mt-6 max-w-md text-base leading-7 text-white sm:mt-8 sm:text-lg">
+            <p className="mt-4 max-w-md text-base leading-7 text-white sm:text-lg">
               Where Premium Service Meets Affordable Prices.
             </p>
             <Link
               href="/booking"
-              className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0B3B24] px-6 py-4 font-bold text-white shadow-sm transition-colors hover:bg-[#14532D] sm:w-auto"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0B3B24] px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-[#14532D] sm:w-auto"
             >
               <Calendar size={18} />
               Book a Bin Now
               <ArrowRight size={18} />
             </Link>
-            <p className="mt-6 flex items-center gap-2 text-xs font-semibold text-white sm:mt-7 sm:text-sm">
+            <p className="mt-4 flex items-center gap-2 text-xs font-semibold text-white sm:text-sm">
               <Leaf size={17} className="shrink-0 text-[#65A30D]" />
               Eco-friendly disposal. Responsible recycling.
             </p>
           </div>
 
-          <div className="relative flex min-w-0 items-center justify-center py-6 sm:py-10 lg:justify-end lg:py-16">
+          <div className="relative flex min-w-0 items-center justify-center py-1 lg:justify-end lg:py-2">
             <form
               id="hero-booking"
-              className="@container min-w-0 w-full max-w-lg rounded-2xl border border-white/70 bg-[#FAF9F3]/95 p-5 shadow-[0_8px_24px_rgba(11,59,36,0.12)] backdrop-blur-sm sm:p-8"
+              className="@container min-w-0 w-full max-w-lg rounded-2xl border border-white/70 bg-[#FAF9F3]/95 p-4 shadow-[0_8px_24px_rgba(11, 59, 36,0.12)] backdrop-blur-sm sm:p-5"
               onSubmit={handleQuoteSubmit}
               noValidate
             >
-              <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-base font-extrabold text-[#0B3B24] sm:text-lg">
                     Get an instant quote
@@ -255,14 +256,14 @@ export function HomePage() {
                     Choose a size and we&apos;ll take care of the rest.
                   </p>
                 </div>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDECCB] text-[#14532D]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DDECCB] text-[#172018]">
                   <Check size={19} strokeWidth={3} />
                 </div>
               </div>
 
               <fieldset
                 disabled={loading}
-                className="grid min-w-0 grid-cols-2 items-start gap-4"
+                className="grid min-w-0 grid-cols-2 items-start gap-2.5"
               >
                 <div className="min-w-0">
                   <StyledSelect
@@ -328,11 +329,7 @@ export function HomePage() {
                   label="Pickup date"
                   name="pickup-date"
                   value={quote.pickupDate}
-                  min={
-                    quote.date
-                      ? standardPickupDate(quote.date)
-                      : tomorrowIsoDate()
-                  }
+                  min={quote.date || tomorrowIsoDate()}
                   max={quote.date ? maxPickupDate(quote.date) : undefined}
                   error={quoteErrors.pickupDate}
                   onChange={(value) => updateQuote("pickupDate", value)}
@@ -398,7 +395,7 @@ export function HomePage() {
 
       <section
         id="difference"
-        className="mx-auto max-w-[1400px] rounded-[2rem] bg-[#FAF9F3] px-5 py-16 sm:px-8 lg:px-12 lg:py-20"
+        className="mx-auto max-w-[1400px] rounded-[2rem] bg-[#F4F7EC] px-5 py-16 sm:px-8 lg:px-12 lg:py-20"
       >
         <div className="mb-10 text-center">
           <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-[#65A30D]">
@@ -416,8 +413,8 @@ export function HomePage() {
               responsible disposal simple, from the moment your skip bin arrives
               to the moment every useful material is sorted and recovered.
             </p>
-            <div className="mt-8 flex items-end gap-4 border-b border-[#dfe8d7] pb-7">
-              <strong className="text-7xl font-black leading-none tracking-[-0.08em] text-[#65A30D] sm:text-8xl">
+            <div className="mt-8 flex items-end gap-4 border-b border-[#d6dfd2] pb-7">
+              <strong className="text-7xl font-black leading-none tracking-[-0.08em] text-[#0B3B24] sm:text-8xl">
                 90%
               </strong>
               <span className="max-w-[150px] pb-1 text-sm font-bold leading-5 text-[#0B3B24]">
@@ -437,7 +434,7 @@ export function HomePage() {
               className="object-cover"
               sizes="(max-width: 1024px) 100vw, 55vw"
             />
-            <div className="absolute bottom-5 left-5 rounded-2xl bg-[#FAF9F3]/95 px-5 py-4 shadow-[0_12px_28px_rgba(11,59,36,0.14)] backdrop-blur-sm">
+            <div className="absolute bottom-5 left-5 rounded-2xl bg-[#FAF9F3]/95 px-5 py-4 shadow-[0_12px_28px_rgba(11, 59, 36,0.14)] backdrop-blur-sm">
               <p className="text-sm font-extrabold text-[#0B3B24]">
                 Sorted with purpose
               </p>
@@ -475,7 +472,7 @@ export function HomePage() {
             </Link>
             <Link
               href="/contact"
-              className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-[#0B3B24] px-7 py-4 font-bold text-[#0B3B24] transition hover:bg-[#E8F0E2]"
+              className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-[#0B3B24] px-7 py-4 font-bold text-[#0B3B24] transition hover:bg-[#DDECCB]"
             >
               Get in touch
             </Link>
@@ -488,7 +485,7 @@ export function HomePage() {
           Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
         </span>
         <span>
-          © 2026 Premium Skip Bin Hire Australia · Waste less, live more.
+          © 2026 Premium Skip Bin Hire Australia · Skip more, spend less.
         </span>
       </footer>
     </main>

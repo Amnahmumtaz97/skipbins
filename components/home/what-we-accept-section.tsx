@@ -1,4 +1,4 @@
-﻿import { wasteIcon } from "@/lib/waste-icon";
+import { wasteIcon } from "@/lib/waste-icon";
 import type { WasteCategory } from "@/types/skip-bin";
 
 export function WhatWeAcceptSection({ accepted }: { accepted: WasteCategory[] }) {

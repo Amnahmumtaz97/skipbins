@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
+import dynamic from "next/dynamic";
 import {
   Plus,
   Save,
@@ -26,7 +27,17 @@ import {
   portalAction,
   money,
 } from "@/components/admin/portal-ui";
-import { PostcodeField } from "@/components/book/postcode-field";
+import { selectionChanges } from "@/lib/coverage-selection";
+import type { VicLocality } from "@/lib/data/vic-localities";
+
+const CoverageMap = dynamic(
+  () =>
+    import("@/components/admin/coverage-map").then((mod) => mod.CoverageMap),
+  {
+    ssr: false,
+    loading: () => <div className="coverage-map coverage-map-loading">Loading Victoria map…</div>,
+  },
+);
 type Props = {
   section: "pricing" | "coverage" | "profile";
   initialSettings: PortalSettings;
@@ -46,16 +57,12 @@ export function ConfigManager({
   const [settings, setSettings] = useState(initialSettings),
     [rates, setRates] = useState(initialRates),
     [coverage, setCoverage] = useState(initialCoverage),
-    [waste, setWaste] = useState(acceptedWaste[0].id),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [statusFilter, setStatusFilter] = useState<"all" | "included" | "excluded">("all");
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [success, setSuccess] = useState(false),
-    [editing, setEditing] = useState<BinRate | null>(null),
-    [selectedLocation, setSelectedLocation] = useState({
-      postcode: "",
-      suburb: "",
-    });
+    [editing, setEditing] = useState<BinRate | null>(null);
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setMessage("");
@@ -98,19 +105,53 @@ export function ConfigManager({
           result.coverage,
         ].sort((a, b) => a.suburb.localeCompare(b.suburb)),
       );
-      setSelectedLocation({ postcode: "", suburb: "" });
     });
+  }
+  async function saveCoverageMany(
+    rows: { suburb: string; postcode: string; active: boolean }[],
+    persistSelectedMode = false,
+  ) {
+    await run(async () => {
+      const result = await portalAction("coverage-bulk", rows);
+      const saved = new Map(
+        (result.coverage as Coverage[]).map((row) => [row.id, row]),
+      );
+      setCoverage((current) =>
+        [...current.filter((row) => !saved.has(row.id)), ...saved.values()].sort(
+          (a, b) => a.suburb.localeCompare(b.suburb),
+        ),
+      );
+      if (persistSelectedMode) {
+        const savedSettings = await portalAction("settings", {
+          ...settings,
+          coverageMode: "selected",
+        });
+        setSettings(savedSettings.settings);
+      }
+    });
+  }
+  async function applyMapSelection(rows: VicLocality[], active: boolean) {
+    const changes = selectionChanges(rows, coverage, "selected", active);
+    if (!changes.length) return;
+    await saveCoverageMany(
+      changes.map((row) => ({
+        suburb: row.suburb,
+        postcode: row.postcode,
+        active,
+      })),
+      active,
+    );
   }
   const titles = {
     pricing: [
       "CATALOGUE & CAPACITY",
       "Pricing & availability",
-      "Set prices by waste type, control booking dates.",
+      "Each row is a bin size. Every waste type sits on that row so price and availability stay side by side.",
     ],
     coverage: [
       "VICTORIA SERVICE COVERAGE",
       "Suburbs & postcodes",
-      "Cover Victoria or select specific Victorian suburbs. Every location is verified.",
+      "These suburbs are the default area for a supplier. A customer can book a postcode only when a supplier covers it.",
     ],
     profile: [
       "BUSINESS SETTINGS",
@@ -119,6 +160,15 @@ export function ConfigManager({
     ],
   };
   const t = titles[section];
+  const listedCoverage = coverage.filter((row) => {
+    const matchesQuery = `${row.suburb} ${row.postcode}`
+      .toLowerCase()
+      .includes(query.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "included" ? row.active : !row.active);
+    return matchesQuery && matchesStatus;
+  });
   return (
     <div>
       <PageHeading
@@ -168,74 +218,75 @@ export function ConfigManager({
               value={settings.blockedDates.length}
             />
           </div>
-          <div className="portal-toolbar">
-            <div className="portal-tabs" style={{ marginBottom: 0 }}>
-              {acceptedWaste.map((w) => (
-                <button
-                  key={w.id}
-                  aria-pressed={waste === w.id}
-                  onClick={() => setWaste(w.id)}
-                >
-                  {w.label}
-                </button>
-              ))}
-            </div>
-            <button
-              className="portal-button-secondary"
-              disabled={!ready || busy}
-              onClick={() =>
-                setEditing(rates.find((r) => r.wasteId === waste) ?? null)
-              }
-            >
-              <Plus size={16} />
-              Add / edit bin size
-            </button>
-          </div>
-          <div className="portal-pricing-grid">
-            {rates
-              .filter((r) => r.wasteId === waste)
-              .map((r) => (
-                <article key={r.id} className="portal-rate-card">
-                  <header>
-                    <h2>{r.binId.replace("m3", " m³")}</h2>
-                    <span className={`portal-badge ${r.active ? "" : "muted"}`}>
-                      {r.active ? "Active" : "Disabled"}
-                    </span>
-                  </header>
-                  <div className="price">{money(r.price * 100)}</div>
-                  <p>
-                    Base hire price ·{" "}
-                    {acceptedWaste.find((w) => w.id === r.wasteId)?.label}
-                  </p>
-                  <dl>
-                    <div>
-                      <dt>Turnaround</dt>
-                      <dd>
-                        {r.turnaround} day{r.turnaround === 1 ? "" : "s"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Custom dates</dt>
-                      <dd>
-                        {r.overrides.length} override
-                        {r.overrides.length === 1 ? "" : "s"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Extra weight</dt>
-                      <dd>{money(r.perTonne * 100)} / tonne</dd>
-                    </div>
-                  </dl>
-                  <button
-                    className="portal-button-secondary"
-                    disabled={!ready || busy}
-                    onClick={() => setEditing(structuredClone(r))}
-                  >
-                    <Pencil size={14} />
-                    Edit pricing
-                  </button>
-                </article>
-              ))}
+          <div className="portal-table-wrap">
+            <table className="portal-table portal-price-matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Bin size</th>
+                  {acceptedWaste.map((wasteType) => (
+                    <th key={wasteType.id} scope="col">
+                      {wasteType.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bins.map((bin) => (
+                  <tr key={bin.id}>
+                    <th scope="row">
+                      <strong>{bin.size}</strong>
+                      <small>{bin.door}</small>
+                    </th>
+                    {acceptedWaste.map((wasteType) => {
+                      const rate = rates.find(
+                        (item) =>
+                          item.binId === bin.id && item.wasteId === wasteType.id,
+                      );
+                      if (!rate) {
+                        return (
+                          <td key={wasteType.id} data-label={wasteType.label}>
+                            <span className="portal-price-empty">Not offered</span>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={wasteType.id} data-label={wasteType.label}>
+                          <div
+                            className={`portal-price-cell${rate.active ? "" : " is-disabled"}`}
+                          >
+                            <div className="portal-price-cell-top">
+                              <span className="price">{money(rate.price * 100)}</span>
+                              <span
+                                className={`portal-badge ${rate.active ? "" : "muted"}`}
+                              >
+                                {rate.active ? "Active" : "Disabled"}
+                              </span>
+                            </div>
+                            <p className="portal-price-meta">
+                              {rate.turnaround} day
+                              {rate.turnaround === 1 ? "" : "s"} turnaround ·{" "}
+                              {money(rate.perTonne * 100)} / tonne
+                              {rate.overrides.length
+                                ? ` · ${rate.overrides.length} date override${rate.overrides.length === 1 ? "" : "s"}`
+                                : ""}
+                            </p>
+                            <button
+                              type="button"
+                              className="portal-button-secondary portal-price-edit"
+                              disabled={!ready || busy}
+                              onClick={() => setEditing(structuredClone(rate))}
+                            >
+                              <Pencil size={14} />
+                              Edit
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <section className="portal-panel" style={{ marginTop: 24 }}>
             <h2>Blocked delivery days</h2>
@@ -263,57 +314,26 @@ export function ConfigManager({
             </div>
           </section>
           <p className="portal-help">
-            Prices include the standard hire period. Extended hire uses the
-            existing 40% uplift. Weight charges are recorded for reconciliation
-            after weighing.
+            Prices include up to 10 days hire from the delivery date. Up to 7
+            extra days adds $50, and 8–14 extra days adds $75. Weight charges
+            are recorded for reconciliation after weighing.
           </p>
         </>
       )}
       {section === "coverage" && (
         <>
           <section className="portal-panel">
-            <h2>
-              {settings.coverageMode === "victoria"
-                ? "Exclude a suburb"
-                : "Add a suburb you serve"}
-            </h2>
+            <h2>Delivery area</h2>
             <p>
-              {settings.coverageMode === "victoria"
-                ? "All Victorian suburbs are served automatically. Add a suburb here only if you cannot deliver there."
-                : "Search for a Victorian suburb and add it to your delivery area."}
+              Suppliers start with these suburbs. Customers can book the combined postcodes of every supplier.
             </p>
-            <div className="portal-grid">
-              <PostcodeField
-                value={selectedLocation.postcode}
-                displayValue={
-                  selectedLocation.suburb
-                    ? `${selectedLocation.suburb}, VIC ${selectedLocation.postcode}`
-                    : ""
-                }
-                onChange={(postcode, label) => {
-                  const suburb = label.match(/^(.+), VIC \d{4}$/i)?.[1] ?? "";
-                  setSelectedLocation({ postcode, suburb });
-                }}
-              />
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <button
-                  className="portal-button"
-                  disabled={!ready || busy || !selectedLocation.suburb}
-                  onClick={() =>
-                    saveCoverage({
-                      ...selectedLocation,
-                      active: settings.coverageMode === "selected",
-                    })
-                  }
-                >
-                  <Plus size={16} />
-                  {settings.coverageMode === "victoria"
-                    ? "Exclude suburb"
-                    : "Add suburb"}
-                </button>
-              </div>
-            </div>
           </section>
+          <CoverageMap
+            coverage={coverage}
+            mode="selected"
+            disabled={!ready || busy}
+            onApply={applyMapSelection}
+          />
           <div className="portal-toolbar">
             <Field label="Search listed suburbs">
               <input
@@ -322,6 +342,21 @@ export function ConfigManager({
                 onChange={(e) => setQuery(e.target.value)}
               />
             </Field>
+            <label className="portal-field coverage-status-filter">
+              <span>Show</span>
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value as "all" | "included" | "excluded",
+                  )
+                }
+              >
+                <option value="all">All</option>
+                <option value="included">Included</option>
+                <option value="excluded">Excluded</option>
+              </select>
+            </label>
             <button
               className="portal-button-secondary"
               onClick={() =>
@@ -353,13 +388,7 @@ export function ConfigManager({
                 </tr>
               </thead>
               <tbody>
-                {coverage
-                  .filter((c) =>
-                    `${c.suburb} ${c.postcode}`
-                      .toLowerCase()
-                      .includes(query.toLowerCase()),
-                  )
-                  .map((c) => (
+                {listedCoverage.map((c) => (
                     <tr key={c.id}>
                       <td data-label="Suburb">
                         <strong>{c.suburb}</strong>
@@ -386,11 +415,11 @@ export function ConfigManager({
                   ))}
               </tbody>
             </table>
-            {!coverage.length && (
+            {!listedCoverage.length && (
               <p className="portal-empty">
-                {settings.coverageMode === "victoria"
-                  ? "No suburb exclusions. You serve all verified Victorian suburbs."
-                  : "No suburbs included. Add the Victorian suburbs you serve to enable bookings."}
+                {coverage.length
+                  ? "No suburbs match this filter."
+                  : "No default suburbs yet. Add the Victorian suburbs a new supplier starts with."}
               </p>
             )}
           </div>
@@ -407,7 +436,7 @@ export function ConfigManager({
       )}
       {editing && (
         <Dialog
-          title="Edit bin pricing & availability"
+          title={`Edit ${bins.find((bin) => bin.id === editing.binId)?.size ?? "bin"} · ${acceptedWaste.find((item) => item.id === editing.wasteId)?.label ?? "waste"}`}
           onClose={() => !busy && setEditing(null)}
         >
           <form
@@ -426,12 +455,41 @@ export function ConfigManager({
                   }}
                 >
                   {rates
-                    .filter((r) => r.wasteId === waste)
+                    .filter((r) => r.wasteId === editing.wasteId)
                     .map((r) => (
                       <option key={r.id} value={r.id}>
                         {bins.find((b) => b.id === r.binId)?.size}
                       </option>
                     ))}
+                </select>
+              </Field>
+              <Field label="Waste type">
+                <select
+                  value={editing.wasteId}
+                  onChange={(e) => {
+                    const next = rates.find(
+                      (r) =>
+                        r.binId === editing.binId && r.wasteId === e.target.value,
+                    );
+                    if (next) setEditing(structuredClone(next));
+                  }}
+                >
+                  {acceptedWaste.map((wasteType) => {
+                    const offered = rates.some(
+                      (r) =>
+                        r.binId === editing.binId && r.wasteId === wasteType.id,
+                    );
+                    return (
+                      <option
+                        key={wasteType.id}
+                        value={wasteType.id}
+                        disabled={!offered}
+                      >
+                        {wasteType.label}
+                        {offered ? "" : " — not offered"}
+                      </option>
+                    );
+                  })}
                 </select>
               </Field>
               <Field label="Base price (AUD)">

@@ -1,0 +1,71 @@
+-- Run on an existing database so new bookings are numbered ORD-26-0001.
+begin;
+create table if not exists public.order_counters (
+ year_key text primary key,
+ last_value integer not null
+);
+alter table public.order_counters enable row level security;
+revoke all on public.order_counters from anon, authenticated;
+grant all on public.order_counters to service_role;
+insert into public.order_counters (year_key, last_value)
+select substring(reference from 5 for 2), max(substring(reference from 8)::integer)
+from public.bookings
+where reference ~ '^ORD-[0-9]{2}-[0-9]+$'
+group by 1
+on conflict (year_key) do update
+set last_value = greatest(public.order_counters.last_value, excluded.last_value);
+
+create or replace function public.reserve_admin_booking(payload jsonb)
+returns table(id uuid, reference text)
+language plpgsql security definer set search_path = public
+as $$
+declare
+ rate jsonb;
+ capacity integer;
+ cooldown integer;
+ drop_date date := (payload->>'delivery_date')::date;
+ back_date date := (payload->>'pickup_date')::date;
+ peak integer;
+ booking_id uuid := (payload->>'id')::uuid;
+ booking_ref text;
+ order_year text := to_char(now() at time zone 'Australia/Melbourne', 'YY');
+ seq integer;
+ attempt integer;
+begin
+ perform pg_advisory_xact_lock(hashtextextended('ord-number', 0));
+ perform pg_advisory_xact_lock(hashtextextended(payload->>'bin_size', 0));
+ select data into rate from public.bin_rates where bin_rates.id = (payload->>'bin_size') || '-' || (payload->>'waste_type');
+ if rate is not null and coalesce((rate->>'active')::boolean, true) = false then raise exception 'Bin unavailable'; end if;
+ capacity := (rate->>'stock')::integer;
+ cooldown := coalesce((rate->>'turnaround')::integer, 1);
+ if capacity is not null then
+  select coalesce(max(used), 0) into peak from (
+   select count(b.id) as used
+   from generate_series(drop_date, back_date + cooldown, interval '1 day') d
+   left join public.bookings b on b.bin_size = payload->>'bin_size'
+    and b.operation_status <> 'cancelled'
+    and (b.status = 'paid' or (b.status = 'pending' and b.reserved_until > now()))
+    and b.delivery_date <= d::date and b.pickup_date + b.booking_turnaround >= d::date
+   group by d
+  ) capacity_by_day;
+  if peak >= capacity then raise exception 'Bin stock is no longer available for these dates'; end if;
+ end if;
+ for attempt in 1..20 loop
+  insert into public.order_counters as counters (year_key, last_value)
+  values (order_year, 1)
+  on conflict (year_key) do update set last_value = counters.last_value + 1
+  returning counters.last_value into seq;
+  booking_ref := 'ORD-' || order_year || '-' || lpad(seq::text, 4, '0');
+  exit when not exists (select 1 from public.bookings where bookings.reference = booking_ref);
+ end loop;
+ if booking_ref is null or exists (select 1 from public.bookings where bookings.reference = booking_ref) then
+  raise exception 'Could not allocate order number';
+ end if;
+ insert into public.bookings(id,reference,bin_size,postcode,waste_type,delivery_date,pickup_date,hire_period,full_name,email,phone,street_address,placement,access,notes,status,amount_cents,customer_id,reserved_until,booking_turnaround,booking_source)
+ values(booking_id,booking_ref,payload->>'bin_size',payload->>'postcode',payload->>'waste_type',drop_date,back_date,payload->>'hire_period',payload->>'full_name',payload->>'email',payload->>'phone',payload->>'street_address',coalesce(payload->>'placement',''),coalesce(payload->>'access',''),coalesce(payload->>'notes',''),'pending',(payload->>'amount_cents')::integer,nullif(payload->>'customer_id','')::uuid,now()+interval '31 minutes',cooldown,coalesce(payload->>'booking_source','direct'));
+ return query select booking_id,booking_ref;
+end;
+$$;
+revoke all on function public.reserve_admin_booking(jsonb) from public, anon, authenticated;
+grant execute on function public.reserve_admin_booking(jsonb) to service_role;
+commit;

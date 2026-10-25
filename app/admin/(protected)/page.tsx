@@ -1,4 +1,3 @@
-import { melbourneDate } from "@/lib/admin-config";
 import { money } from "@/lib/admin-config";
 import Link from "next/link";
 import {
@@ -6,23 +5,26 @@ import {
   Truck,
   RotateCcw,
   ClipboardList,
-  Wallet,
-  SlidersHorizontal,
-  MapPin,
-  Users,
 } from "lucide-react";
-import { todayIsoDate, addDaysIso } from "@/lib/booking-utils";
+import { todayIsoDate } from "@/lib/booking-utils";
 import { operationStatusLabels } from "@/lib/data/operations";
-import { buildAdminKpis } from "@/lib/operations-kpis";
+import { buildAdminKpis, monthIncomeBySupplier } from "@/lib/operations-kpis";
 import { getOperationsSnapshot } from "@/lib/server/operations-service";
+import { getPortalConfig } from "@/lib/server/portal-service";
 import { PageHeading, Stat, Notice } from "@/components/admin/portal-ui";
 export default async function AdminPage() {
-  const snapshot = await getOperationsSnapshot(),
-    { bookings, suppliers } = snapshot;
+  const [snapshot, config] = await Promise.all([
+    getOperationsSnapshot(),
+    getPortalConfig(),
+  ]);
+  const { bookings, suppliers } = snapshot;
   const today = todayIsoDate(),
     kpis = buildAdminKpis(bookings, suppliers, today);
-  const paid = bookings.filter(
-    (b) => b.payment_status === "paid" && b.operation_status !== "cancelled",
+  const month = monthIncomeBySupplier(
+    bookings,
+    suppliers,
+    today,
+    config.settings.commissionPercent,
   );
   const stages = [
     "unassigned",
@@ -36,19 +38,10 @@ export default async function AdminPage() {
   ] as const;
   const priority = bookings
     .filter((b) =>
-      ["issue", "unassigned", "collection_due"].includes(b.operation_status),
+      ["issue", "unassigned", "collection_due"].includes(b.operation_status) &&
+      !b.deleted,
     )
     .slice(0, 6);
-  const week = Array.from({ length: 7 }, (_, i) => {
-    const date = addDaysIso(today, i - 6);
-    return {
-      date,
-      cents: paid
-        .filter((b) => melbourneDate(b.created_at) === date)
-        .reduce((s, b) => s + b.amount_cents, 0),
-    };
-  });
-  const max = Math.max(1, ...week.map((d) => d.cents));
   return (
     <div>
       <PageHeading
@@ -65,6 +58,7 @@ export default async function AdminPage() {
       <Notice
         message={
           snapshot.error ||
+          config.error ||
           (!snapshot.serverConfigured
             ? "The operations database is not configured. Add the server database key to enable admin management."
             : !snapshot.supplierSchemaReady
@@ -72,29 +66,6 @@ export default async function AdminPage() {
               : "")
         }
       />
-      <div className="portal-dashboard-hero">
-        <div>
-          <span className="portal-eyebrow">KEEP VICTORIA MOVING</span>
-          <h2>Ready for the day ahead.</h2>
-          <p>
-            {kpis.deliveriesToday} deliveries and {kpis.collectionsToday}{" "}
-            collections scheduled today.
-          </p>
-          <div className="portal-actions">
-            <Link href="/admin/orders" className="portal-button">
-              Manage bookings <ArrowUpRight size={15} />
-            </Link>
-            <Link href="/admin/pricing" className="portal-button-secondary">
-              Update availability
-            </Link>
-          </div>
-        </div>
-        <div className="portal-hero-number">
-          <Truck size={36} />
-          <strong>{kpis.openJobs}</strong>
-          <span>open jobs in progress</span>
-        </div>
-      </div>
       <div className="portal-stats">
         <Stat
           label="Deliveries today"
@@ -107,47 +78,47 @@ export default async function AdminPage() {
           detail={`${kpis.onHire} bins currently on hire`}
         />
         <Stat
-          label="Needs a supplier"
-          value={kpis.unassigned}
-          detail={`${kpis.activeSuppliers} active suppliers`}
+          label="New bookings today"
+          value={kpis.newBookingsToday}
+          detail="Created today"
         />
         <Stat
-          label="Paid revenue this month"
-          value={money(kpis.monthValueCents)}
-          detail={`${money(kpis.paidValueCents)} paid overall`}
+          label="Total Income this month"
+          value={money(month.incomeCents)}
+          detail={`${money(month.commissionCents)} commission`}
         />
       </div>
       <div className="portal-dashboard-columns">
         <section className="portal-panel">
           <div className="portal-toolbar">
-            <h2 style={{ flex: 1 }}>Revenue this week</h2>
+            <h2 style={{ flex: 1 }}>Revenue this month</h2>
             <Link href="/admin/payouts" className="portal-subtle">
               View report ↗
             </Link>
           </div>
-          <p className="portal-chart-total">
-            {money(week.reduce((s, d) => s + d.cents, 0))}
+          <p className="portal-chart-total">{money(month.incomeCents)}</p>
+          <p>
+            Total income from paid bookings created this month. Commission is{" "}
+            {config.settings.commissionPercent}% for each supplier.
           </p>
-          <p>Paid booking value by creation date.</p>
-          <div
-            className="portal-bar-chart"
-            aria-label="Seven-day paid revenue chart"
-          >
-            {week.map((d) => (
-              <div key={d.date}>
-                <span
-                  title={`${d.date}: ${money(d.cents)}`}
-                  aria-label={`${d.date}: ${money(d.cents)}`}
-                  style={{ height: `${Math.max(2, (d.cents / max) * 130)}px` }}
-                />
-                <small>
-                  {new Date(`${d.date}T00:00:00Z`).toLocaleDateString("en-AU", {
-                    weekday: "short",
-                    timeZone: "UTC",
-                  })}
-                </small>
+          <div className="portal-revenue" aria-label="Monthly income and commission by supplier">
+            <div className="portal-revenue-head">
+              <span>Supplier</span>
+              <span>Income</span>
+              <span>Commission</span>
+            </div>
+            {month.rows.map((row) => (
+              <div className="portal-revenue-row" key={row.id}>
+                <span>{row.name}</span>
+                <span>{money(row.incomeCents)}</span>
+                <span>{money(row.commissionCents)}</span>
               </div>
             ))}
+            <div className="portal-revenue-row portal-revenue-combined">
+              <span>Combined</span>
+              <span>{money(month.incomeCents)}</span>
+              <span>{money(month.commissionCents)}</span>
+            </div>
           </div>
         </section>
         <section className="portal-panel">
@@ -170,98 +141,49 @@ export default async function AdminPage() {
           </div>
         </section>
       </div>
-      <div className="portal-dashboard-columns">
-        <section className="portal-panel">
-          <div className="portal-toolbar">
-            <h2 style={{ flex: 1 }}>Needs your attention</h2>
-            <span className="portal-badge warning">
-              {kpis.issues} exceptions
+      <section className="portal-panel">
+        <div className="portal-toolbar">
+          <h2 style={{ flex: 1 }}>Needs your attention</h2>
+          <span className="portal-badge warning">
+            {kpis.issues} exceptions
+          </span>
+        </div>
+        {priority.map((b) => (
+          <Link
+            key={b.id}
+            href={`/admin/orders?order=${encodeURIComponent(b.id)}`}
+            className="portal-priority"
+          >
+            <span className="portal-priority-icon">
+              {b.operation_status === "collection_due" ? (
+                <RotateCcw size={18} />
+              ) : (
+                <Truck size={18} />
+              )}
             </span>
-          </div>
-          {priority.map((b) => (
-            <Link
-              key={b.id}
-              href={`/admin/orders?order=${encodeURIComponent(b.id)}`}
-              className="portal-priority"
+            <span>
+              <strong>
+                {b.reference} · {b.full_name || "Booking"}
+              </strong>
+              <small>
+                {b.bin_size.replace("m3", "m³")} · VIC {b.postcode} ·{" "}
+                {b.delivery_date}
+              </small>
+            </span>
+            <span
+              className={`portal-badge ${b.operation_status === "issue" ? "warning" : ""}`}
             >
-              <span className="portal-priority-icon">
-                {b.operation_status === "collection_due" ? (
-                  <RotateCcw size={18} />
-                ) : (
-                  <Truck size={18} />
-                )}
-              </span>
-              <span>
-                <strong>
-                  {b.reference} · {b.full_name || "Booking"}
-                </strong>
-                <small>
-                  {b.bin_size.replace("m3", "m³")} · VIC {b.postcode} ·{" "}
-                  {b.delivery_date}
-                </small>
-              </span>
-              <span
-                className={`portal-badge ${b.operation_status === "issue" ? "warning" : ""}`}
-              >
-                {operationStatusLabels[b.operation_status]}
-              </span>
-              <ArrowUpRight size={15} />
-            </Link>
-          ))}
-          {!priority.length && (
-            <p className="portal-empty">
-              All clear. No bookings need urgent attention.
-            </p>
-          )}
-        </section>
-        <section className="portal-panel">
-          <h2>Workspace shortcuts</h2>
-          <p>Keep your network and booking settings in shape.</p>
-          <div className="portal-shortcuts">
-            {[
-              {
-                href: "/admin/suppliers",
-                label: "Supplier network",
-                detail: `${kpis.activeSuppliers} active suppliers`,
-                icon: Truck,
-              },
-              {
-                href: "/admin/customers",
-                label: "Customer register",
-                detail: "Contact details & booking history",
-                icon: Users,
-              },
-              {
-                href: "/admin/pricing",
-                label: "Pricing & dates",
-                detail: "Prices, capacity & blocked dates",
-                icon: SlidersHorizontal,
-              },
-              {
-                href: "/admin/coverage",
-                label: "Victorian coverage",
-                detail: "Suburbs & postcodes",
-                icon: MapPin,
-              },
-              {
-                href: "/admin/payouts",
-                label: "Payout reconciliation",
-                detail: "Revenue, fees & supplier earnings",
-                icon: Wallet,
-              },
-            ].map(({ href, label, detail, icon: Icon }) => (
-              <Link key={href} href={href}>
-                <Icon size={19} />
-                <span>
-                  <strong>{label}</strong>
-                  <small>{detail}</small>
-                </span>
-                <ArrowUpRight size={15} />
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
+              {operationStatusLabels[b.operation_status]}
+            </span>
+            <ArrowUpRight size={15} />
+          </Link>
+        ))}
+        {!priority.length && (
+          <p className="portal-empty">
+            All clear. No bookings need urgent attention.
+          </p>
+        )}
+      </section>
     </div>
   );
 }

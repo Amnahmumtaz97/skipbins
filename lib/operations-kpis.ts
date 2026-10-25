@@ -13,7 +13,9 @@ export function buildAdminKpis(
 ) {
   const paid = bookings.filter((booking) => booking.payment_status === "paid");
   const operational = paid.filter(
-    (booking) => booking.operation_status !== "cancelled",
+    (booking) =>
+      booking.operation_status !== "cancelled" &&
+      !booking.deleted,
   );
   const open = operational.filter(
     (booking) =>
@@ -37,7 +39,7 @@ export function buildAdminKpis(
   const currentMonth = today.slice(0, 7);
   const pipeline = paid.reduce<Record<OperationStatus, number>>(
     (counts, booking) => {
-      counts[booking.operation_status] += 1;
+      if (!booking.deleted) counts[booking.operation_status] += 1;
       return counts;
     },
     {
@@ -77,6 +79,12 @@ export function buildAdminKpis(
       .length,
     collectionsToday: open.filter((booking) => booking.pickup_date === today)
       .length,
+    newBookingsToday: bookings.filter(
+      (booking) =>
+        booking.operation_status !== "cancelled" &&
+        !booking.deleted &&
+        melbourneDate(booking.created_at) === today,
+    ).length,
     upcomingSevenDays: upcoming.length,
     completionRate: operational.length
       ? Math.round((completed / operational.length) * 100)
@@ -90,12 +98,63 @@ export function buildAdminKpis(
   };
 }
 
+export function monthIncomeBySupplier(
+  bookings: OperationsBooking[],
+  suppliers: Pick<SupplierRecord, "id" | "name">[],
+  today: string,
+  commissionPercent: number,
+) {
+  const month = today.slice(0, 7);
+  const paid = bookings.filter(
+    (booking) =>
+      booking.payment_status === "paid" &&
+      booking.operation_status !== "cancelled" &&
+      !booking.deleted &&
+      melbourneDate(booking.created_at).startsWith(month),
+  );
+  const names = new Map(
+    suppliers.map((supplier) => [supplier.id, supplier.name]),
+  );
+  const grouped = new Map<
+    string,
+    { name: string; incomeCents: number; commissionCents: number }
+  >();
+  for (const booking of paid) {
+    const id = booking.supplier_id || "unassigned";
+    const current = grouped.get(id) ?? {
+      name: names.get(id) || booking.supplier_name || "Unassigned",
+      incomeCents: 0,
+      commissionCents: 0,
+    };
+    current.incomeCents += booking.amount_cents;
+    current.commissionCents += Math.round(
+      (booking.amount_cents * commissionPercent) / 100,
+    );
+    grouped.set(id, current);
+  }
+  const rows = [...grouped.entries()]
+    .map(([id, row]) => ({ id, ...row }))
+    .sort(
+      (a, b) => b.incomeCents - a.incomeCents || a.name.localeCompare(b.name),
+    );
+  return {
+    rows,
+    incomeCents: rows.reduce((total, row) => total + row.incomeCents, 0),
+    commissionCents: rows.reduce(
+      (total, row) => total + row.commissionCents,
+      0,
+    ),
+  };
+}
+
 export function buildSupplierKpis(
   bookings: OperationsBooking[],
   today: string,
 ) {
   const active = bookings.filter(
-    (booking) => !["collected", "cancelled"].includes(booking.operation_status),
+    (booking) =>
+      !["collected", "cancelled"].includes(booking.operation_status) &&
+      !booking.deleted,
   );
   return {
     active,

@@ -20,9 +20,23 @@ import type {
   OperationsBooking,
   SupplierRecord,
 } from "@/lib/server/operations-service";
+import { hireForDates } from "@/lib/booking-utils";
 import { acceptedWaste } from "@/lib/data/skip-bins";
 import { exportCsv } from "@/lib/admin-config";
 import { Field, Notice, Dialog, money } from "@/components/admin/portal-ui";
+
+type OrderDraft = {
+  fullName: string;
+  email: string;
+  phone: string;
+  streetAddress: string;
+  postcode: string;
+  deliveryDate: string;
+  pickupDate: string;
+  placement: string;
+  access: string;
+  customerNotes: string;
+};
 export function OrderManager({
   initialBookings,
   suppliers,
@@ -36,7 +50,7 @@ export function OrderManager({
 }) {
   const [bookings, setBookings] = useState(initialBookings),
     [query, setQuery] = useState(""),
-    [filter, setFilter] = useState<OperationStatus | "all">("all"),
+    [filter, setFilter] = useState<OperationStatus | "all" | "deleted">("all"),
     [quick, setQuick] = useState("all"),
     [advanced, setAdvanced] = useState(false),
     [supplier, setSupplier] = useState("all"),
@@ -62,7 +76,10 @@ export function OrderManager({
           `${b.reference} ${b.full_name} ${b.email} ${b.phone} ${b.street_address} ${b.postcode} ${b.supplier_name ?? ""}`
             .toLowerCase()
             .includes(query.toLowerCase()) &&
-          (filter === "all" || b.operation_status === filter) &&
+          (filter === "all" ||
+            (filter === "deleted"
+              ? b.deleted
+              : b.operation_status === filter)) &&
           (quick === "all" ||
             (quick === "drops" && b.delivery_date === today) ||
             (quick === "picks" && b.pickup_date === today) ||
@@ -99,6 +116,8 @@ export function OrderManager({
       status?: OperationStatus;
       notes?: string;
       source?: "direct" | "ppc" | "manual";
+      mark?: "deleted" | "refunded" | "restored";
+      details?: OrderDraft;
     },
   ) {
     setSaving(b.id);
@@ -121,6 +140,30 @@ export function OrderManager({
             ? {
                 ...item,
                 ...(changes.status ? { operation_status: changes.status } : {}),
+                ...(changes.mark === "deleted" ? { deleted: true } : {}),
+                ...(changes.mark === "restored" ? { deleted: false } : {}),
+                ...(changes.mark === "refunded"
+                  ? { payment_status: "refunded" }
+                  : {}),
+                ...(changes.details
+                  ? {
+                      full_name: changes.details.fullName.trim(),
+                      email: changes.details.email.trim(),
+                      phone: changes.details.phone.trim(),
+                      street_address: changes.details.streetAddress.trim(),
+                      postcode: changes.details.postcode.trim(),
+                      delivery_date: changes.details.deliveryDate,
+                      pickup_date: changes.details.pickupDate,
+                      hire_period:
+                        hireForDates(
+                          changes.details.deliveryDate,
+                          changes.details.pickupDate,
+                        )?.period ?? item.hire_period,
+                      placement: changes.details.placement.trim(),
+                      access: changes.details.access.trim(),
+                      notes: changes.details.customerNotes.trim(),
+                    }
+                  : {}),
                 ...(changes.source !== undefined
                   ? { booking_source: changes.source }
                   : {}),
@@ -206,7 +249,7 @@ export function OrderManager({
             aria-label="Workflow stage"
             value={filter}
             onChange={(e) =>
-              setFilter(e.target.value as OperationStatus | "all")
+              setFilter(e.target.value as OperationStatus | "all" | "deleted")
             }
           >
             <option value="all">All workflow stages</option>
@@ -215,6 +258,7 @@ export function OrderManager({
                 {operationStatusLabels[s]}
               </option>
             ))}
+            <option value="deleted">Flagged deleted</option>
           </select>
           <button
             className="portal-button-secondary"
@@ -271,6 +315,7 @@ export function OrderManager({
                   <option value="all">All payments</option>
                   <option value="paid">Paid</option>
                   <option value="pending">Pending</option>
+                  <option value="refunded">Refunded</option>
                 </select>
               </Field>
               <Field label="Waste type">
@@ -382,9 +427,12 @@ export function OrderManager({
                   <small>{money(b.amount_cents)}</small>
                 </td>
                 <td data-label="Workflow">
+                  {b.deleted && (
+                    <span className="portal-badge warning">Flagged deleted</span>
+                  )}
                   <select
                     aria-label={`Workflow for ${b.reference}`}
-                    disabled={!b.manageable || saving === b.id}
+                    disabled={!b.manageable || saving === b.id || b.deleted}
                     value={b.operation_status}
                     onChange={(e) =>
                       updateOrder(b, {
@@ -431,7 +479,7 @@ export function OrderManager({
                     onClick={() => open(b)}
                   >
                     <Eye size={14} />
-                    Details
+                    Edit
                   </button>
                 </td>
               </tr>
@@ -446,98 +494,219 @@ export function OrderManager({
         )}
       </div>
       {selected && (
-        <Dialog
-          title={`Booking ${selected.reference}`}
+        <OrderEditor
+          key={selected.id}
+          booking={selected}
+          notes={notes}
+          saving={saving === selected.id}
+          error={error}
+          onNotes={setNotes}
           onClose={() => !saving && setSelectedId(null)}
-        >
-          <div className="portal-grid">
-            <Detail label="Customer" value={selected.full_name} />
-            <Detail
-              label="Phone & email"
-              value={`${selected.phone}\n${selected.email}`}
-            />
-            <Detail
-              label="Delivery address"
-              value={`${selected.street_address}, VIC ${selected.postcode}`}
-            />
-            <Detail
-              label="Delivery & collection"
-              value={`${selected.delivery_date}\n${selected.pickup_date}`}
-            />
-            <Detail
-              label="Bin & waste"
-              value={`${selected.bin_size.replace("m3", "m³")} · ${acceptedWaste.find((w) => w.id === selected.waste_type)?.label ?? selected.waste_type}`}
-            />
-            <Detail
-              label="Payment & hire"
-              value={`${money(selected.amount_cents)} · ${selected.payment_status}\n${selected.hire_period}`}
-            />
-            <Detail
-              label="Placement & access"
-              value={`${selected.placement}\n${selected.access}`}
-            />
-            <Detail
-              label="Customer notes"
-              value={selected.notes || "No notes"}
-            />
-          </div>
-          <div style={{ marginTop: 20 }}>
-            <Field label="Booking source">
-              <select
-                value={selected.booking_source ?? "direct"}
-                disabled={saving === selected.id}
-                onChange={(e) =>
-                  updateOrder(selected, {
-                    source: e.target.value as "direct" | "ppc" | "manual",
-                  })
-                }
-              >
-                <option value="direct">Direct</option>
-                <option value="ppc">PPC</option>
-                <option value="manual">Manual</option>
-              </select>
-            </Field>
-            <Field label="Supplier / dispatch notes">
-              <textarea
-                key={selected.id}
-                maxLength={2000}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </Field>
-          </div>
-          <Notice message={error} />
-          <p className="portal-help">
-            Cancelling updates dispatch status. Any payment refund must be
-            reconciled separately.
-          </p>
-          <div className="portal-footer-actions">
-            <button
-              className="portal-button-secondary"
-              onClick={() => window.print()}
-            >
-              <Printer size={15} />
-              Print
-            </button>
-            <button
-              className="portal-button"
-              disabled={saving === selected.id || !selected.manageable}
-              onClick={() => updateOrder(selected, { notes })}
-            >
-              <Save size={15} />
-              {saving === selected.id ? "Saving…" : "Save notes"}
-            </button>
-          </div>
-        </Dialog>
+          onSave={(details) => updateOrder(selected, { notes, details })}
+          onSource={(source) => updateOrder(selected, { source })}
+          onMark={(mark) => updateOrder(selected, { mark })}
+        />
       )}
     </>
   );
 }
-function Detail({ label, value }: { label: string; value: string }) {
+function OrderEditor({
+  booking,
+  notes,
+  saving,
+  error,
+  onNotes,
+  onClose,
+  onSave,
+  onSource,
+  onMark,
+}: {
+  booking: OperationsBooking;
+  notes: string;
+  saving: boolean;
+  error: string;
+  onNotes: (value: string) => void;
+  onClose: () => void;
+  onSave: (details: OrderDraft) => void;
+  onSource: (source: "direct" | "ppc" | "manual") => void;
+  onMark: (mark: "deleted" | "refunded" | "restored") => void;
+}) {
+  const [draft, setDraft] = useState<OrderDraft>({
+    fullName: booking.full_name,
+    email: booking.email,
+    phone: booking.phone,
+    streetAddress: booking.street_address,
+    postcode: booking.postcode,
+    deliveryDate: booking.delivery_date,
+    pickupDate: booking.pickup_date,
+    placement: booking.placement,
+    access: booking.access,
+    customerNotes: booking.notes,
+  });
+  function set<K extends keyof OrderDraft>(key: K, value: OrderDraft[K]) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+  const waste =
+    acceptedWaste.find((item) => item.id === booking.waste_type)?.label ??
+    booking.waste_type;
   return (
-    <div className="portal-detail">
-      <span>{label}</span>
-      <p>{value || "—"}</p>
-    </div>
+    <Dialog title={`Edit ${booking.reference}`} onClose={onClose}>
+      <p className="portal-help">
+        {booking.bin_size.replace("m3", "m³")} · {waste} ·{" "}
+        {money(booking.amount_cents)} · {booking.payment_status}. Changing the
+        address or dates does not change the amount already paid.
+      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave(draft);
+        }}
+      >
+        <div className="portal-grid">
+          <Field label="Customer">
+            <input
+              value={draft.fullName}
+              maxLength={100}
+              required
+              onChange={(event) => set("fullName", event.target.value)}
+            />
+          </Field>
+          <Field label="Phone">
+            <input
+              value={draft.phone}
+              maxLength={30}
+              required
+              onChange={(event) => set("phone", event.target.value)}
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              type="email"
+              value={draft.email}
+              maxLength={254}
+              required
+              onChange={(event) => set("email", event.target.value)}
+            />
+          </Field>
+          <Field label="Postcode">
+            <input
+              value={draft.postcode}
+              inputMode="numeric"
+              maxLength={4}
+              required
+              onChange={(event) => set("postcode", event.target.value)}
+            />
+          </Field>
+          <Field label="Street address">
+            <input
+              value={draft.streetAddress}
+              maxLength={300}
+              required
+              onChange={(event) => set("streetAddress", event.target.value)}
+            />
+          </Field>
+          <Field label="Placement">
+            <input
+              value={draft.placement}
+              maxLength={80}
+              onChange={(event) => set("placement", event.target.value)}
+            />
+          </Field>
+          <Field label="Delivery date">
+            <input
+              type="date"
+              value={draft.deliveryDate}
+              required
+              onChange={(event) => set("deliveryDate", event.target.value)}
+            />
+          </Field>
+          <Field label="Pickup date">
+            <input
+              type="date"
+              value={draft.pickupDate}
+              min={draft.deliveryDate}
+              required
+              onChange={(event) => set("pickupDate", event.target.value)}
+            />
+          </Field>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <Field label="Access">
+            <input
+              value={draft.access}
+              maxLength={200}
+              onChange={(event) => set("access", event.target.value)}
+            />
+          </Field>
+          <Field label="Customer notes">
+            <textarea
+              maxLength={2000}
+              value={draft.customerNotes}
+              onChange={(event) => set("customerNotes", event.target.value)}
+            />
+          </Field>
+          <Field label="Booking source">
+            <select
+              value={booking.booking_source ?? "direct"}
+              disabled={saving || !booking.manageable}
+              onChange={(event) =>
+                onSource(event.target.value as "direct" | "ppc" | "manual")
+              }
+            >
+              <option value="direct">Direct</option>
+              <option value="ppc">PPC</option>
+              <option value="manual">Manual</option>
+            </select>
+          </Field>
+          <Field label="Supplier / dispatch notes">
+            <textarea
+              maxLength={2000}
+              value={notes}
+              onChange={(event) => onNotes(event.target.value)}
+            />
+          </Field>
+        </div>
+        <Notice message={error} />
+        <p className="portal-help">
+          Mark deleted only flags the order. It stays in this list, and
+          Restore puts it back on the same job stage. Refunded records the
+          payment as refunded and removes it from income. Marking refunded
+          does not send money back through Stripe.
+        </p>
+        <div className="portal-footer-actions">
+          <button
+            type="button"
+            className="portal-button-secondary"
+            onClick={() => window.print()}
+          >
+            <Printer size={15} />
+            Print
+          </button>
+          <button
+            type="button"
+            className="portal-button-secondary"
+            disabled={saving || !booking.manageable}
+            onClick={() => onMark(booking.deleted ? "restored" : "deleted")}
+          >
+            {booking.deleted ? "Restore order" : "Mark deleted"}
+          </button>
+          <button
+            type="button"
+            className="portal-button-secondary"
+            disabled={saving || !booking.manageable || booking.payment_status === "refunded"}
+            onClick={() => onMark("refunded")}
+          >
+            {booking.payment_status === "refunded" ? "Refunded" : "Mark refunded"}
+          </button>
+          <button
+            className="portal-button"
+            disabled={saving || !booking.manageable}
+          >
+            <Save size={15} />
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

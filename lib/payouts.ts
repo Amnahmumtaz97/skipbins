@@ -45,14 +45,16 @@ export function summarizePayouts(
   const inRange = (date: string) =>
     !!date && date >= period.start && date <= period.end;
   const created = bookings.filter((b) => inRange(melbourneDate(b.created_at)));
-  const cancelled = created.filter((b) => b.operation_status === "cancelled");
+  const closed = (booking: OperationsBooking) =>
+    booking.operation_status === "cancelled" || booking.deleted;
+  const cancelled = created.filter(closed);
   const paidCreated = created.filter(
-    (b) => b.payment_status === "paid" && b.operation_status !== "cancelled",
+    (b) => b.payment_status === "paid" && !closed(b),
   );
   const payable = bookings.filter(
     (b) =>
       b.payment_status === "paid" &&
-      b.operation_status !== "cancelled" &&
+      !closed(b) &&
       inRange(b.delivery_date) &&
       b.delivery_date <= today,
   );

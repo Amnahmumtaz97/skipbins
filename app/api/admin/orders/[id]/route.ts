@@ -1,5 +1,6 @@
 import { isAdminUser } from "@/lib/server/admin-auth";
 import { isOperationStatus } from "@/lib/data/operations";
+import { verifiedOrderDetails } from "@/lib/server/order-details";
 import { InputError, apiError, readJson } from "@/lib/server/request";
 import { updateOrderOperations } from "@/lib/server/operations-service";
 import { createClient } from "@/lib/supabase/server";
@@ -63,19 +64,34 @@ export async function PATCH(
     if (source === null) throw new InputError("Choose a valid booking source.");
     if (notes === null)
       throw new InputError("Notes must be no more than 2,000 characters.");
+    const mark =
+      body.mark === undefined
+        ? undefined
+        : body.mark === "deleted" ||
+            body.mark === "refunded" ||
+            body.mark === "restored"
+          ? body.mark
+          : null;
+    if (mark === null)
+      throw new InputError("Choose deleted, restored, or refunded.");
+    const details = await verifiedOrderDetails(body.details, "admin");
     if (
       supplierId === undefined &&
       status === undefined &&
       notes === undefined &&
-      source === undefined
+      source === undefined &&
+      details === undefined &&
+      mark === undefined
     )
-      throw new InputError("Choose a supplier or workflow status.");
+      throw new InputError("Choose a change to save.");
     await updateOrderOperations({
       bookingId: id,
       supplierId,
       status,
       notes,
       source,
+      details,
+      mark,
     });
     return Response.json(
       { updated: true },

@@ -6,17 +6,24 @@ import {
   ArrowRight,
   CalendarDays,
   Download,
+  Eye,
   RotateCcw,
   Save,
   Truck,
   Wallet,
 } from "lucide-react";
 import { SupplierOrders } from "@/components/supplier/supplier-orders";
+import { SupplierPostcodePicker } from "@/components/supplier/supplier-postcode-picker";
 
-import { money, exportCsv } from "@/lib/admin-config";
+import { money, exportCsv, type Coverage } from "@/lib/admin-config";
+import { formatBookingAddress } from "@/lib/booking-address";
 import { addDaysIso } from "@/lib/booking-utils";
 import { buildSupplierKpis } from "@/lib/operations-kpis";
-import { supplierDispatch, supplierEarnings } from "@/lib/supplier-workspace";
+import {
+  supplierDispatch,
+  supplierEarnings,
+  supplierEarningsPeriods,
+} from "@/lib/supplier-workspace";
 import { operationStatusLabels } from "@/lib/data/operations";
 import type {
   OperationsBooking,
@@ -29,6 +36,8 @@ type Props = {
   commissionPercent: number;
   stripeFeePercent: number;
   earningsReady: boolean;
+  adminPostcodes?: string[];
+  adminCoverage?: Coverage[];
   loadError?: string;
   today: string;
   view: SupplierView;
@@ -58,6 +67,8 @@ export function SupplierWorkspace({
   commissionPercent,
   stripeFeePercent,
   earningsReady,
+  adminPostcodes = [],
+  adminCoverage = [],
   today,
   loadError,
   view,
@@ -78,15 +89,43 @@ export function SupplierWorkspace({
   });
 
   const kpis = buildSupplierKpis(bookings, today);
+  const todaysJobs = useMemo(
+    () =>
+      bookings.filter(
+        (booking) =>
+          !booking.deleted &&
+          booking.operation_status !== "cancelled" &&
+          (booking.delivery_date === today || booking.pickup_date === today),
+      ),
+    [bookings, today],
+  );
+  const needsAttention = kpis.active.filter(
+    (booking) =>
+      booking.operation_status === "issue" ||
+      (Boolean(booking.pickup_date) && booking.pickup_date < today),
+  ).length;
+  const deliveriesToday = todaysJobs.filter(
+    (booking) => booking.delivery_date === today,
+  ).length;
+  const collectionsToday = todaysJobs.filter(
+    (booking) => booking.pickup_date === today,
+  ).length;
   const dispatch = supplierDispatch(bookings, date);
+  const paidEarnings = useMemo(
+    () => supplierEarnings(bookings, commissionPercent, stripeFeePercent),
+    [bookings, commissionPercent, stripeFeePercent],
+  );
   const earnings = useMemo(
     () =>
-      supplierEarnings(bookings, commissionPercent, stripeFeePercent).filter(
+      paidEarnings.filter(
         (row) => !month || row.booking.delivery_date.startsWith(month),
       ),
-    [bookings, commissionPercent, stripeFeePercent, month],
+    [paidEarnings, month],
   );
-  const total = earnings.reduce((sum, row) => sum + row.net, 0);
+  const periods = useMemo(
+    () => supplierEarningsPeriods(paidEarnings, today),
+    [paidEarnings, today],
+  );
   const completed = earnings
     .filter((row) => row.booking.operation_status === "collected")
     .reduce((sum, row) => sum + row.net, 0);
@@ -195,130 +234,65 @@ export function SupplierWorkspace({
       )}
       {view === "overview" && (
         <>
-          <section className="portal-dashboard-hero">
-            <div>
-              <p className="portal-eyebrow">READY FOR THE DAY · {today}</p>
-              <h2>
-                {kpis.deliveriesToday + kpis.collectionsToday} movements
-                scheduled today
-              </h2>
-              <p>
-                {kpis.issues ? `${kpis.issues} job needs attention. ` : ""}Your
-                delivery and collection tools are one click away.
-              </p>
+          <section className="supplier-day" aria-labelledby="supplier-day-title">
+            <div className="supplier-day-top">
+              <div>
+                <p className="portal-eyebrow">
+                  Ready for the day · {formatDayLabel(today)}
+                </p>
+                <h2 id="supplier-day-title">
+                  {todaysJobs.length}{" "}
+                  {todaysJobs.length === 1 ? "job" : "jobs"} today
+                </h2>
+                <p>
+                  {movementLabel(deliveriesToday, "delivery", "deliveries")} and{" "}
+                  {movementLabel(collectionsToday, "collection", "collections")}
+                  .
+                  {needsAttention
+                    ? ` ${movementLabel(needsAttention, "job needs", "jobs need")} attention.`
+                    : ""}
+                </p>
+              </div>
               <Link className="portal-button" href="/supplier/schedule">
                 Open dispatch schedule <ArrowRight size={16} />
               </Link>
             </div>
-            <div className="portal-hero-number">
-              <Truck size={28} />
-              <strong>{kpis.active.length}</strong>
-              <span>active jobs</span>
+            <div className="supplier-day-stats">
+              <Metric
+                label="Deliveries today"
+                value={String(deliveriesToday)}
+                icon={Truck}
+              />
+              <Metric
+                label="Collections today"
+                value={String(collectionsToday)}
+                icon={RotateCcw}
+              />
+              <Metric
+                label="Needs attention"
+                value={String(needsAttention)}
+                icon={CalendarDays}
+                alert={needsAttention > 0}
+              />
+              <Metric
+                label="Completed net estimate"
+                value={earningsReady ? money(completed) : "Unavailable"}
+                icon={Wallet}
+              />
             </div>
           </section>
-          <section className="portal-stats">
-            <Metric
-              label="Deliveries today"
-              value={String(kpis.deliveriesToday)}
-              icon={Truck}
-            />
-            <Metric
-              label="Collections today"
-              value={String(kpis.collectionsToday)}
-              icon={RotateCcw}
-            />
-            <Metric
-              label="Needs attention"
-              value={String(
-                kpis.active.filter(
-                  (b) =>
-                    b.operation_status === "issue" ||
-                    (Boolean(b.pickup_date) && b.pickup_date < today),
-                ).length,
-              )}
-              icon={CalendarDays}
-            />
-            <Metric
-              label="Completed net estimate"
-              value={earningsReady ? money(completed) : "Unavailable"}
-              icon={Wallet}
-            />
-          </section>
-          <div className="portal-dashboard-columns">
-            <section className="portal-panel">
-              <h2 className="text-base font-extrabold">Job pipeline</h2>
-              <div className="portal-pipeline">
-                {(
-                  [
-                    "assigned",
-                    "scheduled",
-                    "delivered",
-                    "collection_due",
-                    "collected",
-                    "issue",
-                  ] as const
-                ).map((status) => {
-                  const count = bookings.filter(
-                    (b) => b.operation_status === status,
-                  ).length;
-                  return (
-                    <Link href="/supplier/orders" key={status}>
-                      <span>{operationStatusLabels[status]}</span>
-                      <div>
-                        <span
-                          style={{
-                            width: `${bookings.length ? (count / bookings.length) * 100 : 0}%`,
-                          }}
-                        />
-                      </div>
-                      <strong>{count}</strong>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-            <section className="portal-panel">
-              <h2 className="mb-4 text-base font-extrabold">
-                Business shortcuts
-              </h2>
-              <div className="portal-shortcuts">
-                {[
-                  {
-                    href: "orders",
-                    title: "Manage assigned orders",
-                    description:
-                      "Accept jobs, update stages and record site notes",
-                    icon: Truck,
-                  },
-
-                  {
-                    href: "earnings",
-                    title: "Review earnings",
-                    description:
-                      "View fee breakdowns and export your statement",
-                    icon: Wallet,
-                  },
-                ].map(({ href, title, description, icon: Icon }) => (
-                  <Link key={href} href={`/supplier/${href}`}>
-                    <Icon size={20} />
-                    <span>
-                      <strong>{title}</strong>
-                      <small>{description}</small>
-                    </span>
-                    <ArrowRight size={16} />
-                  </Link>
-                ))}
-              </div>
-            </section>
-          </div>
           <section className="mt-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-extrabold">Active job controls</h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-base font-extrabold">Today&apos;s jobs</h2>
               <Link className="portal-site-link" href="/supplier/orders">
                 View all orders <ArrowRight size={14} />
               </Link>
             </div>
-            <SupplierOrders initialBookings={kpis.active} compact />
+            <SupplierOrders
+              initialBookings={todaysJobs}
+              compact
+              emptyMessage="No jobs are scheduled for today."
+            />
           </section>
         </>
       )}
@@ -387,7 +361,7 @@ export function SupplierWorkspace({
                     {b.reference} · {b.bin_size.replace("m3", "m³")}
                   </h3>
                   <p>
-                    {b.street_address}, VIC {b.postcode}
+                    {formatBookingAddress(b.street_address, b.postcode)}
                   </p>
                   <p>
                     {b.full_name} · {operationStatusLabels[b.operation_status]}
@@ -396,7 +370,7 @@ export function SupplierWorkspace({
                 <div className="portal-actions">
                   <a
                     className="portal-button-secondary"
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${b.street_address}, VIC ${b.postcode}`)}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatBookingAddress(b.street_address, b.postcode))}`}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -424,24 +398,20 @@ export function SupplierWorkspace({
         <>
           <p className="supplier-notice">
             {earningsReady
-              ? `Estimates use the current ${commissionPercent}% platform commission and ${stripeFeePercent}% processing fee. They are not confirmed bank transfers. Historical fee changes may affect estimates.`
+              ? `Estimates use the current ${commissionPercent}% platform commission and ${stripeFeePercent}% processing fee. Period totals follow delivery date: this week is Monday to Sunday, and yearly to date runs from 1 January through today. They are not confirmed bank transfers. Historical fee changes may affect estimates.`
               : "Fee settings could not be loaded. Earnings estimates are unavailable until the connection is restored."}
           </p>
           {earningsReady && (
             <>
               <div className="supplier-summary">
-                <Summary
-                  label="Net estimate · all paid jobs"
-                  value={money(total)}
-                />
-                <Summary
-                  label="Completed jobs · net estimate"
-                  value={money(completed)}
-                />
-                <Summary
-                  label="Open jobs · net estimate"
-                  value={money(total - completed)}
-                />
+                {periods.map((period) => (
+                  <Summary
+                    key={period.label}
+                    label={period.label}
+                    value={money(period.net)}
+                    commission={money(period.commission)}
+                  />
+                ))}
               </div>
               <section className="portal-panel">
                 <div className="supplier-order-tools">
@@ -498,6 +468,7 @@ export function SupplierWorkspace({
                           "Processing",
                           "Net estimate",
                           "Stage",
+                          "Order",
                         ].map((h) => (
                           <th key={h}>{h}</th>
                         ))}
@@ -525,6 +496,15 @@ export function SupplierWorkspace({
                                 row.booking.operation_status
                               ]
                             }
+                          </td>
+                          <td data-label="Order">
+                            <Link
+                              className="portal-button-secondary"
+                              href={`/supplier/orders?job=${encodeURIComponent(row.booking.id)}`}
+                            >
+                              <Eye size={15} />
+                              View order
+                            </Link>
                           </td>
                         </tr>
                       ))}
@@ -575,12 +555,6 @@ export function SupplierWorkspace({
                   type: "text",
                   max: 30,
                 },
-                {
-                  key: "serviceArea",
-                  label: "Victorian postcodes, separated by commas",
-                  type: "text",
-                  max: 250,
-                },
               ] as const
             ).map((field) => (
               <label key={field.key} className="supplier-field">
@@ -600,10 +574,19 @@ export function SupplierWorkspace({
               </label>
             ))}
           </div>
+          <div className="mt-4">
+            <SupplierPostcodePicker
+              value={profile.serviceArea}
+              adminPostcodes={adminPostcodes}
+              adminCoverage={adminCoverage}
+              onChange={(serviceArea) =>
+                setProfile((current) => ({ ...current, serviceArea }))
+              }
+            />
+          </div>
           <p className="mt-5 text-xs text-[#405347]">
-            Account: {supplier.status}. Coverage accepts verified Victorian
-            postcodes only. Contact the administrator for account access and
-            availability changes.
+            Account: {supplier.status}. Contact the administrator for account
+            access and availability changes.
           </p>
           <div className="portal-footer-actions">
             <button type="submit" className="portal-button" disabled={saving}>
@@ -620,24 +603,50 @@ function Metric({
   label,
   value,
   icon: Icon,
+  alert = false,
 }: {
   label: string;
   value: string;
   icon: typeof Truck;
+  alert?: boolean;
 }) {
   return (
-    <article className="portal-stat">
-      <Icon size={20} className="text-[#65a30d]" />
+    <article className={`portal-stat${alert ? " supplier-day-alert" : ""}`}>
+      <Icon size={18} className={alert ? "text-[#a34335]" : "text-[#65a30d]"} />
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
   );
 }
-function Summary({ label, value }: { label: string; value: string }) {
+function movementLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+function formatDayLabel(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  return new Intl.DateTimeFormat("en-AU", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(
+    new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))),
+  );
+}
+function Summary({
+  label,
+  value,
+  commission,
+}: {
+  label: string;
+  value: string;
+  commission: string;
+}) {
   return (
     <article>
       <span>{label}</span>
       <strong>{value}</strong>
+      <small>Commission {commission}</small>
     </article>
   );
 }

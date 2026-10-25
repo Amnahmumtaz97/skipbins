@@ -35,7 +35,10 @@ export type WasteCategory = {
   notAccepted: string[];
 };
 
-export type HirePeriod = "Standard (10 days)" | "Extended (14 days)";
+export type HirePeriod =
+  | "Standard (10 days)"
+  | "Extended (7 days)"
+  | "Extended (14 days)";
 
 export type BinPlacement = "Driveway" | "Road" | "Nature Strip";
 

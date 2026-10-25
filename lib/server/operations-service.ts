@@ -3,7 +3,14 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { InputError } from "@/lib/server/request";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { isOperationStatus, type OperationStatus } from "@/lib/data/operations";
+import {
+  deletedWorkflow,
+  isOperationStatus,
+  type OperationStatus,
+} from "@/lib/data/operations";
+import type { OrderDetailChanges } from "@/lib/order-details";
+import { getPortalConfig } from "@/lib/server/portal-service";
+import { supplierCoversPostcode } from "@/lib/supplier-area";
 
 export type SupplierRecord = {
   id: string;
@@ -43,6 +50,7 @@ export type OperationsBooking = {
   supplier_notes: string;
   created_at: string;
   manageable: boolean;
+  deleted: boolean;
   booking_source?: "direct" | "ppc" | "manual";
 };
 
@@ -111,7 +119,8 @@ function normalizeBooking(
   suppliers: Map<string, SupplierRecord>,
 ): OperationsBooking {
   const paymentStatus = text(row, "status", "pending");
-  const storedOperation = row.operation_status;
+  const flagged = deletedWorkflow(row.operation_status);
+  const storedOperation = flagged.status;
   const supplierId = text(row, "supplier_id") || null;
   const operationStatus: OperationStatus =
     supplierId && isOperationStatus(storedOperation)
@@ -148,6 +157,7 @@ function normalizeBooking(
     supplier_notes: text(row, "supplier_notes"),
     created_at: text(row, "created_at"),
     manageable: Boolean(text(row, "id")),
+    deleted: flagged.deleted,
     booking_source:
       row.booking_source === "ppc" || row.booking_source === "manual"
         ? row.booking_source
@@ -225,7 +235,9 @@ export async function getSupplierOperations(
     supplier,
     error: snapshot.error,
     bookings: snapshot.bookings.filter(
-      (booking) => booking.supplier_id === supplier.id,
+      (booking) =>
+        booking.supplier_id === supplier.id &&
+        !booking.deleted,
     ),
   };
 }
@@ -236,29 +248,47 @@ export async function updateOrderOperations(input: {
   status?: OperationStatus;
   notes?: string;
   source?: "direct" | "ppc" | "manual";
+  details?: OrderDetailChanges;
+  mark?: "deleted" | "refunded" | "restored";
 }) {
   const db = adminDatabase();
+  let storedOperation = "";
+  let storedSupplierId: string | null = null;
   if (db) {
     const { data: current, error: readError } = await db
       .from("bookings")
-      .select("status,supplier_id,postcode")
+      .select("status,supplier_id,postcode,operation_status")
       .eq("id", input.bookingId)
       .single();
     if (readError || !current) throw new Error("Order not found");
-    if (input.supplierId) {
+    storedOperation = String(current.operation_status ?? "");
+    storedSupplierId = current.supplier_id ? String(current.supplier_id) : null;
+    const nextPostcode = input.details?.postcode ?? current.postcode;
+    const supplierToCheck =
+      input.supplierId === null
+        ? null
+        : (input.supplierId ??
+          (input.details?.postcode ? current.supplier_id : null));
+    if (supplierToCheck) {
       const { data: supplier, error } = await db
         .from("suppliers")
         .select("status,service_area")
-        .eq("id", input.supplierId)
+        .eq("id", supplierToCheck)
         .single();
-      if (error || supplier?.status !== "active")
+      if (error || !supplier)
         throw new InputError("Choose an active supplier.");
+      if (input.supplierId && supplier.status !== "active")
+        throw new InputError("Choose an active supplier.");
+      const portal = await getPortalConfig();
+      const adminPostcodes = portal.coverage
+        .filter((row) => row.active)
+        .map((row) => row.postcode);
       if (
-        supplier.service_area &&
-        !supplier.service_area
-          .split(",")
-          .map((p: string) => p.trim())
-          .includes(current.postcode)
+        !supplierCoversPostcode(
+          String(supplier.service_area ?? ""),
+          String(nextPostcode ?? ""),
+          adminPostcodes,
+        )
       )
         throw new InputError(
           "This supplier does not cover the booking postcode.",
@@ -300,6 +330,21 @@ export async function updateOrderOperations(input: {
   if (input.status !== undefined) changes.operation_status = input.status;
   if (input.notes !== undefined) changes.supplier_notes = input.notes;
   if (input.source !== undefined) changes.booking_source = input.source;
+  if (input.details) Object.assign(changes, input.details);
+  if (input.mark === "refunded") changes.status = "refunded";
+  const flagged = deletedWorkflow(storedOperation);
+  const remembered = isOperationStatus(flagged.status) ? flagged.status : null;
+  if (input.mark === "restored") {
+    changes.operation_status =
+      remembered ??
+      (storedSupplierId || input.supplierId ? "assigned" : "unassigned");
+  } else if (input.mark === "deleted" || flagged.deleted) {
+    const requested = isOperationStatus(input.status) ? input.status : null;
+    const pending = isOperationStatus(changes.operation_status)
+      ? changes.operation_status
+      : null;
+    changes.operation_status = `deleted|${requested ?? remembered ?? pending ?? "assigned"}`;
+  }
 
   const client = adminDatabase();
   if (client) {

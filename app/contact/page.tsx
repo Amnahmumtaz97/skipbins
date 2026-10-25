@@ -30,7 +30,7 @@ export default function Page() {
           <span className="font-extrabold text-[#0B3B24]">
             Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
           </span>
-          <span>© 2026 Premium Skip Bin Hire Australia · Waste less, live more.</span>
+          <span>© 2026 Premium Skip Bin Hire Australia · Skip more, spend less.</span>
         </footer>
       </div>
     </main>

@@ -61,6 +61,7 @@ require.extensions[".ts"] = (module, file) =>
   );
 const {
   supplierEarnings,
+  supplierEarningsPeriods,
   supplierDispatch,
 } = require("../lib/supplier-workspace.ts");
 const { PATCH } = require("../app/api/supplier/profile/route.ts");
@@ -102,6 +103,59 @@ const request = (body) =>
       0,
     ),
   );
+  check("period estimates split net and commission", () => {
+    const row = (delivery_date, net, commission) => ({
+      booking: { delivery_date },
+      net,
+      commission,
+    });
+    const periods = supplierEarningsPeriods(
+      [
+        row("2026-10-24", 100, 10),
+        row("2026-10-19", 200, 20),
+        row("2026-10-25", 50, 5),
+        row("2026-10-01", 300, 30),
+        row("2026-10-31", 40, 4),
+        row("2026-09-15", 400, 40),
+        row("2026-01-02", 500, 50),
+        row("2025-12-01", 999, 99),
+        row("2026-11-01", 70, 7),
+        row("", 80, 8),
+      ],
+      "2026-10-24",
+    );
+    assert.deepEqual(
+      periods.map((period) => [period.label, period.net, period.commission]),
+      [
+        ["Net Estimate Today", 100, 10],
+        ["Net Estimate This week", 350, 35],
+        ["Net Estimate This Month", 690, 69],
+        ["Net Estimate Last Month", 400, 40],
+        ["Net Estimate Yearly to date", 1500, 150],
+      ],
+    );
+  });
+  check("january last month is the previous december", () => {
+    const periods = supplierEarningsPeriods(
+      [
+        { booking: { delivery_date: "2026-01-15" }, net: 10, commission: 1 },
+        { booking: { delivery_date: "2025-12-20" }, net: 20, commission: 2 },
+        { booking: { delivery_date: "2026-01-12" }, net: 5, commission: 1 },
+      ],
+      "2026-01-15",
+    );
+    assert.equal(periods[1].net, 15);
+    assert.equal(periods[3].net, 20);
+    assert.equal(periods[3].commission, 2);
+    assert.equal(periods[4].net, 15);
+  });
+  check("invalid today yields zero period estimates", () => {
+    const periods = supplierEarningsPeriods(
+      [{ booking: { delivery_date: "2026-10-24" }, net: 10, commission: 1 }],
+      "today",
+    );
+    assert.ok(periods.every((period) => period.net === 0 && period.commission === 0));
+  });
   check("dispatch includes scheduled delivery", () =>
     assert.equal(supplierDispatch([booking], "2026-10-07")[0].kind, "Delivery"),
   );

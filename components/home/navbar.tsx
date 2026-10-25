@@ -18,8 +18,16 @@ const pendingSectionKey = "skipbins:pending-section";
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     if (pathname !== "/") return;
@@ -53,7 +61,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-20 w-full bg-transparent px-4 py-4 sm:px-8 sm:py-5 lg:px-10">
+    <header className={`fixed left-0 right-0 top-0 z-20 w-full px-4 py-4 transition-colors duration-200 sm:px-8 sm:py-5 lg:px-10 ${scrolled || open ? "border-b border-[#dce4d4] bg-[#F4F7EC]" : "border-b border-transparent bg-transparent"}`}>
       <div className="relative flex items-center justify-between">
         <div className="flex flex-col items-start gap-2">
           <Link href="/" className="flex items-center gap-2 text-xl font-extrabold tracking-[-0.06em] text-[#0B3B24]">

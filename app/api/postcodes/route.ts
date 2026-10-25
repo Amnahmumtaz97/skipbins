@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   try {
-    return Response.json(await victorianLocalities(query));
+    const localities = await victorianLocalities(query);
+    const exactPostcode = /^\d{4}$/.test(query);
+    return Response.json(exactPostcode ? localities : localities.slice(0, 12));
   } catch {
     return Response.json(
       {

@@ -19,5 +19,13 @@ export async function getSupplierWorkspace() {
     commissionPercent: config.settings.commissionPercent,
     stripeFeePercent: config.settings.stripeFeePercent,
     earningsReady: config.ready,
+    adminCoverage: config.coverage,
+    adminPostcodes: [
+      ...new Set(
+        config.coverage
+          .filter((row) => row.active)
+          .map((row) => row.postcode),
+      ),
+    ].sort(),
   };
 }

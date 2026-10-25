@@ -165,6 +165,7 @@ export async function POST(request: Request) {
         email: data.email as string,
         phone: data.phone as string,
         streetAddress: data.streetAddress as string,
+        deliveryAddressLabel: data.deliveryAddressLabel as string,
         placement: data.placement,
         access: data.access as string,
         notes: data.notes as string,

@@ -4,6 +4,7 @@ import { adminDatabase } from "@/lib/server/admin-database";
 import { savePortalSettings, saveRate } from "@/lib/server/portal-service";
 import { validateSettings, validateRate } from "@/lib/server/portal-validation";
 import { victorianLocalities } from "@/lib/server/victorian-localities";
+import { vicLocalities } from "@/lib/data/vic-localities";
 import { InputError, apiError, readJson } from "@/lib/server/request";
 export async function POST(request: Request) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
         { error: "Admin access is required." },
         { status: 403 },
       );
-    const body = await readJson(request, 32768);
+    const body = await readJson(request, 500_000);
     const db = adminDatabase();
     if (!db) throw new Error("Database unavailable");
     if (body.action === "settings") {
@@ -80,6 +81,52 @@ export async function POST(request: Request) {
       const { error } = await db.from("service_suburbs").upsert(row);
       if (error) throw error;
       return Response.json({ coverage: row });
+    }
+    if (body.action === "coverage-bulk") {
+      const rows = body.data;
+      if (!Array.isArray(rows) || !rows.length || rows.length > vicLocalities.length)
+        throw new InputError("Choose at least one Victorian suburb.");
+      const allowed = new Set(vicLocalities.map((row) => row.id));
+      const unique = new Map<
+        string,
+        {
+          id: string;
+          suburb: string;
+          postcode: string;
+          state: "VIC";
+          active: boolean;
+        }
+      >();
+      for (const item of rows) {
+        if (
+          !item ||
+          typeof item !== "object" ||
+          typeof item.postcode !== "string" ||
+          !/^\d{4}$/.test(item.postcode) ||
+          typeof item.suburb !== "string" ||
+          typeof item.active !== "boolean"
+        )
+          throw new InputError("Choose Victorian suburbs from the map.");
+        const suburb = item.suburb.toUpperCase();
+        const id = `${item.postcode}-${suburb}`;
+        if (!allowed.has(id))
+          throw new InputError("Only verified Victorian suburbs are supported.");
+        unique.set(id, {
+          id,
+          suburb,
+          postcode: item.postcode,
+          state: "VIC",
+          active: item.active,
+        });
+      }
+      const values = [...unique.values()];
+      for (let index = 0; index < values.length; index += 500) {
+        const { error } = await db
+          .from("service_suburbs")
+          .upsert(values.slice(index, index + 500));
+        if (error) throw error;
+      }
+      return Response.json({ coverage: values });
     }
     if (body.action === "customer") {
       const p = body.data as Record<string, unknown>;

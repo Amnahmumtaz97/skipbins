@@ -2,10 +2,16 @@ import { getBinBySizeOrId } from "@/lib/data/skip-bins";
 import { bookingExtrasTotal, type BookingExtraQuantities } from "@/lib/data/booking-extras";
 import type { HirePeriod } from "@/types/skip-bin";
 
-const hireUplift: Record<HirePeriod, number> = {
+export const hireExtensionFee: Record<HirePeriod, number> = {
   "Standard (10 days)": 0,
-  "Extended (14 days)": 0.4,
+  "Extended (7 days)": 50,
+  "Extended (14 days)": 75,
 };
+
+export function hireExtensionAmount(hirePeriod?: string | null) {
+  if (!hirePeriod || !(hirePeriod in hireExtensionFee)) return 0;
+  return hireExtensionFee[hirePeriod as HirePeriod];
+}
 
 export function parseBinPrice(price: string) {
   const amount = Number(price.replace(/[^0-9.]/g, ""));
@@ -17,6 +23,5 @@ export function quoteTotal(size?: string | null, hirePeriod?: string | null, ext
   if (!bin) return null;
   const base = parseBinPrice(bin.price);
   if (base == null) return null;
-  const uplift = hirePeriod && hirePeriod in hireUplift ? hireUplift[hirePeriod as HirePeriod] : 0;
-  return Math.round(base * (1 + uplift)) + (extras ? bookingExtrasTotal(extras) : 0);
+  return Math.round(base + hireExtensionAmount(hirePeriod)) + (extras ? bookingExtrasTotal(extras) : 0);
 }

@@ -9,7 +9,6 @@ import {
   CalendarClock,
   Check,
   CircleAlert,
-  Leaf,
   Loader2,
 } from "lucide-react";
 import { BinSelector } from "@/components/book/bin-selector";
@@ -38,6 +37,8 @@ import {
 } from "@/lib/data/booking-extras";
 import { selectedAddressLocationError } from "@/lib/address-validation";
 import {
+  formatCurrency,
+  hireForDates,
   isValidAuPhone,
   isValidEmail,
   maxPickupDate,
@@ -84,7 +85,7 @@ function initialBookingForm({
   const standardPickup = deliveryDate ? standardPickupDate(deliveryDate) : "";
   const pickupDate = deliveryDate
     ? initialPickupDate &&
-      initialPickupDate >= standardPickup &&
+      initialPickupDate >= deliveryDate &&
       initialPickupDate <= maxPickupDate(deliveryDate)
       ? initialPickupDate
       : standardPickup
@@ -105,9 +106,9 @@ function initialBookingForm({
     binSize: resolveBinId(initialSize),
     wasteType: resolveWasteId(initialWaste),
     hirePeriod:
-      pickupDate && pickupDate !== standardPickup
-        ? "Extended (14 days)"
-        : "Standard (10 days)",
+      (deliveryDate && pickupDate
+        ? hireForDates(deliveryDate, pickupDate)?.period
+        : undefined) ?? "Standard (10 days)",
     extras: emptyBookingExtras(),
     notes: "",
   };
@@ -123,12 +124,12 @@ const titles = [
 ];
 
 const intros = [
-  "General sizing guide below — if you're not sure, our size guide or support team can help confirm the right fit.",
+  "",
   "Choose the waste stream that best matches your load — pricing is calculated from your selection, so an accurate match keeps your quote correct.",
   "We use your suburb or postcode to check service availability and calculate accurate pricing for your area.",
-  "Choose your delivery and pickup dates. Flexible rental periods are available.",
+  "Choose your delivery and pickup dates. Any pickup from delivery through 10 days is included.",
   "We'll use this to confirm your booking and coordinate delivery with you.",
-  "Check everything looks right before you confirm your booking.",
+  "",
 ];
 
 export function BookingPage({
@@ -184,6 +185,10 @@ export function BookingPage({
   const availableWaste = acceptedWaste.filter((waste) =>
     isWasteAllowedForBin(form.binSize, waste.id),
   );
+  const selectedHire =
+    form.deliveryDate && form.pickupDate
+      ? hireForDates(form.deliveryDate, form.pickupDate)
+      : null;
   const restoredDraft = useRef(false);
 
   useEffect(() => {
@@ -307,9 +312,8 @@ export function BookingPage({
       ...current,
       pickupDate: value,
       hirePeriod:
-        value && value !== standardPickupDate(current.deliveryDate)
-          ? "Extended (14 days)"
-          : "Standard (10 days)",
+        hireForDates(current.deliveryDate, value)?.period ??
+        "Standard (10 days)",
     }));
     setErrors((current) => {
       const next = { ...current };
@@ -367,10 +371,10 @@ export function BookingPage({
       if (
         !form.deliveryDate ||
         !form.pickupDate ||
-        form.pickupDate < standardPickupDate(form.deliveryDate) ||
-        form.pickupDate > maxPickupDate(form.deliveryDate)
+        !hireForDates(form.deliveryDate, form.pickupDate)
       )
-        nextErrors.pickupDate = "Pickup must be 10 to 14 days after delivery.";
+        nextErrors.pickupDate =
+          "Choose a pickup date from the delivery date, up to 24 days later.";
     }
     if (currentStep === 5) {
       if (!form.fullName.trim())
@@ -498,63 +502,58 @@ export function BookingPage({
   const confirmed = Boolean(bookingReference);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#F6F2E7] text-[#16241C]">
+    <main className="flex h-dvh flex-col overflow-hidden bg-[#F6F2E7] text-[#16241C]">
       <Navbar />
 
-      <div className="mx-auto w-full max-w-[1100px] px-4 pb-14 pt-28 sm:px-6 sm:pt-32">
-        <div className="flex justify-center">
-          {/* ---- main content ---- */}
-          <div
-            className={
-              (step === 1 || step === 6) && !confirmed
-                ? "min-w-0 w-full max-w-[1100px]"
-                : "min-w-0 flex-1 max-w-[720px]"
-            }
-          >
-            <div className="mb-3 flex items-baseline justify-between gap-4">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1100px] flex-1 gap-3 px-3 pb-3 pt-[4.75rem] sm:gap-6 sm:px-6 sm:pb-4 sm:pt-24">
+        {confirmed ? null : (
+          <aside className="w-[6.75rem] shrink-0 overflow-y-auto sm:w-40">
+            <BookingProgress
+              current={step}
+              maxReached={maxReached}
+              onSelect={goTo}
+            />
+          </aside>
+        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="mb-2 flex items-baseline justify-between gap-4">
               <h1 className="m-0 text-[22px] font-semibold tracking-[-0.01em] text-[#0B3B24] sm:text-[27px]">
                 {confirmed ? "You're all set" : titles[step - 1]}
               </h1>
               {confirmed ? null : (
-                <span className="whitespace-nowrap text-[13px] font-semibold text-[#5B6B60]">
+                <span className="whitespace-nowrap text-[13px] font-semibold text-[#405347]">
                   Step {step} of 6
                 </span>
               )}
             </div>
 
-            {confirmed ? null : (
-              <BookingProgress
-                current={step}
-                maxReached={maxReached}
-                onSelect={goTo}
-              />
-            )}
-
-            {confirmed ? null : (
-              <p className="mb-4 mt-0 text-[13.5px] leading-5 text-[#5B6B60]">
+            {confirmed || !intros[step - 1] ? null : (
+              <p className="mb-3 mt-0 shrink-0 text-[13.5px] leading-5 text-[#405347]">
                 {intros[step - 1]}
               </p>
             )}
 
             {confirmed ? (
-              <div className="px-2.5 pb-2.5 pt-8 text-center">
-                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#65A30D] text-[#0B3B24]">
+              <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2.5 pt-8 text-center">
+                <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#65A30D] text-white">
                   <Check size={26} strokeWidth={2.6} />
                 </span>
                 <h2 className="m-0 text-[22px] font-semibold text-[#0B3B24]">
                   Booking confirmed
                 </h2>
-                <p className="mx-auto mt-2 max-w-[420px] text-[14.5px] leading-relaxed text-[#5B6B60]">
-                  Reference {bookingReference}. We&apos;ll send a confirmation
+                <p className="mx-auto mt-2 max-w-[420px] text-[14.5px] leading-relaxed text-[#405347]">
+                  Order number {bookingReference}. We&apos;ll send a confirmation
                   to {form.email || "your email"} with delivery details.
                 </p>
                 <div className="mt-8 text-left">
                   <BookingSummary form={form} total={estimatedTotal} />
                 </div>
+                <BookingPageFooter />
               </div>
             ) : (
-              <form onSubmit={handleSubmit} noValidate className="booking-flow">
-                <fieldset disabled={submitting} className="min-w-0">
+              <form onSubmit={handleSubmit} noValidate className="booking-flow flex min-h-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 py-2">
+                <fieldset disabled={submitting} className="min-w-0 border-0 p-0">
                   <ValidationMessage message={requestError} />
                   <div key={step} className="animate-[fadeStep_280ms_ease]">
                     {step === 1 ? (
@@ -636,8 +635,8 @@ export function BookingPage({
                                   form.placement === option
                                     ? "border-[#0B3B24] bg-[#0B3B24] text-white"
                                     : errors.placement
-                                      ? "border-red-500 bg-white text-[#5B6B60]"
-                                      : "border-[#E8E1CF] bg-white text-[#5B6B60]"
+                                      ? "border-red-500 bg-white text-[#405347]"
+                                      : "border-[#d6dfd2] bg-white text-[#405347]"
                                 }`}
                               >
                                 {option}
@@ -646,7 +645,7 @@ export function BookingPage({
                           </div>
                           <ValidationMessage message={errors.placement} />
                           {!errors.placement && !form.placement ? (
-                            <p className="mt-1.5 text-xs leading-5 text-[#5B6B60]">
+                            <p className="mt-1.5 text-xs leading-5 text-[#405347]">
                               Choose the exact area where the driver should
                               place the bin.
                             </p>
@@ -659,7 +658,7 @@ export function BookingPage({
                             >
                               <CircleAlert
                                 size={18}
-                                className="mt-0.5 shrink-0 text-[#65A30D]"
+                                className="mt-0.5 shrink-0 text-[#0B3B24]"
                                 aria-hidden="true"
                               />
                               <p className="text-[12px] leading-5">
@@ -685,7 +684,7 @@ export function BookingPage({
                             placeholder="Please make sure the access to the drop-off location is a minimum of 2.75m wide."
                             className={`${inputClass()} min-h-16 resize-y`}
                           />
-                          <span className="text-xs font-medium leading-5 text-[#5B6B60]">
+                          <span className="text-xs font-medium leading-5 text-[#405347]">
                             Optional — mention gates, slopes, overhead
                             obstacles, or restricted access.
                           </span>
@@ -709,11 +708,7 @@ export function BookingPage({
                             label="Pickup date"
                             name="pickup-date"
                             value={form.pickupDate}
-                            min={
-                              form.deliveryDate
-                                ? standardPickupDate(form.deliveryDate)
-                                : tomorrowIsoDate()
-                            }
+                            min={form.deliveryDate || tomorrowIsoDate()}
                             max={
                               form.deliveryDate
                                 ? maxPickupDate(form.deliveryDate)
@@ -723,30 +718,33 @@ export function BookingPage({
                             onChange={updatePickupDate}
                           />
                         </div>
-                        <p className="text-xs leading-5 text-[#5B6B60]">
+                        <p className="text-xs leading-5 text-[#405347]">
                           Delivery starts tomorrow. Closed days are shown in the
-                          calendar. Pickup must be 10–14 days after delivery.
+                          calendar. Any pickup from the delivery date through 10
+                          days is included. Up to 7 extra days is $50, and 8–14
+                          extra days is $75.
                         </p>
                         <div className="flex items-start gap-3 rounded-2xl border border-[#C6DAB0] bg-[#EEF5E5] px-4 py-3.5">
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#DDECCB] text-[#14532D]">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#DDECCB] text-[#172018]">
                             <CalendarClock size={20} aria-hidden="true" />
                           </span>
                           <div className="min-w-0">
-                            <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-[#5B6B60]">
+                            <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-[#405347]">
                               Rental Period
                             </p>
                             <p className="mt-0.5 text-[14px] font-bold text-[#0B3B24]">
-                              {form.hirePeriod === "Extended (14 days)"
-                                ? "Extended Hire"
-                                : "Standard Hire: 10 Days"}
+                              {selectedHire && selectedHire.fee > 0
+                                ? "Extended hire"
+                                : "Up to 10 days hire"}
                             </p>
-                            <p className="mt-0.5 text-[12px] leading-5 text-[#526159]">
-                              Pickup is set to 10 days automatically. You can
-                              extend it{" "}
-                              <span className="font-bold text-[#0B3B24]">
-                                up to 14 days
-                              </span>
-                              .
+                            <p className="mt-0.5 text-[12px] leading-5 text-[#405347]">
+                              {selectedHire && selectedHire.fee > 0
+                                ? `${formatCurrency(selectedHire.fee)} for ${
+                                    selectedHire.period === "Extended (7 days)"
+                                      ? "up to 7 extra days"
+                                      : "8–14 extra days"
+                                  }.`
+                                : "Included from your delivery date."}
                             </p>
                           </div>
                         </div>
@@ -768,7 +766,7 @@ export function BookingPage({
                             />
                             <ValidationMessage message={errors.fullName} />
                             {!errors.fullName ? (
-                              <span className="text-xs font-medium leading-5 text-[#5B6B60]">
+                              <span className="text-xs font-medium leading-5 text-[#405347]">
                                 Use the name of the person receiving the
                                 delivery.
                               </span>
@@ -786,7 +784,7 @@ export function BookingPage({
                             />
                             <ValidationMessage message={errors.phone} />
                             {!errors.phone ? (
-                              <span className="text-xs font-medium leading-5 text-[#5B6B60]">
+                              <span className="text-xs font-medium leading-5 text-[#405347]">
                                 Australian number, for example 0412 345 678.
                               </span>
                             ) : null}
@@ -804,7 +802,7 @@ export function BookingPage({
                             />
                             <ValidationMessage message={errors.email} />
                             {!errors.email ? (
-                              <span className="text-xs font-medium leading-5 text-[#5B6B60]">
+                              <span className="text-xs font-medium leading-5 text-[#405347]">
                                 We’ll send the booking confirmation and receipt
                                 here.
                               </span>
@@ -821,7 +819,7 @@ export function BookingPage({
                             placeholder="Tell us about the 2.75m wide area, access, or anything else we should know."
                             className={`${inputClass()} min-h-16 resize-y`}
                           />
-                          <span className="text-xs font-medium leading-5 text-[#5B6B60]">
+                          <span className="text-xs font-medium leading-5 text-[#405347]">
                             Optional — add instructions that will help the
                             delivery driver.
                           </span>
@@ -831,29 +829,26 @@ export function BookingPage({
 
                     {step === 6 ? (
                       <div>
-                        <BookingExtras
-                          value={form.extras}
-                          onChange={updateExtra}
-                        />
                         <BookingSummary
                           form={form}
                           total={estimatedTotal}
                           compact
                         />
-                        <p className="mt-2.5 flex items-center gap-2 text-[11.5px] text-[#5B6B60]">
-                          <Leaf size={13} className="shrink-0 text-[#4d7c0f]" />
-                          90% of collected waste is diverted from landfill
-                          through recycling and recovery.
-                        </p>
+                        <BookingExtras
+                          value={form.extras}
+                          onChange={updateExtra}
+                        />
                       </div>
                     ) : null}
                   </div>
+                </fieldset>
+                </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E1CF] pt-4">
+                  <div className="mb-4 flex shrink-0 items-center gap-3 bg-[#F4F7EC] pt-3 sm:mb-6">
                     {step === 1 ? (
                       <Link
                         href="/"
-                        className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
+                        className="rounded-full border-[1.5px] border-[#d6dfd2] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
                       >
                         Back
                       </Link>
@@ -861,16 +856,29 @@ export function BookingPage({
                       <button
                         type="button"
                         onClick={handleBack}
-                        className="rounded-full border-[1.5px] border-[#E8E1CF] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
+                        className="rounded-full border-[1.5px] border-[#d6dfd2] bg-transparent px-5 py-2.5 text-sm font-bold text-[#0B3B24] transition hover:border-[#C6DAB0] hover:bg-[#DDECCB]"
                       >
                         Back
                       </button>
                     )}
 
+                    {step === 6 ? (
+                      <div className="min-w-0 flex-1 text-right leading-none">
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#405347]">
+                          Total · delivery included
+                        </p>
+                        <p className="mt-1 text-[20px] font-extrabold tracking-[-0.03em] text-[#0B3B24]">
+                          {estimatedTotal !== null ? formatCurrency(estimatedTotal) : "—"}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="flex-1" />
+                    )}
+
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0D2417] disabled:cursor-not-allowed disabled:bg-[#C7D2C9]"
+                      className="inline-flex items-center gap-2 rounded-full bg-[#0B3B24] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#14532D] disabled:cursor-not-allowed disabled:bg-[#d6dfd2]"
                     >
                       {submitting ? (
                         <>
@@ -889,18 +897,22 @@ export function BookingPage({
                       )}
                     </button>
                   </div>
-                </fieldset>
               </form>
             )}
-          </div>
         </div>
       </div>
+    </main>
+  );
+}
 
-      <div className="border-t border-[#E8E1CF] py-10 text-center">
+function BookingPageFooter() {
+  return (
+    <>
+      <div className="mt-8 border-t border-[#d6dfd2] py-8 text-center">
         <p className="text-[13.5px] font-semibold text-[#0B3B24]">
           Still have questions?
         </p>
-        <p className="mt-1 text-[13px] text-[#5B6B60]">
+        <p className="mt-1 text-[13px] text-[#405347]">
           Can&apos;t find the answer you&apos;re looking for? Please{" "}
           <Link
             href="/contact"
@@ -911,15 +923,14 @@ export function BookingPage({
           .
         </p>
       </div>
-
-      <footer className="mx-auto flex max-w-[1400px] flex-col gap-3 border-t border-[#E8E1CF] px-5 py-8 text-sm text-[#5B6B60] sm:flex-row sm:items-center sm:justify-between sm:px-12">
+      <footer className="flex flex-col gap-3 border-t border-[#E8E1CF] py-6 text-sm text-[#5B6B60] sm:flex-row sm:items-center sm:justify-between">
         <span className="font-extrabold text-[#0B3B24]">
           Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
         </span>
         <span>
-          © 2026 Premium Skip Bin Hire Australia · Waste less, live more.
+          © 2026 Premium Skip Bin Hire Australia · Skip more, spend less.
         </span>
       </footer>
-    </main>
+    </>
   );
 }

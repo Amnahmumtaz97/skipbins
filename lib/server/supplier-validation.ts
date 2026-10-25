@@ -1,4 +1,5 @@
 import { InputError } from "@/lib/server/request";
+import { clearedSupplierArea, parseSupplierPostcodes } from "@/lib/supplier-area";
 import { victorianLocalities } from "@/lib/server/victorian-localities";
 export async function validateSupplierFields(
   body: Record<string, unknown>,
@@ -11,7 +12,7 @@ export async function validateSupplierFields(
     ["email", "email", 254],
     ["phone", "phone", 30],
     ["abn", "abn", 30],
-    ["serviceArea", "service_area", 250],
+    ["serviceArea", "service_area", 4000],
   ] as const) {
     if (partial && body[key] === undefined) continue;
     const value = body[key] ?? "";
@@ -24,10 +25,19 @@ export async function validateSupplierFields(
       throw new InputError("Enter a valid supplier email.");
     if (key === "abn" && text && !/^\d{11}$/.test(text.replace(/\s/g, "")))
       throw new InputError("ABN must have 11 digits.");
-    if (key === "serviceArea" && text) {
-      const codes = text.split(",").map((p) => p.trim());
-      if (codes.length > 30 || codes.some((p) => !/^\d{4}$/.test(p)))
+    if (key === "serviceArea") {
+      if (!text || text === clearedSupplierArea) {
+        changes[column] = text ? clearedSupplierArea : "";
+        continue;
+      }
+      const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
+      if (
+        !parts.length ||
+        parts.length > 400 ||
+        parts.some((part) => !/^\d{4}$/.test(part))
+      )
         throw new InputError("Enter Victorian postcodes separated by commas.");
+      const codes = parseSupplierPostcodes(text);
       const matches = await Promise.all(
         codes.map((p) => victorianLocalities(p)),
       );
@@ -36,7 +46,9 @@ export async function validateSupplierFields(
           "Supplier coverage must contain only verified Victorian postcodes.",
         );
       changes[column] = [...new Set(codes)].join(", ");
-    } else changes[column] = text;
+      continue;
+    }
+    changes[column] = text;
   }
   if (body.rating !== undefined) {
     if (

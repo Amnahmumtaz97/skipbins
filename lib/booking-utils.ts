@@ -1,4 +1,5 @@
 import { acceptedWaste, getBinBySizeOrId } from "@/lib/data/skip-bins";
+import type { HirePeriod } from "@/types/skip-bin";
 
 
 export function todayIsoDate() {
@@ -28,13 +29,36 @@ export function tomorrowIsoDate() {
   return addDaysIso(todayIsoDate(), 1);
 }
 
+export function earliestPickupDate(deliveryDate: string) {
+  return deliveryDate;
+}
+
 export function standardPickupDate(deliveryDate: string) {
   const tenthDay = addDaysIso(deliveryDate, 10);
-  return isSundayIso(tenthDay) ? addDaysIso(tenthDay, 1) : tenthDay;
+  return isSundayIso(tenthDay) ? addDaysIso(tenthDay, -1) : tenthDay;
 }
 
 export function maxPickupDate(deliveryDate: string) {
-  return addDaysIso(deliveryDate, 14);
+  return addDaysIso(deliveryDate, 24);
+}
+
+export function daysAfterDelivery(deliveryDate: string, pickupDate: string) {
+  const start = /^(\d{4})-(\d{2})-(\d{2})$/.exec(deliveryDate);
+  const end = /^(\d{4})-(\d{2})-(\d{2})$/.exec(pickupDate);
+  if (!start || !end) return Number.NaN;
+  const from = Date.UTC(Number(start[1]), Number(start[2]) - 1, Number(start[3]));
+  const to = Date.UTC(Number(end[1]), Number(end[2]) - 1, Number(end[3]));
+  return Math.round((to - from) / 86_400_000);
+}
+
+export function hireForDates(deliveryDate: string, pickupDate: string) {
+  const days = daysAfterDelivery(deliveryDate, pickupDate);
+  if (!Number.isFinite(days) || days < 0 || days > 24) return null;
+  if (days <= 10)
+    return { period: "Standard (10 days)" as HirePeriod, fee: 0 };
+  if (days <= 17)
+    return { period: "Extended (7 days)" as HirePeriod, fee: 50 };
+  return { period: "Extended (14 days)" as HirePeriod, fee: 75 };
 }
 
 

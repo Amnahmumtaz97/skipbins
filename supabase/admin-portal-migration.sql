@@ -23,6 +23,20 @@ grant all on public.portal_settings, public.bin_rates, public.service_suburbs to
 -- Pending checkouts hold stock for 31 minutes; Stripe checkout expires after 30.
 alter table public.bookings add column if not exists reserved_until timestamptz;
 alter table public.bookings add column if not exists booking_turnaround integer not null default 1;
+create table if not exists public.order_counters (
+ year_key text primary key,
+ last_value integer not null
+);
+alter table public.order_counters enable row level security;
+revoke all on public.order_counters from anon, authenticated;
+grant all on public.order_counters to service_role;
+insert into public.order_counters (year_key, last_value)
+select substring(reference from 5 for 2), max(substring(reference from 8)::integer)
+from public.bookings
+where reference ~ '^ORD-[0-9]{2}-[0-9]+$'
+group by 1
+on conflict (year_key) do update
+set last_value = greatest(public.order_counters.last_value, excluded.last_value);
 create or replace function public.reserve_admin_booking(payload jsonb)
 returns table(id uuid, reference text)
 language plpgsql security definer set search_path = public
@@ -35,8 +49,12 @@ declare
  back_date date := (payload->>'pickup_date')::date;
  peak integer;
  booking_id uuid := (payload->>'id')::uuid;
- booking_ref text := payload->>'reference';
+ booking_ref text;
+ order_year text := to_char(now() at time zone 'Australia/Melbourne', 'YY');
+ seq integer;
+ attempt integer;
 begin
+ perform pg_advisory_xact_lock(hashtextextended('ord-number', 0));
  perform pg_advisory_xact_lock(hashtextextended(payload->>'bin_size', 0));
  select data into rate from public.bin_rates where bin_rates.id = (payload->>'bin_size') || '-' || (payload->>'waste_type');
  if rate is not null and coalesce((rate->>'active')::boolean, true) = false then raise exception 'Bin unavailable'; end if;
@@ -53,6 +71,17 @@ begin
    group by d
   ) capacity_by_day;
   if peak >= capacity then raise exception 'Bin stock is no longer available for these dates'; end if;
+ end if;
+ for attempt in 1..20 loop
+  insert into public.order_counters as counters (year_key, last_value)
+  values (order_year, 1)
+  on conflict (year_key) do update set last_value = counters.last_value + 1
+  returning counters.last_value into seq;
+  booking_ref := 'ORD-' || order_year || '-' || lpad(seq::text, 4, '0');
+  exit when not exists (select 1 from public.bookings where bookings.reference = booking_ref);
+ end loop;
+ if booking_ref is null or exists (select 1 from public.bookings where bookings.reference = booking_ref) then
+  raise exception 'Could not allocate order number';
  end if;
  insert into public.bookings(id,reference,bin_size,postcode,waste_type,delivery_date,pickup_date,hire_period,full_name,email,phone,street_address,placement,access,notes,status,amount_cents,customer_id,reserved_until,booking_turnaround,booking_source)
  values(booking_id,booking_ref,payload->>'bin_size',payload->>'postcode',payload->>'waste_type',drop_date,back_date,payload->>'hire_period',payload->>'full_name',payload->>'email',payload->>'phone',payload->>'street_address',coalesce(payload->>'placement',''),coalesce(payload->>'access',''),coalesce(payload->>'notes',''),'pending',(payload->>'amount_cents')::integer,nullif(payload->>'customer_id','')::uuid,now()+interval '31 minutes',cooldown,coalesce(payload->>'booking_source','direct'));

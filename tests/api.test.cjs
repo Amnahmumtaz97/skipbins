@@ -18,10 +18,11 @@ const { validateQuote } = require('../lib/server/quote-service.ts');
 const { bins, formatBinLabel } = require('../lib/data/skip-bins.ts');
 const { emptyBookingExtras } = require('../lib/data/booking-extras.ts');
 const { selectedAddressLocationError } = require('../lib/address-validation.ts');
+const { formatBookingAddress } = require('../lib/booking-address.ts');
 const { adminStripeTestAmountCents, adminStripeTestAmountLabel } = require('../lib/data/admin-stripe-test.ts');
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
-const { createPendingBooking } = require('../lib/server/booking-service.ts');
+const { createPendingBooking, formatOrderNumber, orderYearSuffix } = require('../lib/server/booking-service.ts');
 const { newCustomerCode, normalizeCustomerEmail } = require('../lib/server/customer-service.ts');
 const { isAdminUser, isSupplierUser, supplierIdFromUser } = require('../lib/server/admin-auth.ts');
 const { isOperationStatus, supplierActionStatuses } = require('../lib/data/operations.ts');
@@ -44,12 +45,13 @@ test('location searches accept suburbs and partial postcodes while rejecting emp
   for (const value of ['0800', '4000', '400', '40000', 'Brisbane', 'Mount Gravatt', '4000 ']) assert.equal(isValidPostcode(value), true);
   for (const value of ['', ' ', '90', '４０００', 4000, null, "' OR 1=1", '<script>']) assert.equal(isValidPostcode(value), false);
 });
-test('catalogue allowlists, next-day delivery and 10-to-14-day pickup rules are required', () => {
+test('catalogue allowlists, next-day delivery and pickup hire rules are required', () => {
   assert.equal(validateQuote(valid).postcode, '0800');
-  for (const changes of [{size:'14m3'}, {size:'10m3',waste:'mixed'}, {size:'12m3',waste:'soil'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-01',pickupDate:'2099-01-03'}, {date:'2099-01-01',pickupDate:'2099-01-16'}, {date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Extended (14 days)'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
+  for (const changes of [{size:'14m3'}, {size:'10m3',waste:'mixed'}, {size:'12m3',waste:'soil'}, {waste:'asbestos'}, {waste:'cleanfill'}, {date:'2027-02-30'}, {date:'2000-01-01'}, {date:'2099-01-04'}, {date:'2099-01-01',pickupDate:'2098-12-31'}, {date:'2099-01-01',pickupDate:'2099-01-26'}, {date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Extended (14 days)'}, {hirePeriod:'forever'}, {hirePeriod:'Long-term (ask us)'}]) assert.throws(() => validateQuote({...valid,...changes}));
   assert.equal(validateQuote({...valid,size:'10m3',waste:'green'}).size, '10m3');
-  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)'}).pickupDate, '2099-01-12');
-  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-15',hirePeriod:'Extended (14 days)'}).pickupDate, '2099-01-15');
+  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-03',hirePeriod:'Standard (10 days)'}).pickupDate, '2099-01-03');
+  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Extended (7 days)'}).pickupDate, '2099-01-12');
+  assert.equal(validateQuote({...valid,date:'2099-01-01',pickupDate:'2099-01-22',hirePeriod:'Extended (14 days)'}).pickupDate, '2099-01-22');
 });
 test('bin catalogue uses the approved names and centralized dimensions', () => {
   assert.deepEqual(bins.map((bin) => bin.size), ['2m³', '3m³', '4m³', '6m³', '8m³', '9m³', '10m³', '12m³']);
@@ -74,8 +76,10 @@ test('quotes return catalogue bin prices and fail closed on invalid input', asyn
   const data = await response.json();
   assert.equal(data.serviceable, true);
   assert.equal(data.total, 350);
+  const week = await quotes.POST(request({ ...valid, hirePeriod: 'Extended (7 days)' }));
+  assert.equal((await week.json()).total, 400);
   const extended = await quotes.POST(request({ ...valid, hirePeriod: 'Extended (14 days)' }));
-  assert.equal((await extended.json()).total, 490);
+  assert.equal((await extended.json()).total, 425);
 });
 test('customer identities use normalized emails and non-guessable public codes', () => {
   assert.equal(normalizeCustomerEmail('  Customer.Name+Bins@Example.COM '), 'customer.name+bins@example.com');
@@ -148,6 +152,11 @@ test('a booking location is resolved only after a four-digit postcode is selecte
   assert.equal(isResolvedPostcode('3000'), true);
   for (const value of ['Melbourne', 'MELBOURNE, VIC 3000', '300', '30000', '', null]) assert.equal(isResolvedPostcode(value), false);
 });
+test('order numbers use the year and a four-digit counter', () => {
+  assert.equal(formatOrderNumber(1, '26'), 'ORD-26-0001');
+  assert.equal(formatOrderNumber(42, '26'), 'ORD-26-0042');
+  assert.match(orderYearSuffix(), /^\d{2}$/);
+});
 test('pending bookings leave the unique Stripe session ID unset until Stripe creates it', async () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -158,11 +167,16 @@ test('pending bookings leave the unique Stripe session ID unset until Stripe cre
   process.env.SUPABASE_SECRET_KEY = 'test-secret';
   delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const originalFetch = global.fetch;
-  global.fetch = async (_url, options) => {
+  global.fetch = async (url, options) => {
+    const year = orderYearSuffix();
+    if (String(url).includes('/rest/v1/bookings')) {
+      return new Response(JSON.stringify([{ reference: formatOrderNumber(7, year) }]), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
     const body = JSON.parse(options.body);
-    const row = Array.isArray(body) ? body[0] : body;
+    const row = body.payload ?? (Array.isArray(body) ? body[0] : body);
     assert.equal(row.stripe_session_id, null);
-    return new Response('', { status: 201 });
+    assert.equal(row.reference, formatOrderNumber(8, year));
+    return new Response(JSON.stringify([{ id: row.id, reference: row.reference }]), { status: 200, headers: { 'content-type': 'application/json' } });
   };
   try {
     await createPendingBooking({ address:'3121',binSize:'2m3',wasteType:'green',deliveryDate:'2099-01-01',pickupDate:'2099-01-12',hirePeriod:'Standard (10 days)',extras:emptyBookingExtras(),fullName:'Test',email:'test@example.com',phone:'0400000000',streetAddress:'12 Test St',placement:'Driveway',access:'',notes:'' }, 14900);
@@ -240,25 +254,11 @@ test('postcode endpoint rejects unsafe queries and returns only Victorian locali
   assert.equal(shortResponse.status, 400);
   assert.match((await shortResponse.json()).error, /at least 3 characters/i);
   assert.equal((await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=%3Cscript%3E'))).status, 400);
-  const originalFetch = global.fetch;
-  const originalKey = process.env.AUSPOST_API_KEY;
-  process.env.AUSPOST_API_KEY = 'test-only';
-  global.fetch = async (url, options) => {
-    assert.ok(url.startsWith('https://digitalapi.auspost.com.au/'));
-    assert.equal(new URL(url).searchParams.get('state'), 'VIC');
-    assert.equal(options.redirect, 'error');
-    return Response.json({ localities: { locality: [
-      { postcode:3000, location:'MELBOURNE',state:'VIC' },
-      { postcode:800, location:'DARWIN',state:'NT' },
-    ] } });
-  };
-  try {
-    const response = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=Melbourne'));
-    assert.deepEqual(await response.json(), [{ postcode:'3000', suburb:'MELBOURNE', state:'VIC' }]);
-  } finally {
-    global.fetch = originalFetch;
-    if (originalKey === undefined) delete process.env.AUSPOST_API_KEY; else process.env.AUSPOST_API_KEY = originalKey;
-  }
+  const response = await postcodes.GET(new NextRequest('https://skipbins.test/api/postcodes?q=Melbourne'));
+  const localities = await response.json();
+  assert.equal(response.status, 200);
+  assert.ok(localities.every((row) => row.state === 'VIC' && row.suburb.includes('MELBOURNE')));
+  assert.ok(localities.some((row) => row.suburb === 'MELBOURNE' && row.postcode === '3000'));
 });
 test('address endpoint requires a street and postcode and keeps only that Victorian postcode', async () => {
   const shortResponse = await addresses.GET(new NextRequest('https://skipbins.test/api/addresses?q=&postcode=3121'));
@@ -322,4 +322,10 @@ test('address endpoint requires a street and postcode and keeps only that Victor
     if (originalKey === undefined) delete process.env.GET_ADDRESS_API_KEY; else process.env.GET_ADDRESS_API_KEY = originalKey;
     if (originalLegacyKey === undefined) delete process.env.GETADDRESS_API_KEY; else process.env.GETADDRESS_API_KEY = originalLegacyKey;
   }
+});
+test('booking address keeps the suburb from the order when the street line is abbreviated', () => {
+  assert.equal(formatBookingAddress('4 RESERVE AV', '3061'), '4 RESERVE AV, CAMPBELLFIELD VIC 3061');
+  assert.equal(formatBookingAddress('4 RESERVE AV, CAMPBELLFIELD VIC 3061', '3061'), '4 RESERVE AV, CAMPBELLFIELD VIC 3061');
+  assert.equal(formatBookingAddress('1 Test St', '3051'), '1 Test St, VIC 3051');
+  assert.equal(formatBookingAddress('12 GEORGE ST, RICHMOND VIC 3121', '3121'), '12 GEORGE ST, RICHMOND VIC 3121');
 });

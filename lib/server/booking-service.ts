@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -8,6 +7,7 @@ import {
   type BookingExtraQuantities,
 } from "@/lib/data/booking-extras";
 import type { CustomerIdentity } from "@/lib/server/customer-service";
+import { chooseSupplierForOrder } from "@/lib/server/assign-supplier";
 
 export type BookingRecord = {
   address: string;
@@ -21,6 +21,7 @@ export type BookingRecord = {
   email: string;
   phone: string;
   streetAddress: string;
+  deliveryAddressLabel?: string;
   placement: string;
   access: string;
   notes: string;
@@ -47,6 +48,8 @@ export type StoredBooking = {
   notes: string;
   customer_id?: string | null;
   customer_code?: string;
+  supplier_id?: string | null;
+  operation_status?: string;
 };
 
 function writeKey() {
@@ -62,8 +65,22 @@ function writeKey() {
   return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
 }
 
-function newReference() {
-  return `SB-${randomBytes(4).toString("hex").toUpperCase()}`;
+export function orderYearSuffix(now = new Date()) {
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Melbourne",
+    year: "2-digit",
+  }).format(now);
+}
+
+export function formatOrderNumber(sequence: number, year = orderYearSuffix()) {
+  return `ORD-${year}-${String(sequence).padStart(4, "0")}`;
+}
+
+function sequenceFromReference(reference: string, year: string) {
+  const match = new RegExp(`^ORD-${year}-(\\d+)$`).exec(reference);
+  if (!match) return 0;
+  const value = Number(match[1]);
+  return Number.isInteger(value) && value > 0 ? value : 0;
 }
 
 function localFile() {
@@ -114,7 +131,7 @@ function fromRecord(
     : "";
   return {
     id: randomUUID(),
-    reference: newReference(),
+    reference: "",
     status: "pending",
     amount_cents: amountCents,
     stripe_session_id: null,
@@ -127,12 +144,29 @@ function fromRecord(
     full_name: data.fullName.trim(),
     email: data.email.trim(),
     phone: data.phone.trim(),
-    street_address: data.streetAddress.trim(),
+    street_address: (data.deliveryAddressLabel?.trim() || data.streetAddress).trim(),
     placement: data.placement,
     access: data.access.trim(),
     notes: [extrasNote, data.notes.trim()].filter(Boolean).join("\n"),
     ...(customer?.storage === "database" ? { customer_id: customer.id } : {}),
   };
+}
+
+async function nextOrderReference(client: SupabaseClient) {
+  const year = orderYearSuffix();
+  const { data, error } = await client
+    .from("bookings")
+    .select("reference")
+    .like("reference", `ORD-${year}-%`)
+    .limit(10000);
+  if (error) throw databaseError("Could not allocate order number", error);
+  const next =
+    (data ?? []).reduce((max, row) => {
+      const reference =
+        row && typeof row.reference === "string" ? row.reference : "";
+      return Math.max(max, sequenceFromReference(reference, year));
+    }, 0) + 1;
+  return formatOrderNumber(next, year);
 }
 
 async function persistLocally(row: StoredBooking) {
@@ -156,14 +190,24 @@ export async function createPendingBooking(
   const row = fromRecord(data, amountCents, customer);
   const client = supabase();
   if (!client) throw new Error("Booking provider is not configured");
-  const { data: saved, error } = await client.rpc("reserve_admin_booking", {
-    payload: { ...row, booking_source: source },
-  });
+  let saved: { reference?: string }[] | null = null;
+  let error: { code?: string; message?: string } | null = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    row.reference = await nextOrderReference(client);
+    const result = await client.rpc("reserve_admin_booking", {
+      payload: { ...row, booking_source: source },
+    });
+    saved = result.data;
+    error = result.error;
+    if (!error && saved?.length) break;
+    if (error?.code !== "23505") break;
+  }
   if (error || !saved?.length)
     throw databaseError(
       "Could not reserve booking",
       error ?? { message: "Reservation not returned" },
     );
+  if (saved[0]?.reference) row.reference = saved[0].reference;
   if (process.env.NODE_ENV !== "production") await persistLocally(row);
   return { id: row.id, reference: row.reference };
 }
@@ -197,13 +241,34 @@ export async function attachCheckoutSession(
 export async function markBookingPaid(lookup: {
   id?: string;
   stripeSessionId?: string;
+  sandbox?: boolean;
 }) {
   const client = supabase();
   if (client) {
-    let query = client
+    let pendingQuery = client
       .from("bookings")
-      .update({ status: "paid" })
+      .select("postcode,delivery_date,pickup_date")
       .eq("status", "pending");
+    if (lookup.stripeSessionId)
+      pendingQuery = pendingQuery.eq("stripe_session_id", lookup.stripeSessionId);
+    else if (lookup.id) pendingQuery = pendingQuery.eq("id", lookup.id);
+    else return null;
+    const pending = await pendingQuery.maybeSingle();
+    const supplierId =
+      pending.data?.postcode
+        ? await chooseSupplierForOrder(client, {
+            postcode: String(pending.data.postcode),
+            deliveryDate: pending.data.delivery_date,
+            pickupDate: pending.data.pickup_date,
+          })
+        : null;
+    const changes: Record<string, string> = { status: "paid" };
+    if (supplierId) {
+      changes.supplier_id = supplierId;
+      changes.operation_status = "assigned";
+      changes.assigned_at = new Date().toISOString();
+    }
+    let query = client.from("bookings").update(changes).eq("status", "pending");
     if (lookup.stripeSessionId)
       query = query.eq("stripe_session_id", lookup.stripeSessionId);
     else if (lookup.id) query = query.eq("id", lookup.id);

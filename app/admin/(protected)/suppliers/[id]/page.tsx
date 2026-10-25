@@ -35,7 +35,9 @@ export default async function Page({
           label="Current jobs"
           value={
             jobs.filter(
-              (b) => !["collected", "cancelled"].includes(b.operation_status),
+              (b) =>
+                !["collected", "cancelled"].includes(b.operation_status) &&
+                !b.deleted,
             ).length
           }
         />

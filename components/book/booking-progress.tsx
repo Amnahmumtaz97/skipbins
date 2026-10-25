@@ -19,13 +19,13 @@ export function BookingProgress({ current, maxReached, onSelect }: BookingProgre
   const fill = ((current - 1) / (STEPS.length - 1)) * 100;
 
   return (
-    <div className="relative mb-5 pt-0.5">
-      <div className="absolute left-[16px] right-[16px] top-[16px] h-0.5 bg-[#DDECCB]" />
+    <nav aria-label="Booking progress" className="relative">
+      <div className="absolute bottom-4 left-[15px] top-4 w-0.5 bg-[#DDECCB]" />
       <div
-        className="absolute left-[16px] top-[16px] h-0.5 bg-gradient-to-r from-[#14532D] to-[#65A30D] transition-[width] duration-300"
-        style={{ width: `calc((100% - 32px) * ${fill / 100})` }}
+        className="absolute left-[15px] top-4 w-0.5 origin-top bg-gradient-to-b from-[#14532D] to-[#65A30D] transition-[height] duration-300"
+        style={{ height: `calc((100% - 32px) * ${fill / 100})` }}
       />
-      <ol className="relative z-[2] flex justify-between">
+      <ol className="relative z-[2] flex flex-col gap-4">
         {STEPS.map((step) => {
           const done = step.id < current;
           const active = step.id === current;
@@ -33,30 +33,33 @@ export function BookingProgress({ current, maxReached, onSelect }: BookingProgre
           const labelClass = done || active ? "font-bold text-[#0B3B24]" : "text-[#405347]";
 
           return (
-            <li key={step.id} className="flex flex-1 flex-col items-center gap-1.5">
+            <li key={step.id} className="flex h-8 items-center">
               <button
                 type="button"
                 disabled={!reachable}
                 onClick={() => reachable && onSelect(step.id)}
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition ${
-                  done
-                    ? "bg-[#4d7c0f] text-white"
-                    : active
-                      ? "bg-[#0B3B24] text-white shadow-[0_0_0_4px_#DDECCB]"
-                      : "border-2 border-[#DDECCB] bg-white text-[#405347]"
-                } ${reachable ? "cursor-pointer" : "cursor-not-allowed"}`}
+                className={`flex min-w-0 items-center gap-2 text-left ${reachable ? "cursor-pointer" : "cursor-not-allowed"}`}
                 aria-current={active ? "step" : undefined}
-                aria-label={step.label}
               >
-                {done ? <Check size={16} strokeWidth={2.6} /> : step.id}
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition ${
+                    done
+                      ? "bg-[#0B3B24] text-white"
+                      : active
+                        ? "bg-[#0B3B24] text-white shadow-[0_0_0_4px_#DDECCB]"
+                        : "border-2 border-[#DDECCB] bg-white text-[#405347]"
+                  }`}
+                >
+                  {done ? <Check size={16} strokeWidth={2.6} /> : step.id}
+                </span>
+                <span className={`text-[11px] leading-tight sm:text-[12px] ${labelClass}`}>
+                  {step.label}
+                </span>
               </button>
-              <span className={`max-w-[58px] text-center text-[10px] leading-tight sm:max-w-none sm:text-[11px] ${labelClass}`}>
-                {step.label}
-              </span>
             </li>
           );
         })}
       </ol>
-    </div>
+    </nav>
   );
 }

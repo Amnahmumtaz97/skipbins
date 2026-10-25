@@ -50,7 +50,8 @@ export function CustomerManager({
             .filter(
               (b) =>
                 b.payment_status === "paid" &&
-                b.operation_status !== "cancelled",
+                b.operation_status !== "cancelled" &&
+                !b.deleted,
             )
             .reduce((s, b) => s + b.amount_cents, 0),
         };

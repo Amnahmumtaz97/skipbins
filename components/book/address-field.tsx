@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
@@ -26,6 +26,7 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
   const [selectedStreet, setSelectedStreet] = useState<string | null>(displayValue ? value : null);
   const [trackedPostcode, setTrackedPostcode] = useState(postcode);
   const [lookup, setLookup] = useState<{ query: string; results: AddressSuggestion[]; error?: string } | null>(null);
+  const cache = useRef(new Map<string, AddressSuggestion[]>());
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [frequent, setFrequent] = useState<AddressSuggestion[]>([]);
@@ -39,11 +40,14 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
   const postcodeReady = postcodeSelected ?? /^\d{4}$/.test(postcode);
   const canSearch = postcodeReady && searchable(text);
   const chosen = selectedStreet === value && canSearch;
-  const current = lookup?.query === text ? lookup : null;
+  const cacheKey = `${postcode}|${text.trim()}`;
+  const cached = canSearch ? cache.current.get(cacheKey) : undefined;
+  const current = cached ? { query: text, results: cached } : lookup?.query === text ? lookup : null;
+  const previous = lookup && text.trim().startsWith(lookup.query.trim()) ? lookup.results : [];
   const loading = canSearch && !chosen && !current;
   const showFrequent = text.trim() === "" || chosen;
-  const results = showFrequent ? frequent : (current?.results ?? []);
-  const open = focused && results.length > 0;
+  const results = showFrequent ? frequent : (current?.results ?? previous);
+  const open = focused && (results.length > 0 || loading);
 
   const selectResult = (result: AddressSuggestion) => {
     setDraftText(result.label);
@@ -59,18 +63,24 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
   useEffect(() => {
     if (!postcodeReady || !searchable(text)) return;
     if (chosen) return;
+    const query = text.trim();
+    const key = `${postcode}|${query}`;
+    if (cache.current.has(key)) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/addresses?q=${encodeURIComponent(text.trim())}&postcode=${encodeURIComponent(postcode)}`, { signal: controller.signal });
+        const response = await fetch(`/api/addresses?q=${encodeURIComponent(query)}&postcode=${encodeURIComponent(postcode)}`, { signal: controller.signal });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Address search is unavailable. Please try again.");
         if (!Array.isArray(data)) throw new Error("Address search is unavailable. Please try again.");
-        if (!controller.signal.aborted) setLookup({ query: text, results: data });
+        if (!controller.signal.aborted) {
+          cache.current.set(key, data);
+          setLookup({ query: text, results: data });
+        }
       } catch (lookupError) {
         if (!controller.signal.aborted) setLookup({ query: text, results: [], error: lookupError instanceof Error && lookupError.name === "Error" ? lookupError.message : "Couldn't load addresses. Please check your connection and try again." });
       }
-    }, 300);
+    }, 80);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [chosen, postcode, postcodeReady, text]);
 
@@ -95,8 +105,9 @@ export function AddressField({ value, displayValue, onChange, onSelectionChange,
     {loading ? <Loader2 aria-hidden="true" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#14532D]" /> : null}
     <ul id={`${id}-results`} role="listbox" aria-label={showFrequent ? "Frequently selected addresses" : "Matching addresses"} hidden={!open} className="absolute z-40 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-[#cbd8c5] bg-white shadow-lg">
       <li role="presentation" className="px-3 pb-1 pt-2.5 text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#718078]">
-        {showFrequent ? "Frequently selected" : "Select a complete address"}
+        {showFrequent ? "Frequently selected" : loading && results.length === 0 ? "Looking up addresses" : "Select a complete address"}
       </li>
+      {loading && results.length === 0 ? <li className="px-3 py-3 text-sm font-medium text-[#405347]">Finding matching streets…</li> : null}
       {results.map((result, index) => <li key={result.label} id={`${id}-option-${index}`} role="option" aria-selected={index === active}
         onMouseDown={(event) => event.preventDefault()} onClick={() => selectResult(result)}
         className={`flex min-h-11 cursor-pointer items-center break-words px-3 py-3 text-sm ${index === active ? "bg-[#DDECCB]" : "hover:bg-[#F4F7EC]"}`}>

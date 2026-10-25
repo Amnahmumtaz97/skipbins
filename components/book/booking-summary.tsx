@@ -1,4 +1,3 @@
-import { CalendarDays, Clock3, MapPin, Package, ReceiptText, Recycle, Truck, UserRound, type LucideIcon } from "lucide-react";
 import { acceptedWaste, formatBinLabel, formatHirePeriod, getBinBySizeOrId } from "@/lib/data/skip-bins";
 import { selectedBookingExtras } from "@/lib/data/booking-extras";
 import { formatCurrency } from "@/lib/booking-utils";
@@ -14,70 +13,42 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
   const deliveryAddress = [form.streetAddress, form.locationLabel || form.address].filter(Boolean).join(", ");
 
   if (compact) {
+    const facts = [
+      ["Bin", bin ? formatBinLabel(bin.id) : "—"],
+      ["Waste", waste?.label ?? "—"],
+      ["Delivery", shortDate(form.deliveryDate)],
+      ["Pickup", shortDate(form.pickupDate)],
+      ["Hire", shortHire(form.hirePeriod)],
+      ["Placement", form.placement || "—"],
+    ] as const;
     return (
-      <section aria-labelledby="review-summary-title" className="overflow-hidden rounded-[22px] border-[1.5px] border-[#DCE4D4] bg-white shadow-[0_14px_40px_rgba(22,36,28,0.06)]">
-        <div className="flex items-center justify-between gap-4 bg-[#0B3B24] px-5 py-4 text-white sm:px-6">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#B7E36D] text-[#0B3B24]">
-              <ReceiptText size={20} aria-hidden="true" />
-            </span>
-            <div>
-              <h3 id="review-summary-title" className="text-[16px] font-extrabold">Booking summary</h3>
-              <p className="mt-0.5 text-[11px] text-white/65">Check these details before secure payment</p>
+      <section aria-label="Booking details" className="overflow-hidden rounded-2xl border border-[#d6dfd2] bg-white">
+        <dl className="grid grid-cols-2 sm:grid-cols-3">
+          {facts.map(([label, value]) => (
+            <div key={label} className="min-w-0 border-b border-[#FFFFFF] px-3 py-2 sm:px-3.5">
+              <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#405347]">{label}</dt>
+              <dd className="mt-0.5 text-[13px] font-semibold leading-4 text-[#172018]">{value}</dd>
             </div>
+          ))}
+        </dl>
+        <dl>
+          <div className="border-b border-[#FFFFFF] px-3 py-2 sm:px-3.5">
+            <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#405347]">Address</dt>
+            <dd className="mt-0.5 text-[13px] font-semibold leading-4 text-[#172018]">{deliveryAddress || location || "—"}</dd>
           </div>
-          <span className="hidden rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white/80 sm:inline-flex">Ready to pay</span>
-        </div>
-
-        <div className="grid sm:grid-cols-2">
-          <ReviewSummaryItem icon={Package} label="Bin size" value={bin ? formatBinLabel(bin.id) : "—"} />
-          <ReviewSummaryItem icon={Recycle} label="Waste type" value={waste?.label ?? "—"} />
-          <ReviewSummaryItem
-            icon={MapPin}
-            label="Delivery location"
-            value={[deliveryAddress, form.placement].filter(Boolean).join(" · ") || location || "—"}
-            wide
-          />
-          <ReviewSummaryItem
-            icon={CalendarDays}
-            label="Delivery and pickup"
-            value={[form.deliveryDate ? `Delivery ${form.deliveryDate}` : "", form.pickupDate ? `Pickup ${form.pickupDate}` : ""].filter(Boolean).join(" · ") || "—"}
-          />
-          <ReviewSummaryItem icon={Clock3} label="Hire period" value={formatHirePeriod(form.hirePeriod) || "—"} />
-          <ReviewSummaryItem
-            icon={UserRound}
-            label="Contact"
-            value={[form.fullName, form.phone, form.email].filter(Boolean).join(" · ") || "—"}
-            wide
-            last
-          />
-        </div>
-
-        <div className="border-t border-[#DCE4D4] bg-[#F4F7EC] px-5 py-4 sm:px-6">
-          <div className="grid gap-x-8 gap-y-2 text-[12.5px] sm:grid-cols-2">
-            <PriceRow label="Bin hire" value={hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"} />
-            <div className="flex items-center justify-between gap-4 py-1.5 text-[#4D7C0F]">
-              <span className="inline-flex items-center gap-2 font-semibold"><Truck size={14} aria-hidden="true" /> Delivery &amp; pickup</span>
-              <span className="font-extrabold">FREE</span>
-            </div>
-            {extras.map((extra) => (
-              <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={extra.total ? `+${formatCurrency(extra.total)}` : "FREE"} />
-            ))}
+          <div className="px-3 py-2 sm:px-3.5">
+            <dt className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#405347]">Contact</dt>
+            <dd className="mt-0.5 text-[13px] font-semibold leading-4 text-[#172018]">
+              {[form.fullName, form.phone, form.email].filter(Boolean).join(" · ") || "—"}
+            </dd>
           </div>
-          <div className="mt-3 flex items-end justify-between gap-5 border-t border-[#CED9C8] pt-3">
-            <div>
-              <p className="text-[13px] font-extrabold text-[#0B3B24]">Estimated total</p>
-              <p className="mt-0.5 text-[10.5px] text-[#6B776F]">AUD · GST included</p>
-            </div>
-            <p className="text-[24px] font-extrabold tracking-[-0.035em] text-[#0B3B24]">{total !== null ? formatCurrency(total) : "Awaiting quote"}</p>
-          </div>
-        </div>
+        </dl>
       </section>
     );
   }
 
   return (
-    <div className="rounded-[18px] border-[1.5px] border-[#E8E1CF] bg-white px-[18px]">
+    <div className="rounded-[18px] border-[1.5px] border-[#d6dfd2] bg-white px-[18px]">
       <div>
         <SummaryRow label="Location" value={location || "—"} />
         <SummaryRow label="Waste type" value={waste?.label ?? "—"} />
@@ -95,14 +66,14 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
         />
       </div>
 
-      <div className="border-t border-[#E8E1CF] py-[18px]">
+      <div className="border-t border-[#d6dfd2] py-[18px]">
         <p className="mb-2 text-[15px] font-semibold text-[#0B3B24]">Payment</p>
         <PriceRow label="Bin hire" value={hireTotal !== null ? formatCurrency(hireTotal) : "Awaiting quote"} />
         <PriceRow label="Delivery & pickup" value="FREE" />
         {extras.map((extra) => (
           <PriceRow key={extra.id} label={`${extra.label} × ${extra.quantity}`} value={extra.total ? `+${formatCurrency(extra.total)}` : "FREE"} />
         ))}
-        <div className="mt-1.5 flex justify-between border-t border-[#E8E1CF] pt-3 text-[14.5px] font-bold text-[#0B3B24]">
+        <div className="mt-1.5 flex justify-between border-t border-[#d6dfd2] pt-3 text-[14.5px] font-bold text-[#0B3B24]">
           <span>Total</span>
           <span>{total !== null ? formatCurrency(total) : "Calculated after we confirm your details"}</span>
         </div>
@@ -111,38 +82,35 @@ export function BookingSummary({ form, total, compact = false }: { form: Booking
   );
 }
 
-function ReviewSummaryItem({ icon: Icon, label, value, wide = false, last = false }: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  wide?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <div className={`${wide ? "sm:col-span-2" : ""} ${last ? "" : "border-b border-[#E8ECE5]"} flex min-w-0 items-start gap-3 px-5 py-3.5 sm:px-6`}>
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#EAF3DF] text-[#3D7A22]">
-        <Icon size={17} aria-hidden="true" />
-      </span>
-      <span className="min-w-0 pt-0.5">
-        <span className="block text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#718078]">{label}</span>
-        <span className="mt-0.5 block break-words text-[12.5px] font-semibold leading-5 text-[#24372B]">{value}</span>
-      </span>
-    </div>
-  );
+function shortDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value || "—";
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function shortHire(value?: string | null) {
+  if (value === "Standard (10 days)" || value === "Standard (7 days)") return "Up to 10 days";
+  if (value === "Extended (7 days)") return "7 extra days · $50";
+  if (value === "Extended (14 days)") return "8–14 extra days · $75";
+  return formatHirePeriod(value) || "—";
 }
 
 function SummaryRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
-    <div className={`flex justify-between gap-3.5 py-3.5 ${last ? "" : "border-b border-[#E8E1CF]"}`}>
-      <span className="text-[12.5px] font-semibold text-[#5B6B60]">{label}</span>
-      <span className="min-w-0 break-words text-right text-[13.5px] font-semibold text-[#16241C]">{value}</span>
+    <div className={`flex justify-between gap-3.5 py-3.5 ${last ? "" : "border-b border-[#d6dfd2]"}`}>
+      <span className="text-[12.5px] font-semibold text-[#405347]">{label}</span>
+      <span className="min-w-0 break-words text-right text-[13.5px] font-semibold text-[#172018]">{value}</span>
     </div>
   );
 }
 
 function PriceRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 py-1.5 text-[13.5px] text-[#5B6B60]">
+    <div className="flex justify-between gap-4 py-1.5 text-[13.5px] text-[#405347]">
       <span>{label}</span>
       <span>{value}</span>
     </div>

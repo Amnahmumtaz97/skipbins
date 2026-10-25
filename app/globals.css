@@ -77,6 +77,21 @@ button.selection-card:not(:disabled) * {
   cursor: pointer;
 }
 
+#hero-booking label {
+  height: 1rem;
+  line-height: 1rem;
+}
+
+#hero-booking input,
+#hero-booking button[aria-haspopup] {
+  height: 2.75rem;
+  margin-top: 0.25rem;
+}
+
+#hero-booking [id$="-help"] p {
+  display: none;
+}
+
 .booking-flow :where(input:not(:disabled), textarea:not(:disabled)) {
   cursor: pointer;
 }
@@ -109,11 +124,11 @@ button.selection-card:not(:disabled) * {
 }
 
 .custom-select:hover {
-  border-color: #65a30d;
+  border-color: #65A30D;
 }
 
 .custom-select:focus {
-  border-color: #0b3b24;
+  border-color: #0B3B24;
   box-shadow: 0 0 0 3px rgba(11, 59, 36, 0.1);
   outline: none;
 }

@@ -16,6 +16,8 @@ import {
   supplierActionStatuses,
   type OperationStatus,
 } from "@/lib/data/operations";
+import { formatBookingAddress } from "@/lib/booking-address";
+import { hireForDates } from "@/lib/booking-utils";
 import { exportCsv } from "@/lib/admin-config";
 import type { OperationsBooking } from "@/lib/server/operations-service";
 type ViewFilter = "all" | "today" | "action" | "issues" | "completed";
@@ -37,10 +39,12 @@ export function SupplierOrders({
   initialBookings,
   compact = false,
   initialSelectedId,
+  emptyMessage = "No assigned orders match this view.",
 }: {
   initialBookings: OperationsBooking[];
   compact?: boolean;
   initialSelectedId?: string;
+  emptyMessage?: string;
 }) {
   const router = useRouter();
   const [bookings, setBookings] = useState(initialBookings);
@@ -52,6 +56,9 @@ export function SupplierOrders({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialSelectedId ?? null,
   );
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const selected = bookings.find((b) => b.id === selectedId) ?? null;
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Australia/Melbourne",
@@ -82,13 +89,21 @@ export function SupplierOrders({
         })
         .sort((a, b) =>
           (a.delivery_date || "9999").localeCompare(b.delivery_date || "9999"),
-        )
-        .slice(0, compact ? 6 : undefined),
-    [bookings, compact, filter, query, today],
+        ),
+    [bookings, filter, query, today],
   );
   async function update(
     booking: OperationsBooking,
-    changes: { status?: OperationStatus; notes?: string },
+    changes: {
+      status?: OperationStatus;
+      notes?: string;
+      details?: {
+        streetAddress: string;
+        postcode: string;
+        deliveryDate: string;
+        pickupDate: string;
+      };
+    },
   ) {
     if (saving) return;
     setSaving(booking.id);
@@ -114,6 +129,19 @@ export function SupplierOrders({
                 ...(changes.status ? { operation_status: changes.status } : {}),
                 ...(changes.notes !== undefined
                   ? { supplier_notes: changes.notes }
+                  : {}),
+                ...(changes.details
+                  ? {
+                      street_address: changes.details.streetAddress.trim(),
+                      postcode: changes.details.postcode.trim(),
+                      delivery_date: changes.details.deliveryDate,
+                      pickup_date: changes.details.pickupDate,
+                      hire_period:
+                        hireForDates(
+                          changes.details.deliveryDate,
+                          changes.details.pickupDate,
+                        )?.period ?? b.hire_period,
+                    }
                   : {}),
               }
             : b,
@@ -159,7 +187,7 @@ export function SupplierOrders({
                   b.full_name,
                   b.delivery_date,
                   b.pickup_date,
-                  b.street_address,
+                  formatBookingAddress(b.street_address, b.postcode),
                   b.postcode,
                   b.bin_size,
                   operationStatusLabels[b.operation_status],
@@ -230,7 +258,7 @@ export function SupplierOrders({
                     </span>
                   </td>
                   <td data-label="Address">
-                    {b.street_address}, VIC {b.postcode}
+                    {formatBookingAddress(b.street_address, b.postcode)}
                   </td>
                   <td data-label="Bin">
                     <strong>{b.bin_size.replace("m3", "m³")}</strong>
@@ -275,7 +303,7 @@ export function SupplierOrders({
                       }}
                     >
                       <Eye size={15} />
-                      View job
+                      Edit job
                     </button>
                   </td>
                 </tr>
@@ -284,7 +312,7 @@ export function SupplierOrders({
           </tbody>
         </table>
         {!visible.length && (
-          <p className="supplier-empty">No assigned orders match this view.</p>
+          <p className="supplier-empty">{emptyMessage}</p>
         )}
       </div>
       {selected && (
@@ -313,12 +341,27 @@ function JobModal({
   saving: boolean;
   error: string;
   message: string;
-  onUpdate: (changes: { status?: OperationStatus; notes?: string }) => void;
+  onUpdate: (changes: {
+    status?: OperationStatus;
+    notes?: string;
+    details?: {
+      streetAddress: string;
+      postcode: string;
+      deliveryDate: string;
+      pickupDate: string;
+    };
+  }) => void;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [note, setNote] = useState(booking.supplier_notes);
   const [stage, setStage] = useState<OperationStatus>(booking.operation_status);
+  const [street, setStreet] = useState(
+    formatBookingAddress(booking.street_address, booking.postcode),
+  );
+  const [postcode, setPostcode] = useState(booking.postcode);
+  const [delivery, setDelivery] = useState(booking.delivery_date);
+  const [pickup, setPickup] = useState(booking.pickup_date);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -346,7 +389,7 @@ function JobModal({
       <div className="portal-dialog-title">
         <div>
           <p className="portal-eyebrow">{booking.reference}</p>
-          <h2 id="job-title">Job details & controls</h2>
+          <h2 id="job-title">Edit this job</h2>
         </div>
         <button type="button" aria-label="Close job" onClick={onClose}>
           <X size={22} />
@@ -362,18 +405,25 @@ function JobModal({
           {message}
         </p>
       )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onUpdate({
+            ...(stage !== booking.operation_status ? { status: stage } : {}),
+            notes: note,
+            details: {
+              streetAddress: street,
+              postcode,
+              deliveryDate: delivery,
+              pickupDate: pickup,
+            },
+          });
+        }}
+      >
       <div className="supplier-info-grid">
-        <Detail
-          label="Delivery address"
-          value={`${booking.street_address}, VIC ${booking.postcode}`}
-        />
         <Detail
           label="Customer"
           value={`${booking.full_name} · ${booking.phone}`}
-        />
-        <Detail
-          label="Delivery / collection"
-          value={`${booking.delivery_date} / ${booking.pickup_date || "TBC"}`}
         />
         <Detail
           label="Bin / placement"
@@ -386,6 +436,45 @@ function JobModal({
             "No additional instructions"
           }
         />
+        <label className="supplier-field supplier-wide">
+          Delivery address
+          <textarea
+            value={street}
+            maxLength={300}
+            required
+            rows={2}
+            onChange={(event) => setStreet(event.target.value)}
+          />
+        </label>
+        <label className="supplier-field">
+          Postcode
+          <input
+            value={postcode}
+            inputMode="numeric"
+            maxLength={4}
+            required
+            onChange={(event) => setPostcode(event.target.value)}
+          />
+        </label>
+        <label className="supplier-field">
+          Delivery date
+          <input
+            type="date"
+            value={delivery}
+            required
+            onChange={(event) => setDelivery(event.target.value)}
+          />
+        </label>
+        <label className="supplier-field">
+          Pickup date
+          <input
+            type="date"
+            value={pickup}
+            min={delivery}
+            required
+            onChange={(event) => setPickup(event.target.value)}
+          />
+        </label>
       </div>
       <div className="portal-actions my-5">
         <a className="portal-button-secondary" href={`tel:${booking.phone}`}>
@@ -394,7 +483,7 @@ function JobModal({
         </a>
         <a
           className="portal-button-secondary"
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${booking.street_address}, VIC ${booking.postcode}`)}`}
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(street)}`}
           target="_blank"
           rel="noreferrer"
         >
@@ -402,15 +491,6 @@ function JobModal({
           Directions
         </a>
       </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onUpdate({
-            ...(stage !== booking.operation_status ? { status: stage } : {}),
-            notes: note,
-          });
-        }}
-      >
         <label className="supplier-field">
           Workflow stage
           <select
@@ -450,7 +530,7 @@ function JobModal({
           </button>
           <button type="submit" className="portal-button" disabled={saving}>
             <Save size={16} />
-            {saving ? "Saving…" : "Save update"}
+            {saving ? "Saving…" : "Save job"}
           </button>
         </div>
       </form>
@@ -459,7 +539,7 @@ function JobModal({
 }
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-[#eef3ea] p-4">
+    <div className="rounded-xl bg-[#DDECCB] p-4">
       <p className="text-xs font-bold text-[#405347]">{label}</p>
       <p className="mt-2 break-words text-sm font-semibold">{value}</p>
     </div>
@@ -469,6 +549,8 @@ function isOverdue(b: OperationsBooking, today: string) {
   return (
     Boolean(b.pickup_date) &&
     b.pickup_date < today &&
-    !["collected", "cancelled"].includes(b.operation_status)
+    !["collected", "cancelled"].includes(b.operation_status) &&
+    !b.deleted &&
+    b.payment_status !== "refunded"
   );
 }
