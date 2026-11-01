@@ -40,18 +40,65 @@ export function retainShownLocalities<T extends { id: string }>(
 export function localitiesInRectangle(
   rows: VicLocality[],
   bounds: { south: number; west: number; north: number; east: number },
+  positions?: Map<string, { lat: number; lng: number }>,
 ) {
   const south = Math.min(bounds.south, bounds.north);
   const north = Math.max(bounds.south, bounds.north);
   const west = Math.min(bounds.west, bounds.east);
   const east = Math.max(bounds.west, bounds.east);
-  return rows.filter(
-    (row) =>
-      row.lat >= south &&
-      row.lat <= north &&
-      row.lng >= west &&
-      row.lng <= east,
-  );
+  return rows.filter((row) => {
+    const point = positions?.get(row.id) ?? row;
+    return (
+      point.lat >= south &&
+      point.lat <= north &&
+      point.lng >= west &&
+      point.lng <= east
+    );
+  });
+}
+
+/** Places that still share one coordinate are fanned out so every suburb dot is visible. */
+export function markerPositions(rows: VicLocality[]) {
+  const groups = new Map<string, VicLocality[]>();
+  for (const row of rows) {
+    const key = `${row.lat.toFixed(5)},${row.lng.toFixed(5)}`;
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+  const positions = new Map<string, { lat: number; lng: number }>();
+  for (const group of groups.values()) {
+    const names = [...new Set(group.map((row) => row.suburb))].sort((a, b) =>
+      a.localeCompare(b),
+    );
+    if (names.length < 2) {
+      for (const row of group) positions.set(row.id, { lat: row.lat, lng: row.lng });
+      continue;
+    }
+    const gapKm = 2.4;
+    const chord =
+      names.length === 2 ? 2 : 2 * Math.sin(Math.PI / names.length);
+    const radiusKm = gapKm / chord;
+    const latScale = radiusKm / 111;
+    const lngScale =
+      radiusKm / (111 * Math.cos((group[0].lat * Math.PI) / 180));
+    const at = new Map(
+      names.map((name, index) => {
+        const angle = (2 * Math.PI * index) / names.length - Math.PI / 2;
+        return [
+          name,
+          {
+            lat: group[0].lat + latScale * Math.sin(angle),
+            lng: group[0].lng + lngScale * Math.cos(angle),
+          },
+        ] as const;
+      }),
+    );
+    for (const row of group) {
+      positions.set(row.id, at.get(row.suburb) ?? { lat: row.lat, lng: row.lng });
+    }
+  }
+  return positions;
 }
 
 export function samePlace(origin: VicLocality, rows: VicLocality[]) {

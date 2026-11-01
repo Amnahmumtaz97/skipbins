@@ -76,7 +76,7 @@ export function Navbar() {
               />
             </span>
             <span>
-              Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
+              SkippyBinHire<span className="text-[#65A30D]">.</span>
               <small className="ml-1 block text-[7px] font-semibold tracking-[0.03em] text-[#405347]">
                 SKIP MORE, SPEND LESS
               </small>

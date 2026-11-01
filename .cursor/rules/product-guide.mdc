@@ -1,0 +1,18 @@
+---
+description: Product reference for bins, prices, dimensions, and delivery zones
+alwaysApply: true
+---
+
+# SkipBins product memory
+
+Before changing pricing, zones, coverage, or booking quotes, read and follow [`guide.md`](guide.md) at the repo root.
+
+## Must remember
+
+- Live hire prices and zone fees/cutoffs are in the **database** (`bin_rates`, `portal_settings`), not only in code defaults.
+- Dimensions and bin catalogue defaults live in `lib/data/skip-bins.ts` (summarised in `guide.md`).
+- Four delivery zones from the nearer of **Campbellfield** / **Laverton**. Prefer cached **road km** (`suburb_road_distances`); else straight-line.
+- `10m3` and `12m3` disallow `mixed`, `concrete`, and `soil` waste.
+- Quote total = base hire + hire extension + zone fee.
+
+When product facts in chat conflict with `guide.md` or the DB, prefer the DB for live prices/zones and update `guide.md` if defaults or rules change.

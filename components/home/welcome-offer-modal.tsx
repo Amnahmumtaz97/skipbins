@@ -83,7 +83,7 @@ export function WelcomeOfferModal() {
         <div className="relative min-h-52 overflow-hidden bg-[#0B3B24] md:min-h-[510px]">
           <Image
             src="/images/promotion-offer-50-off-2026.png"
-            alt="Premium Skip Bin Hire promotional offer"
+            alt="SkippyBinHire promotional offer"
             fill
             priority
             sizes="(max-width: 767px) 100vw, 42vw"
@@ -97,7 +97,7 @@ export function WelcomeOfferModal() {
             <span className="text-[#65A30D]">$50 Off</span> Till the End of 2026
           </h2>
           <p className="mt-4 text-[14px] leading-6 text-[#405347] sm:text-[15px]">
-            Premium skip bin hire at a better price. Book your first bin online and save $50 until the end of 2026.
+            SkippyBinHire at a better price. Book your first bin online and save $50 until the end of 2026.
           </p>
 
           <Link

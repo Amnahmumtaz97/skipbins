@@ -16,10 +16,8 @@ import {
   ShieldCheck,
   Truck,
 } from "lucide-react";
-import { AddressField } from "@/components/book/address-field";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
-import { selectedAddressLocationError } from "@/lib/address-validation";
 import { BinSizesSection } from "@/components/home/bin-sizes-section";
 import { DifferenceSlider } from "@/components/home/difference-slider";
 import { HeroCarousel } from "@/components/home/hero-carousel";
@@ -53,8 +51,6 @@ type QuoteState = {
   size: string;
   postcode: string;
   postcodeLabel: string;
-  streetAddress: string;
-  deliveryAddressLabel: string;
   waste: string;
   date: string;
   pickupDate: string;
@@ -64,8 +60,6 @@ const emptyQuote: QuoteState = {
   size: "",
   postcode: "",
   postcodeLabel: "",
-  streetAddress: "",
-  deliveryAddressLabel: "",
   waste: "",
   date: "",
   pickupDate: "",
@@ -94,7 +88,6 @@ export function HomePage() {
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteState>(emptyQuote);
   const [quoteErrors, setQuoteErrors] = useState<Partial<QuoteState>>({});
-  const [addressConfirmed, setAddressConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const updateQuote = (field: keyof QuoteState, value: string) => {
@@ -119,33 +112,14 @@ export function HomePage() {
   };
 
   const updatePostcode = (value: string, label: string) => {
-    setAddressConfirmed(false);
     setQuote((current) => ({
       ...current,
       postcode: value,
       postcodeLabel: label,
-      ...(value !== current.postcode || label !== current.postcodeLabel
-        ? { streetAddress: "", deliveryAddressLabel: "" }
-        : {}),
     }));
     setQuoteErrors((current) => {
       const next = { ...current };
       delete next.postcode;
-      delete next.streetAddress;
-      return next;
-    });
-  };
-
-  const updateStreetAddress = (value: string, selectedLabel = "") => {
-    setAddressConfirmed(Boolean(selectedLabel));
-    setQuote((current) => ({
-      ...current,
-      streetAddress: value,
-      deliveryAddressLabel: selectedLabel,
-    }));
-    setQuoteErrors((current) => {
-      const next = { ...current };
-      delete next.streetAddress;
       return next;
     });
   };
@@ -159,20 +133,6 @@ export function HomePage() {
       isResolvedPostcode(quote.postcode) &&
       quote.postcodeLabel.trim() !== quote.postcode.trim();
     if (!postcodeSelected) nextErrors.postcode = postcodeSelectionError;
-    if (!postcodeSelected) {
-      nextErrors.streetAddress =
-        "Select a suburb or postcode first before choosing an address.";
-    } else if (!quote.streetAddress.trim() || !addressConfirmed) {
-      nextErrors.streetAddress =
-        "Select a delivery address from the suggestions.";
-    } else {
-      const locationError = selectedAddressLocationError(
-        quote.deliveryAddressLabel,
-        quote.postcode,
-        quote.postcodeLabel,
-      );
-      if (locationError) nextErrors.streetAddress = locationError;
-    }
     if (!quote.waste) nextErrors.waste = "Please select a waste type.";
     else if (!isWasteAllowedForBin(quote.size, quote.waste))
       nextErrors.waste =
@@ -198,8 +158,6 @@ export function HomePage() {
       size: quote.size,
       location: quote.postcode.trim(),
       locationLabel: quote.postcodeLabel.trim(),
-      streetAddress: quote.streetAddress.trim(),
-      deliveryAddressLabel: quote.deliveryAddressLabel.trim(),
       waste: quote.waste,
       date: quote.date,
       pickup: quote.pickupDate,
@@ -302,22 +260,6 @@ export function HomePage() {
                     error={quoteErrors.postcode}
                   />
                 </div>
-                <div className="col-span-2">
-                  <AddressField
-                    required
-                    value={quote.streetAddress}
-                    displayValue={quote.deliveryAddressLabel}
-                    postcode={quote.postcode}
-                    postcodeSelected={
-                      isResolvedPostcode(quote.postcode) &&
-                      quote.postcodeLabel.trim() !== quote.postcode.trim()
-                    }
-                    onChange={updateStreetAddress}
-                    onSelectionChange={setAddressConfirmed}
-                    error={quoteErrors.streetAddress}
-                    compact
-                  />
-                </div>
                 <DatePicker
                   label="Delivery date"
                   value={quote.date}
@@ -399,10 +341,10 @@ export function HomePage() {
       >
         <div className="mb-10 text-center">
           <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.2em] text-[#65A30D]">
-            The Premium Skip Bin Hire difference
+            The SkippyBinHire difference
           </p>
           <h2 className="text-4xl font-black leading-tight tracking-[-0.05em] text-[#0B3B24] sm:text-5xl">
-            Why choose Premium Skip Bin Hire?
+            Why choose SkippyBinHire?
           </h2>
         </div>
 
@@ -482,10 +424,10 @@ export function HomePage() {
 
       <footer className="mx-auto flex max-w-[1400px] flex-col gap-3 border-t border-[#dce4d4] px-5 py-8 text-sm text-[#405347] sm:flex-row sm:items-center sm:justify-between sm:px-12">
         <span className="font-extrabold text-[#0B3B24]">
-          Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
+          SkippyBinHire<span className="text-[#65A30D]">.</span>
         </span>
         <span>
-          © 2026 Premium Skip Bin Hire Australia · Skip more, spend less.
+          © 2026 SkippyBinHire Australia · Skip more, spend less.
         </span>
       </footer>
     </main>

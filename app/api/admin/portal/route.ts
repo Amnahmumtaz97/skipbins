@@ -6,6 +6,10 @@ import { validateSettings, validateRate } from "@/lib/server/portal-validation";
 import { victorianLocalities } from "@/lib/server/victorian-localities";
 import { vicLocalities } from "@/lib/data/vic-localities";
 import { InputError, apiError, readJson } from "@/lib/server/request";
+import {
+  computeAndSaveRoadDistances,
+  saveManualRoadDistance,
+} from "@/lib/server/road-distance";
 export async function POST(request: Request) {
   try {
     const {
@@ -127,6 +131,65 @@ export async function POST(request: Request) {
         if (error) throw error;
       }
       return Response.json({ coverage: values });
+    }
+    if (body.action === "road-distances") {
+      const p = (body.data ?? {}) as Record<string, unknown>;
+      const onlyMissing = p.onlyMissing !== false;
+      const activeOnly = p.activeOnly !== false;
+      let targets: { suburb: string; postcode: string }[] = [];
+      if (Array.isArray(p.suburbs) && p.suburbs.length) {
+        targets = p.suburbs
+          .map((item) => {
+            if (
+              !item ||
+              typeof item !== "object" ||
+              typeof (item as { suburb?: unknown }).suburb !== "string" ||
+              typeof (item as { postcode?: unknown }).postcode !== "string"
+            )
+              return null;
+            return {
+              suburb: String((item as { suburb: string }).suburb),
+              postcode: String((item as { postcode: string }).postcode),
+            };
+          })
+          .filter(Boolean) as { suburb: string; postcode: string }[];
+      } else {
+        let query = db.from("service_suburbs").select("suburb, postcode");
+        if (activeOnly) query = query.eq("active", true);
+        const { data, error } = await query;
+        if (error) throw error;
+        targets = (data ?? []).map((row) => ({
+          suburb: row.suburb,
+          postcode: row.postcode,
+        }));
+      }
+      if (!targets.length)
+        throw new InputError(
+          activeOnly
+            ? "Include at least one suburb before computing road distances."
+            : "No suburbs are available to compute.",
+        );
+      if (targets.length > 800)
+        throw new InputError(
+          "Compute at most 800 suburbs at a time.",
+        );
+      const result = await computeAndSaveRoadDistances(targets, { onlyMissing });
+      return Response.json(result);
+    }
+    if (body.action === "road-distance") {
+      const p = (body.data ?? {}) as Record<string, unknown>;
+      if (
+        typeof p.suburb !== "string" ||
+        typeof p.postcode !== "string" ||
+        typeof p.roadKm !== "number"
+      )
+        throw new InputError("Enter suburb, postcode, and road km.");
+      const row = await saveManualRoadDistance({
+        suburb: p.suburb,
+        postcode: p.postcode,
+        roadKm: p.roadKm,
+      });
+      return Response.json({ row });
     }
     if (body.action === "customer") {
       const p = body.data as Record<string, unknown>;

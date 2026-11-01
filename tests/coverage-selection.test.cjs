@@ -12,7 +12,7 @@ require.extensions[".ts"] = (mod, filename) => mod._compile(ts.transpileModule(f
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, resolveJsonModule: true },
 }).outputText, filename);
 
-const { deliversTo, selectionChanges, localitiesInRectangle, samePlace, distanceKm, localitiesInView, retainShownLocalities } = require("../lib/coverage-selection.ts");
+const { deliversTo, selectionChanges, localitiesInRectangle, samePlace, distanceKm, localitiesInView, retainShownLocalities, markerPositions } = require("../lib/coverage-selection.ts");
 const melbourne = { id: "3000-MELBOURNE", suburb: "MELBOURNE", postcode: "3000", lat: -37.81, lng: 144.96 };
 const melbourneGpo = { id: "3001-MELBOURNE", suburb: "MELBOURNE", postcode: "3001", lat: -37.81, lng: 144.96 };
 const richmond = { id: "3121-RICHMOND", suburb: "RICHMOND", postcode: "3121", lat: -37.82, lng: 145.0 };
@@ -60,4 +60,39 @@ test("map view keeps suburbs inside the kilometre range and drops distant ones",
     localitiesInView(rows, 30, { lat: mildura.lat, lng: mildura.lng }).map((row) => row.id),
     [mildura.id],
   );
+});
+
+test("suburbs that share a coordinate are drawn as separate dots", () => {
+  const chartwell = { id: "3030-CHARTWELL", suburb: "CHARTWELL", postcode: "3030", lat: -37.91624, lng: 144.64209 };
+  const pointCook = { id: "3030-POINT COOK", suburb: "POINT COOK", postcode: "3030", lat: -37.91624, lng: 144.64209 };
+  const werribee = { id: "3030-WERRIBEE", suburb: "WERRIBEE", postcode: "3030", lat: -37.91624, lng: 144.64209 };
+  const placed = markerPositions([chartwell, pointCook, werribee]);
+  const ids = [chartwell.id, pointCook.id, werribee.id];
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      assert.ok(distanceKm(placed.get(ids[i]), placed.get(ids[j])) > 2);
+    }
+  }
+  const separated = markerPositions([
+    { ...pointCook, lat: -37.91781, lng: 144.74773 },
+    { ...werribee, lat: -37.8998, lng: 144.66414 },
+  ]);
+  assert.equal(separated.get(pointCook.id).lng, 144.74773);
+  assert.equal(separated.get(werribee.id).lng, 144.66414);
+  const sameName = markerPositions([melbourne, melbourneGpo]);
+  assert.equal(sameName.get(melbourne.id).lat, melbourne.lat);
+  assert.equal(sameName.get(melbourneGpo.id).lng, melbourneGpo.lng);
+});
+
+test("Werribee, Point Cook, and Chartwell each have their own map coordinates", () => {
+  const rows = require("../lib/data/vic-localities.json");
+  const picked = ["WERRIBEE", "POINT COOK", "CHARTWELL"].map((suburb) =>
+    rows.find((row) => row.postcode === "3030" && row.suburb === suburb),
+  );
+  assert.equal(picked.every(Boolean), true);
+  for (let i = 0; i < picked.length; i += 1) {
+    for (let j = i + 1; j < picked.length; j += 1) {
+      assert.ok(distanceKm(picked[i], picked[j]) > 5);
+    }
+  }
 });

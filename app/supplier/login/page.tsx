@@ -7,7 +7,7 @@ import { isSupplierUser } from "@/lib/server/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Supplier sign in | Premium Skip Bin Hire",
+  title: "Supplier sign in | SkippyBinHire",
 };
 
 export default async function SupplierLoginPage({
@@ -30,7 +30,7 @@ export default async function SupplierLoginPage({
       <section className="hidden bg-[#0B3B24] p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div>
           <p className="text-[12px] font-extrabold uppercase tracking-[0.16em] text-[#C7F34A]">
-            Premium Skip Bins
+            SkippyBinHire
           </p>
           <h1 className="mt-7 max-w-xl text-[48px] font-extrabold leading-[1.04] tracking-[-0.05em]">
             Every assigned job, clearly organised.

@@ -7,6 +7,7 @@ import {
   type BinRate,
   type Coverage,
 } from "@/lib/admin-config";
+import { listRoadDistancesByIds } from "@/lib/server/road-distance";
 export async function getPortalConfig() {
   const db = adminDatabase();
   if (!db)
@@ -32,14 +33,39 @@ export async function getPortalConfig() {
       error:
         "Admin settings could not be loaded. Apply supabase/admin-portal-migration.sql and verify the database connection.",
     };
+  const baseCoverage = (c.data ?? []) as unknown as Coverage[];
+  let roadById = new Map<string, number>();
+  try {
+    roadById = await listRoadDistancesByIds(baseCoverage.map((row) => row.id));
+  } catch {
+    roadById = new Map();
+  }
   return {
-    settings: (s.data?.data ?? defaultSettings) as PortalSettings,
+    settings: {
+      ...defaultSettings,
+      ...((s.data?.data ?? {}) as Partial<PortalSettings>),
+      profile: {
+        ...defaultSettings.profile,
+        ...((s.data?.data as PortalSettings | undefined)?.profile ?? {}),
+      },
+      zoneDeliveryFees: {
+        ...defaultSettings.zoneDeliveryFees,
+        ...((s.data?.data as PortalSettings | undefined)?.zoneDeliveryFees ?? {}),
+      },
+      zoneMaxKm: {
+        ...defaultSettings.zoneMaxKm,
+        ...((s.data?.data as PortalSettings | undefined)?.zoneMaxKm ?? {}),
+      },
+    },
     rates: defaultRates().map(
       (rate) =>
         ((r.data ?? []).find((row) => row.data.id === rate.id)
           ?.data as BinRate) ?? rate,
     ),
-    coverage: (c.data ?? []) as unknown as Coverage[],
+    coverage: baseCoverage.map((row) => ({
+      ...row,
+      roadKm: roadById.get(row.id) ?? row.roadKm ?? null,
+    })),
     ready: true,
     error: "",
   };

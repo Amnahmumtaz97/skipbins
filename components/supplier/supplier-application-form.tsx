@@ -43,7 +43,7 @@ export function SupplierApplicationForm() {
     <div className="grid gap-4 sm:grid-cols-2"><Field name="password" label="Password" type="password" autoComplete="new-password" hint="10+ characters, uppercase, lowercase and a number." /><Field name="confirmPassword" label="Confirm password" type="password" autoComplete="new-password" /></div>
     {error ? <p role="alert" className="rounded-xl bg-[#FFF3F1] px-4 py-3 text-[12px] font-medium text-[#8E2F23]">{error}</p> : null}
     <p className="text-[11px] leading-5 text-[#66746B]">Your application will be reviewed by our team before your account is activated.</p>
-    <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0B3B24] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#14532D] disabled:opacity-60">{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitting ? "Submitting…" : "Apply to join Premium Skip Bins"}</button>
+    <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0B3B24] px-5 text-[13px] font-extrabold text-white transition hover:bg-[#14532D] disabled:opacity-60">{submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitting ? "Submitting…" : "Apply to join SkippyBinHire"}</button>
   </form>;
 }
 

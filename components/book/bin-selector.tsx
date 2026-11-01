@@ -2,11 +2,28 @@ import { Check } from "lucide-react";
 import { ValidationMessage } from "@/components/book/validation-message";
 import { bins, formatBinLabel } from "@/lib/data/skip-bins";
 
+export type BinCardPrice = {
+  amount: number | null;
+  exact: boolean;
+};
+
 type BinSelectorProps = {
   value: string;
   onChange: (sizeId: string) => void;
   error?: string;
+  prices?: Record<string, BinCardPrice> | null;
+  pricesLoading?: boolean;
+  zoneNote?: string;
 };
+
+function formatHirePrice(amount: number) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 function dimensionParts(dimensions: string) {
   const [length = "—", width = "—", height = "—"] = dimensions.split(" × ");
@@ -17,20 +34,39 @@ function dimensionParts(dimensions: string) {
   ];
 }
 
-export function BinSelector({ value, onChange, error }: BinSelectorProps) {
+export function BinSelector({
+  value,
+  onChange,
+  error,
+  prices,
+  pricesLoading = false,
+  zoneNote,
+}: BinSelectorProps) {
   return (
     <div>
+      {zoneNote ? (
+        <p className="mb-2 text-[12px] font-semibold leading-5 text-[#405347]">
+          {zoneNote}
+        </p>
+      ) : null}
       <div className="grid grid-cols-1 gap-x-2 gap-y-0 px-0.5 pt-1 min-[520px]:grid-cols-2 xl:grid-cols-4">
         {bins.map((bin) => {
           const selected = value === bin.id;
           const dimensions = dimensionParts(bin.dimensions);
+          const price = prices?.[bin.id];
+          const unavailable = Boolean(prices) && price?.amount == null;
           return (
             <button
               key={bin.id}
               type="button"
               aria-pressed={selected}
+              disabled={unavailable}
               onClick={() => onChange(bin.id)}
-              className={`selection-card relative mb-3 grid cursor-pointer grid-rows-subgrid row-span-5 rounded-xl border-[1.5px] bg-white p-2.5 text-left transition hover:z-10 hover:-translate-y-0.5 ${
+              className={`selection-card relative mb-3 grid grid-rows-subgrid row-span-5 rounded-xl border-[1.5px] bg-white p-2.5 text-left transition ${
+                unavailable
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer hover:z-10 hover:-translate-y-0.5"
+              } ${
                 selected
                   ? "z-10 border-[#0B3B24] shadow-[0_0_0_1.5px_#0B3B24]"
                   : error
@@ -58,10 +94,24 @@ export function BinSelector({ value, onChange, error }: BinSelectorProps) {
               </span>
               <span className={`selection-card-copy flex items-end justify-between gap-2 self-end pt-2 ${selected ? "font-bold text-[#0B3B24]" : "font-semibold text-[#172018]"}`}>
                 <span>
-                  <span className="text-[13px] font-medium text-[#405347]">From </span>
-                  <span className="text-[18px] font-bold leading-none tracking-tight">{bin.price}</span>
+                  {pricesLoading ? (
+                    <span className="text-[18px] font-bold leading-none tracking-tight text-[#405347]">…</span>
+                  ) : unavailable ? (
+                    <span className="text-[13px] font-bold leading-none text-[#405347]">Not offered</span>
+                  ) : (
+                    <>
+                      {price && !price.exact ? (
+                        <span className="text-[13px] font-medium text-[#405347]">From </span>
+                      ) : null}
+                      <span className="text-[18px] font-bold leading-none tracking-tight">
+                        {price?.amount != null ? formatHirePrice(price.amount) : bin.price}
+                      </span>
+                    </>
+                  )}
                 </span>
-                <span className="text-[11px] font-medium text-[#405347]">Up to 10 days hire</span>
+                {unavailable ? null : (
+                  <span className="text-[11px] font-medium text-[#405347]">Up to 10 days hire</span>
+                )}
               </span>
             </button>
           );

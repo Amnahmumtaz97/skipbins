@@ -8,4 +8,7 @@ export type VicLocality = {
   lng: number;
 };
 
-export const vicLocalities = raw as VicLocality[];
+const imported = raw as VicLocality[] | { default: VicLocality[] };
+export const vicLocalities = (
+  Array.isArray(imported) ? imported : imported.default
+) as VicLocality[];

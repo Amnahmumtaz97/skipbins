@@ -140,8 +140,8 @@ export const bins: SkipBin[] = [
     price: "$1050",
     door: "Walk-in door",
     restriction:
-      "No Mixed Heavy Waste or Soil / Dirt. No soil, concrete, bricks, rubble, marble or other heavy material.",
-    disallowedWasteTypes: ["mixed", "soil"],
+      "No Mixed Heavy Waste, Concrete / Bricks, or Soil / Dirt. No soil, concrete, bricks, rubble, marble or other heavy material.",
+    disallowedWasteTypes: ["mixed", "concrete", "soil"],
     features: [
       "Up to 10 days hire",
       "Walk-in door",
@@ -160,8 +160,8 @@ export const bins: SkipBin[] = [
     price: "$1200",
     door: "Walk-in door",
     restriction:
-      "No Mixed Heavy Waste or Soil / Dirt. No soil, concrete, bricks, rubble, marble or other heavy material.",
-    disallowedWasteTypes: ["mixed", "soil"],
+      "No Mixed Heavy Waste, Concrete / Bricks, or Soil / Dirt. No soil, concrete, bricks, rubble, marble or other heavy material.",
+    disallowedWasteTypes: ["mixed", "concrete", "soil"],
     features: [
       "Up to 10 days hire",
       "Walk-in door",
@@ -214,6 +214,25 @@ export const acceptedWaste: WasteCategory[] = [
       "TV sets or computer monitors",
       "Food products or food waste",
       "Tyres",
+    ],
+  },
+  {
+    id: "concrete",
+    label: "Concrete / Bricks",
+    description: "Price based strictly on concrete, bricks and rubble only",
+    icon: "block",
+    swatch: "#6B7280",
+    acceptedItems: [
+      "Concrete",
+      "Bricks & masonry",
+      "Pavers",
+    ],
+    notAccepted: [
+      "Asbestos or hazardous waste",
+      "Soil, sand, clay or dirt",
+      "Timber, plaster or general waste",
+      "Green waste or metal",
+      "Food products or food waste",
     ],
   },
   {
@@ -337,10 +356,10 @@ export const faqItems = [
 ];
 
 export const contactInfo = {
-  email: "hello@premiumskipbinhire.example",
+  email: "info@skippybinhire.com.au",
   phone: "1300 SKIP BIN",
   hours: "Monday - Friday: 7am - 6pm, Saturday: 8am - 4pm",
-  address: "Premium Skip Bin Hire Distribution Center, Sydney NSW 2000",
+  address: "SkippyBinHire, Australia",
 };
 
 function normalizeBinKey(value: string) {

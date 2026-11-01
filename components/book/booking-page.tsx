@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CalendarClock,
@@ -19,7 +19,11 @@ import { AddressField } from "@/components/book/address-field";
 import { PostcodeField } from "@/components/book/postcode-field";
 import { DatePicker } from "@/components/ui/date-picker";
 import { isResolvedPostcode, postcodeSelectionError } from "@/lib/postcode";
-import { requestQuote } from "@/lib/quote-client";
+import {
+  requestBinPrices,
+  requestQuote,
+  type BinPriceCatalog,
+} from "@/lib/quote-client";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
 import { WasteTypeSelector } from "@/components/book/waste-type-selector";
@@ -32,6 +36,7 @@ import {
   placements,
 } from "@/lib/data/skip-bins";
 import {
+  bookingExtrasTotal,
   emptyBookingExtras,
   type BookingExtraId,
 } from "@/lib/data/booking-extras";
@@ -47,7 +52,8 @@ import {
   standardPickupDate,
   tomorrowIsoDate,
 } from "@/lib/booking-utils";
-import { quoteTotal } from "@/lib/pricing";
+import { hireExtensionAmount, quoteTotal } from "@/lib/pricing";
+import { ZONE_SHORT_LABELS } from "@/lib/delivery-zones";
 import {
   clearSuccessBackNavigation,
   isAwaitingPayment,
@@ -117,9 +123,10 @@ function initialBookingForm({
   };
 }
 
+const TOTAL_STEPS = 5;
+
 const titles = [
-  "Choose your bin size",
-  "What are you throwing away?",
+  "Choose your bin and waste type",
   "Where do you need it delivered?",
   "When should we deliver and collect?",
   "Your details",
@@ -127,8 +134,7 @@ const titles = [
 ];
 
 const intros = [
-  "",
-  "Choose the waste stream that best matches your load — pricing is calculated from your selection, so an accurate match keeps your quote correct.",
+  "Select a size, then the waste stream that matches your load. Pricing is calculated from that selection.",
   "We use your suburb or postcode to check service availability and calculate accurate pricing for your area.",
   "Choose your delivery and pickup dates. Any pickup from delivery through 10 days is included.",
   "We'll use this to confirm your booking and coordinate delivery with you.",
@@ -176,19 +182,78 @@ export function BookingPage({
     key: string;
     total: number;
   } | null>(null);
+  const [priceCatalog, setPriceCatalog] = useState<BinPriceCatalog | null>(null);
+  const [pricesLoading, setPricesLoading] = useState(true);
   const resumedSubmissionId = useRef<string | null>(null);
   const quoteKey = `${form.address}|${form.binSize}|${form.wasteType}|${form.deliveryDate}|${form.pickupDate}|${form.hirePeriod}`;
-  const baseEstimate = quoteTotal(form.binSize, form.hirePeriod);
+  const extrasTotal = bookingExtrasTotal(form.extras);
+  const catalogHire = useMemo(() => {
+    if (!priceCatalog || !form.binSize || !form.wasteType) return null;
+    const rate = priceCatalog.rates.find(
+      (row) => row.binId === form.binSize && row.wasteId === form.wasteType,
+    );
+    if (!rate) return null;
+    return (
+      Math.round(
+        (rate.price + priceCatalog.zoneFee + hireExtensionAmount(form.hirePeriod)) *
+          100,
+      ) / 100
+    );
+  }, [form.binSize, form.hirePeriod, form.wasteType, priceCatalog]);
   const estimatedTotal =
     serverQuote?.key === quoteKey
-      ? serverQuote.total +
-        (quoteTotal(form.binSize, form.hirePeriod, form.extras)! -
-          (baseEstimate ?? 0))
-      : quoteTotal(form.binSize, form.hirePeriod, form.extras);
+      ? serverQuote.total + extrasTotal
+      : catalogHire != null
+        ? catalogHire + extrasTotal
+        : quoteTotal(form.binSize, form.hirePeriod, form.extras);
+  const binPrices = useMemo(() => {
+    if (!priceCatalog) return null;
+    return Object.fromEntries(
+      bins.map((bin) => {
+        const rates = priceCatalog.rates.filter(
+          (rate) =>
+            rate.binId === bin.id && isWasteAllowedForBin(bin.id, rate.wasteId),
+        );
+        if (form.wasteType) {
+          const rate = rates.find((row) => row.wasteId === form.wasteType);
+          return [
+            bin.id,
+            {
+              amount: rate
+                ? Math.round((rate.price + priceCatalog.zoneFee) * 100) / 100
+                : null,
+              exact: true,
+            },
+          ];
+        }
+        if (!rates.length) return [bin.id, { amount: null, exact: false }];
+        return [
+          bin.id,
+          {
+            amount:
+              Math.round(
+                (Math.min(...rates.map((row) => row.price)) + priceCatalog.zoneFee) *
+                  100,
+              ) / 100,
+            exact: false,
+          },
+        ];
+      }),
+    );
+  }, [form.wasteType, priceCatalog]);
+  const zoneNote = priceCatalog?.zone
+    ? `Prices include ${ZONE_SHORT_LABELS[priceCatalog.zone]} delivery.`
+    : priceCatalog
+      ? "Choose a location to add the delivery zone fee."
+      : "";
   const selectedBin = getBinBySizeOrId(form.binSize);
-  const availableWaste = acceptedWaste.filter((waste) =>
-    isWasteAllowedForBin(form.binSize, waste.id),
-  );
+  const availableWaste = acceptedWaste.filter((waste) => {
+    if (!isWasteAllowedForBin(form.binSize, waste.id)) return false;
+    if (!priceCatalog || !form.binSize) return true;
+    return priceCatalog.rates.some(
+      (rate) => rate.binId === form.binSize && rate.wasteId === waste.id,
+    );
+  });
   const selectedHire =
     form.deliveryDate && form.pickupDate
       ? hireForDates(form.deliveryDate, form.pickupDate)
@@ -196,6 +261,50 @@ export function BookingPage({
   useEffect(() => {
     clearSuccessBackNavigation();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const suburbMatch = form.locationLabel
+      .trim()
+      .match(/^(.+),\s*VIC\s+(\d{4})$/i);
+    const suburb =
+      suburbMatch &&
+      isResolvedPostcode(form.address) &&
+      suburbMatch[2] === form.address
+        ? suburbMatch[1].trim().toUpperCase()
+        : "";
+    setPricesLoading(true);
+    void requestBinPrices(
+      {
+        postcode: suburb ? form.address : undefined,
+        suburb: suburb || undefined,
+        date: form.deliveryDate || undefined,
+      },
+      controller.signal,
+    )
+      .then((catalog) => {
+        if (controller.signal.aborted) return;
+        setPriceCatalog(catalog);
+        setForm((current) => {
+          if (!current.binSize || !current.wasteType) return current;
+          const offered = catalog.rates.some(
+            (rate) =>
+              rate.binId === current.binSize &&
+              rate.wasteId === current.wasteType &&
+              isWasteAllowedForBin(current.binSize, current.wasteType),
+          );
+          return offered ? current : { ...current, wasteType: "" };
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (!controller.signal.aborted) setPriceCatalog(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPricesLoading(false);
+      });
+    return () => controller.abort();
+  }, [form.address, form.deliveryDate, form.locationLabel]);
 
   useEffect(() => {
     if (!cancelled && !isAwaitingPayment()) return;
@@ -211,8 +320,8 @@ export function BookingPage({
           draft.streetAddress.trim() && draft.deliveryAddressLabel.trim(),
         ),
       );
-      setStep(6);
-      setMaxReached(6);
+      setStep(TOTAL_STEPS);
+      setMaxReached(TOTAL_STEPS);
       if (cancelled)
         setRequestError(
           "Payment was cancelled. Your booking is not confirmed.",
@@ -223,6 +332,24 @@ export function BookingPage({
       active = false;
     };
   }, [cancelled]);
+
+  const updateBinSize = (value: string) => {
+    if (binPrices && binPrices[value]?.amount == null) return;
+    setRequestError("");
+    setForm((current) => ({
+      ...current,
+      binSize: value,
+      wasteType: isWasteAllowedForBin(value, current.wasteType)
+        ? current.wasteType
+        : "",
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.binSize;
+      if (!isWasteAllowedForBin(value, form.wasteType)) delete next.wasteType;
+      return next;
+    });
+  };
 
   const updateField = <K extends FieldKey>(
     field: K,
@@ -321,16 +448,17 @@ export function BookingPage({
   const validateStep = (currentStep: number) => {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
 
-    if (currentStep === 1 && !bins.some((bin) => bin.id === form.binSize))
-      nextErrors.binSize = "Please select a bin size.";
-    if (
-      currentStep === 2 &&
-      !availableWaste.some((waste) => waste.id === form.wasteType)
-    ) {
-      nextErrors.wasteType =
-        selectedBin?.restriction ?? "Please select a waste type.";
+    if (currentStep === 1) {
+      if (!bins.some((bin) => bin.id === form.binSize))
+        nextErrors.binSize = "Please select a bin size.";
+      else if (binPrices && binPrices[form.binSize]?.amount == null)
+        nextErrors.binSize =
+          "This bin is not available for the selected waste type.";
+      if (!availableWaste.some((waste) => waste.id === form.wasteType))
+        nextErrors.wasteType =
+          selectedBin?.restriction ?? "Please select a waste type.";
     }
-    if (currentStep === 3) {
+    if (currentStep === 2) {
       const postcodeSelected =
         isResolvedPostcode(form.address) &&
         form.locationLabel.trim() !== form.address.trim();
@@ -352,7 +480,7 @@ export function BookingPage({
       if (!placements.some((option) => option === form.placement))
         nextErrors.placement = "Please choose where the bin should be placed.";
     }
-    if (currentStep === 4) {
+    if (currentStep === 3) {
       if (!form.deliveryDate || form.deliveryDate < tomorrowIsoDate())
         nextErrors.deliveryDate =
           "Please select a delivery date from tomorrow onward.";
@@ -364,7 +492,7 @@ export function BookingPage({
         nextErrors.pickupDate =
           "Choose a pickup date from the delivery date, up to 24 days later.";
     }
-    if (currentStep === 5) {
+    if (currentStep === 4) {
       if (!form.fullName.trim())
         nextErrors.fullName = "Please enter your full name.";
       if (!form.email.trim())
@@ -392,7 +520,7 @@ export function BookingPage({
     if (submitting) return;
     if (!validateStep(step)) return;
     setRequestError("");
-    if (step === 3 || step === 4) {
+    if (step === 2 || step === 3) {
       setSubmitting(true);
       try {
         const quote = await requestQuote({
@@ -400,7 +528,7 @@ export function BookingPage({
           locationLabel: form.locationLabel,
           size: form.binSize,
           waste: form.wasteType,
-          ...(step === 4
+          ...(step === 3
             ? {
                 date: form.deliveryDate,
                 pickupDate: form.pickupDate,
@@ -408,7 +536,7 @@ export function BookingPage({
               }
             : {}),
         });
-        if (step === 4 && quote.total !== null)
+        if (step === 3 && quote.total !== null)
           setServerQuote({ key: quoteKey, total: quote.total });
       } catch (error) {
         {
@@ -423,7 +551,7 @@ export function BookingPage({
         setSubmitting(false);
       }
     }
-    const nextStep = Math.min(step + 1, 6);
+    const nextStep = Math.min(step + 1, TOTAL_STEPS);
     setMaxReached((current) => Math.max(current, nextStep));
     setStep(nextStep);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -442,11 +570,11 @@ export function BookingPage({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
-    if (step !== 6) {
+    if (step !== TOTAL_STEPS) {
       handleContinue();
       return;
     }
-    for (let current = 1; current <= 5; current++) {
+    for (let current = 1; current < TOTAL_STEPS; current++) {
       if (!validateStep(current)) {
         setStep(current);
         return;
@@ -521,7 +649,7 @@ export function BookingPage({
               </h1>
               {confirmed ? null : (
                 <span className="whitespace-nowrap text-[13px] font-semibold text-[#405347]">
-                  Step {step} of 6
+                  Step {step} of {TOTAL_STEPS}
                 </span>
               )}
             </div>
@@ -556,31 +684,50 @@ export function BookingPage({
                   <ValidationMessage message={requestError} />
                   <div key={step} className="animate-[fadeStep_280ms_ease]">
                     {step === 1 ? (
-                      <BinSelector
-                        value={form.binSize}
-                        onChange={(value) => updateField("binSize", value)}
-                        error={errors.binSize}
-                      />
-                    ) : null}
-
-                    {step === 2 ? (
-                      <div>
-                        {selectedBin?.restriction ? (
-                          <p className="mb-3 rounded-xl border border-[#F0D5A9] bg-[#FFF7E8] px-3.5 py-2.5 text-[12px] font-semibold leading-5 text-[#8A4B08]">
-                            {selectedBin.restriction} Only compatible waste
-                            options are shown below.
-                          </p>
-                        ) : null}
-                        <WasteTypeSelector
-                          accepted={availableWaste}
-                          value={form.wasteType}
-                          onChange={(value) => updateField("wasteType", value)}
-                          error={errors.wasteType}
+                      <div className="space-y-4">
+                        <BinSelector
+                          value={form.binSize}
+                          onChange={updateBinSize}
+                          error={errors.binSize}
+                          prices={binPrices}
+                          pricesLoading={pricesLoading}
+                          zoneNote={zoneNote}
                         />
+                        <div>
+                          <h2 className="mb-2 text-[15px] font-semibold text-[#0B3B24]">
+                            Waste type
+                          </h2>
+                          {form.binSize ? (
+                            <>
+                              {selectedBin?.restriction ? (
+                                <p className="mb-3 rounded-xl border border-[#F0D5A9] bg-[#FFF7E8] px-3.5 py-2.5 text-[12px] font-semibold leading-5 text-[#8A4B08]">
+                                  {selectedBin.restriction} Only compatible waste
+                                  options are shown below.
+                                </p>
+                              ) : null}
+                              <WasteTypeSelector
+                                accepted={availableWaste}
+                                value={form.wasteType}
+                                onChange={(value) =>
+                                  updateField("wasteType", value)
+                                }
+                                error={errors.wasteType}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <p className="rounded-xl border border-[#d6dfd2] bg-white px-3.5 py-3 text-[13px] leading-5 text-[#405347]">
+                                Select a bin size to see the waste types it can
+                                take.
+                              </p>
+                              <ValidationMessage message={errors.wasteType} />
+                            </>
+                          )}
+                        </div>
                       </div>
                     ) : null}
 
-                    {step === 3 ? (
+                    {step === 2 ? (
                       <div className="space-y-3">
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div>
@@ -691,7 +838,7 @@ export function BookingPage({
                       </div>
                     ) : null}
 
-                    {step === 4 ? (
+                    {step === 3 ? (
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <DatePicker
@@ -750,7 +897,7 @@ export function BookingPage({
                       </div>
                     ) : null}
 
-                    {step === 5 ? (
+                    {step === 4 ? (
                       <div className="space-y-3">
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#0B3B24]">
@@ -826,7 +973,7 @@ export function BookingPage({
                       </div>
                     ) : null}
 
-                    {step === 6 ? (
+                    {step === TOTAL_STEPS ? (
                       <div>
                         <BookingSummary
                           form={form}
@@ -861,7 +1008,7 @@ export function BookingPage({
                       </button>
                     )}
 
-                    {step === 6 ? (
+                    {step === TOTAL_STEPS ? (
                       <div className="min-w-0 flex-1 text-right leading-none">
                         <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#405347]">
                           Total · delivery included
@@ -884,12 +1031,12 @@ export function BookingPage({
                           <Loader2 size={16} className="animate-spin" />{" "}
                           Checking…
                         </>
-                      ) : step === 6 ? (
+                      ) : step === TOTAL_STEPS ? (
                         "Pay now"
                       ) : (
                         "Next step"
                       )}
-                      {step === 6 ? (
+                      {step === TOTAL_STEPS ? (
                         <Check size={14} strokeWidth={2.6} />
                       ) : (
                         <ArrowRight size={14} />
@@ -924,10 +1071,10 @@ function BookingPageFooter() {
       </div>
       <footer className="flex flex-col gap-3 border-t border-[#E8E1CF] py-6 text-sm text-[#5B6B60] sm:flex-row sm:items-center sm:justify-between">
         <span className="font-extrabold text-[#0B3B24]">
-          Premium Skip Bin Hire<span className="text-[#65A30D]">.</span>
+          SkippyBinHire<span className="text-[#65A30D]">.</span>
         </span>
         <span>
-          © 2026 Premium Skip Bin Hire Australia · Skip more, spend less.
+          © 2026 SkippyBinHire Australia · Skip more, spend less.
         </span>
       </footer>
     </>

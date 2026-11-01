@@ -5,7 +5,7 @@ import { AdminLoginForm } from "@/components/admin/admin-login-form";
 import { isAdminUser } from "@/lib/server/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Admin sign in | Premium Skip Bin Hire" };
+export const metadata: Metadata = { title: "Admin sign in | SkippyBinHire" };
 
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;

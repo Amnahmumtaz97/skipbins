@@ -63,6 +63,8 @@ payments), then redeploy:
 - `STRIPE_WEBHOOK_SECRET`
 - `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin`)
 - `GET_ADDRESS_API_KEY`
+- `OSRM_BASE_URL` (optional; road km defaults to public OSRM at router.project-osrm.org)
+- `OPENROUTESERVICE_API_KEY` / `ROAD_DISTANCE_PROVIDER` (optional; only if you later switch provider to ORS)
 
 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is embedded into the browser bundle at
 build time, so a new deployment is required after adding or changing it.

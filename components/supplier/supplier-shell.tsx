@@ -88,7 +88,7 @@ export function SupplierShell({
             <Truck size={24} />
           </span>
           <div>
-            <strong>Skip Bins</strong>
+            <strong>SkippyBinHire</strong>
             <small>SUPPLIER PORTAL</small>
           </div>
         </Link>

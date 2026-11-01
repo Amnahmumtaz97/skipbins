@@ -9,7 +9,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Premium Skip Bin Hire | Skip more, spend less.",
+  title: "SkippyBinHire | Skip more, spend less.",
   description: "Reliable skip bin hire for homes, renovations and businesses.",
 };
 

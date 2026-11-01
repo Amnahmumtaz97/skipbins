@@ -94,8 +94,8 @@ export function AdminShell({ email }: { email: string }) {
             <PackageSearch size={24} />
           </span>
           <Link href="/admin" onClick={() => setOpen(false)}>
-            <strong>Premium</strong>
-            <small>SKIP BINS · ADMIN</small>
+            <strong>SkippyBinHire</strong>
+            <small>ADMIN</small>
           </Link>
           <button
             className="portal-close-nav"

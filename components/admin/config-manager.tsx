@@ -28,7 +28,18 @@ import {
   money,
 } from "@/components/admin/portal-ui";
 import { selectionChanges } from "@/lib/coverage-selection";
+import {
+  defaultZoneMaxKm,
+  DELIVERY_ZONES,
+  deliveryZoneForSuburb,
+  DISPATCH_SUBURBS,
+  zoneLabels,
+  ZONE_MARKER_COLORS,
+  ZONE_SHORT_LABELS,
+  type DeliveryZone,
+} from "@/lib/delivery-zones";
 import type { VicLocality } from "@/lib/data/vic-localities";
+import { ZonePriceTester } from "@/components/admin/zone-price-tester";
 
 const CoverageMap = dynamic(
   () =>
@@ -58,7 +69,9 @@ export function ConfigManager({
     [rates, setRates] = useState(initialRates),
     [coverage, setCoverage] = useState(initialCoverage),
     [query, setQuery] = useState(""),
-    [statusFilter, setStatusFilter] = useState<"all" | "included" | "excluded">("all");
+    [statusFilter, setStatusFilter] = useState<"all" | "included" | "excluded">("all"),
+    [zoneFilter, setZoneFilter] = useState<"all" | DeliveryZone>("all"),
+    [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [success, setSuccess] = useState(false),
@@ -142,6 +155,88 @@ export function ConfigManager({
       active,
     );
   }
+  async function computeRoadDistances(onlyMissing = true) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await portalAction("road-distances", {
+        onlyMissing,
+        activeOnly: true,
+      });
+      const saved = new Map(
+        (
+          (result.rows ?? []) as {
+            id: string;
+            roadKm: number;
+          }[]
+        ).map((row) => [row.id, row.roadKm]),
+      );
+      if (saved.size) {
+        setCoverage((current) =>
+          current.map((row) =>
+            saved.has(row.id) ? { ...row, roadKm: saved.get(row.id) } : row,
+          ),
+        );
+      }
+      setSuccess(true);
+      const via =
+        result.provider === "osrm"
+          ? " via OSRM"
+          : result.provider
+            ? ` via ${result.provider}`
+            : "";
+      const more =
+        result.deferred > 0
+          ? ` ${result.deferred} still missing — click Compute again.`
+          : "";
+      const cached =
+        result.skipped > 0 ? ` (${result.skipped} already cached)` : "";
+      setMessage(
+        `Computed road distance for ${result.computed ?? 0} suburb${(result.computed ?? 0) === 1 ? "" : "s"}${via}${cached}.${more}`,
+      );
+    } catch (e) {
+      setSuccess(false);
+      setMessage(
+        e instanceof Error ? e.message : "Could not compute road distances.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveRoadKm(row: Coverage, value: string) {
+    const roadKm = Number(value);
+    if (!Number.isFinite(roadKm)) {
+      setSuccess(false);
+      setMessage("Enter a valid road distance in km.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await portalAction("road-distance", {
+        suburb: row.suburb,
+        postcode: row.postcode,
+        roadKm,
+      });
+      const saved = result.row as { id: string; roadKm: number };
+      setCoverage((current) =>
+        current.map((item) =>
+          item.id === row.id || item.id === saved.id
+            ? { ...item, roadKm: saved.roadKm }
+            : item,
+        ),
+      );
+      setSuccess(true);
+      setMessage(`Saved ${saved.roadKm.toFixed(1)} km road distance for ${row.suburb}.`);
+    } catch (e) {
+      setSuccess(false);
+      setMessage(
+        e instanceof Error ? e.message : "Could not save road distance.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   const titles = {
     pricing: [
       "CATALOGUE & CAPACITY",
@@ -160,6 +255,16 @@ export function ConfigManager({
     ],
   };
   const t = titles[section];
+  const zoneMaxKm = settings.zoneMaxKm ?? defaultZoneMaxKm;
+  const labels = zoneLabels(zoneMaxKm);
+  function zoneForCoverage(row: Coverage) {
+    return deliveryZoneForSuburb(
+      row.suburb,
+      row.postcode,
+      zoneMaxKm,
+      row.roadKm,
+    );
+  }
   const listedCoverage = coverage.filter((row) => {
     const matchesQuery = `${row.suburb} ${row.postcode}`
       .toLowerCase()
@@ -167,8 +272,24 @@ export function ConfigManager({
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "included" ? row.active : !row.active);
-    return matchesQuery && matchesStatus;
+    const zone = zoneForCoverage(row);
+    const matchesZone = zoneFilter === "all" || zone === zoneFilter;
+    return matchesQuery && matchesStatus && matchesZone;
   });
+  const pageSize = 20;
+  const pageCount = Math.max(1, Math.ceil(listedCoverage.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageRows = listedCoverage.slice(pageStart, pageStart + pageSize);
+  const missingRoadKm = coverage.filter(
+    (row) => row.active && (row.roadKm == null || !Number.isFinite(row.roadKm)),
+  ).length;
+  const zoneCounts = DELIVERY_ZONES.map((zone) => ({
+    zone,
+    count: coverage.filter(
+      (row) => row.active && zoneForCoverage(row) === zone,
+    ).length,
+  }));
   return (
     <div>
       <PageHeading
@@ -191,7 +312,7 @@ export function ConfigManager({
       <Notice message={setupError} />
       <Notice message={message} success={success} />
       {section === "pricing" && (
-        <>
+        <div className="portal-pricing-page">
           <div className="portal-stats">
             <Stat
               label="Active combinations"
@@ -218,6 +339,141 @@ export function ConfigManager({
               value={settings.blockedDates.length}
             />
           </div>
+          <section className="portal-panel">
+            <h2>Delivery zones</h2>
+            <p>
+              Zones use road km from the nearer of{" "}
+              {DISPATCH_SUBURBS.map((depot) => depot.name).join(" or ")} when
+              cached (public OSRM), otherwise straight-line. Each zone has its
+              distance band and delivery fee. Fees are added on top of the bin
+              hire price.
+            </p>
+            <div className="portal-zone-list" role="list">
+              <div className="portal-zone-list-head" aria-hidden="true">
+                <span>Zone</span>
+                <span>Distance</span>
+                <span>Fee (AUD)</span>
+              </div>
+              {DELIVERY_ZONES.map((zone) => {
+                const previousMax =
+                  zone === 1 ? 0 : zoneMaxKm[(zone - 1) as 1 | 2 | 3];
+                return (
+                  <div
+                    key={zone}
+                    className="portal-zone-row"
+                    role="listitem"
+                  >
+                    <div className="portal-zone-identity">
+                      <i
+                        className="portal-zone-swatch"
+                        style={{
+                          background: ZONE_MARKER_COLORS[zone].fill,
+                          boxShadow: `0 0 0 1px ${ZONE_MARKER_COLORS[zone].stroke}`,
+                        }}
+                      />
+                      <div>
+                        <strong>{ZONE_SHORT_LABELS[zone]}</strong>
+                        <small>
+                          {zone === 4
+                            ? `Beyond ${zoneMaxKm[3]} km`
+                            : previousMax > 0
+                              ? `${previousMax}–${zoneMaxKm[zone]} km`
+                              : `Up to ${zoneMaxKm[zone]} km`}
+                        </small>
+                      </div>
+                    </div>
+                    <label className="portal-zone-distance">
+                      <span>
+                        {zone === 4 ? "Range" : "Up to"}
+                      </span>
+                      {zone === 4 ? (
+                        <input
+                          value={`${zoneMaxKm[3]}+ km`}
+                          disabled
+                          readOnly
+                        />
+                      ) : (
+                        <span className="portal-zone-km-input">
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="500"
+                            step="0.1"
+                            aria-label={`Zone ${zone} maximum kilometres`}
+                            value={settings.zoneMaxKm[zone]}
+                            disabled={!ready || busy}
+                            onChange={(e) =>
+                              setSettings((current) => ({
+                                ...current,
+                                zoneMaxKm: {
+                                  ...current.zoneMaxKm,
+                                  [zone]: Number(e.target.value),
+                                },
+                              }))
+                            }
+                          />
+                          <em>km</em>
+                        </span>
+                      )}
+                    </label>
+                    <label className="portal-zone-fee">
+                      <span>Fee</span>
+                      <span className="portal-zone-fee-input">
+                        <em>$</em>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100000"
+                          step="0.01"
+                          aria-label={`${ZONE_SHORT_LABELS[zone]} delivery fee`}
+                          value={settings.zoneDeliveryFees[zone] ?? 0}
+                          disabled={!ready || busy}
+                          onChange={(e) =>
+                            setSettings((current) => ({
+                              ...current,
+                              zoneDeliveryFees: {
+                                ...current.zoneDeliveryFees,
+                                [zone]: Number(e.target.value),
+                              },
+                            }))
+                          }
+                        />
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+            <ZonePriceTester
+              zoneMaxKm={zoneMaxKm}
+              zoneDeliveryFees={settings.zoneDeliveryFees}
+              rates={rates}
+              coverage={coverage}
+            />
+            <div className="portal-footer-actions">
+              <button
+                type="button"
+                className="portal-button-secondary"
+                disabled={!ready || busy}
+                onClick={() => computeRoadDistances(true)}
+              >
+                {busy
+                  ? "Computing…"
+                  : missingRoadKm
+                    ? `Compute road km (${missingRoadKm} missing)`
+                    : "Road km up to date"}
+              </button>
+              <button
+                type="button"
+                className="portal-button"
+                disabled={!ready || busy}
+                onClick={() => saveSettings()}
+              >
+                <Save size={16} />
+                {busy ? "Saving…" : "Save zone settings"}
+              </button>
+            </div>
+          </section>
           <div className="portal-table-wrap">
             <table className="portal-table portal-price-matrix">
               <thead>
@@ -288,7 +544,7 @@ export function ConfigManager({
               </tbody>
             </table>
           </div>
-          <section className="portal-panel" style={{ marginTop: 24 }}>
+          <section className="portal-panel">
             <h2>Blocked delivery days</h2>
             <p>
               These periods block new deliveries across every bin and waste
@@ -318,20 +574,36 @@ export function ConfigManager({
             extra days adds $50, and 8–14 extra days adds $75. Weight charges
             are recorded for reconciliation after weighing.
           </p>
-        </>
+        </div>
       )}
       {section === "coverage" && (
         <>
           <section className="portal-panel">
             <h2>Delivery area</h2>
             <p>
-              Suppliers start with these suburbs. Customers can book the combined postcodes of every supplier.
+              Suppliers start with these suburbs. Customers can book the combined
+              postcodes of every supplier. Included suburbs are grouped into
+              delivery zones from {DISPATCH_SUBURBS.map((d) => d.name).join(" and ")}.
+              Cutoffs: Zone 1 ≤ {zoneMaxKm[1]} km, Zone 2 ≤ {zoneMaxKm[2]} km,
+              Zone 3 ≤ {zoneMaxKm[3]} km, Zone 4 &gt; {zoneMaxKm[3]} km. Edit
+              cutoffs on Pricing & availability.
             </p>
+            <div className="portal-stats" style={{ marginBottom: 0, marginTop: 16 }}>
+              {zoneCounts.map(({ zone, count }) => (
+                <Stat
+                  key={zone}
+                  label={ZONE_SHORT_LABELS[zone]}
+                  value={count}
+                  detail={labels[zone]}
+                />
+              ))}
+            </div>
           </section>
           <CoverageMap
             coverage={coverage}
             mode="selected"
             disabled={!ready || busy}
+            zoneMaxKm={zoneMaxKm}
             onApply={applyMapSelection}
           />
           <div className="portal-toolbar">
@@ -339,34 +611,78 @@ export function ConfigManager({
               <input
                 placeholder="Suburb or postcode"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
               />
             </Field>
             <label className="portal-field coverage-status-filter">
               <span>Show</span>
               <select
                 value={statusFilter}
-                onChange={(event) =>
+                onChange={(event) => {
                   setStatusFilter(
                     event.target.value as "all" | "included" | "excluded",
-                  )
-                }
+                  );
+                  setPage(1);
+                }}
               >
                 <option value="all">All</option>
                 <option value="included">Included</option>
                 <option value="excluded">Excluded</option>
               </select>
             </label>
+            <label className="portal-field coverage-status-filter">
+              <span>Zone</span>
+              <select
+                value={zoneFilter === "all" ? "all" : String(zoneFilter)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setZoneFilter(
+                    value === "all" ? "all" : (Number(value) as DeliveryZone),
+                  );
+                  setPage(1);
+                }}
+              >
+                <option value="all">All zones</option>
+                {DELIVERY_ZONES.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {labels[zone]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="portal-button-secondary"
+              disabled={!ready || busy}
+              onClick={() => computeRoadDistances(true)}
+            >
+              {busy
+                ? "Computing…"
+                : missingRoadKm
+                  ? `Compute road km (${missingRoadKm})`
+                  : "Road km up to date"}
+            </button>
             <button
               className="portal-button-secondary"
               onClick={() =>
                 exportCsv(
                   "victorian-coverage.csv",
-                  ["Suburb", "Postcode", "State", "Active"],
+                  [
+                    "Suburb",
+                    "Postcode",
+                    "State",
+                    "Zone",
+                    "Road km",
+                    "Active",
+                  ],
                   coverage.map((c) => [
                     c.suburb,
                     c.postcode,
                     c.state,
+                    zoneForCoverage(c) ?? "",
+                    c.roadKm ?? "",
                     String(c.active),
                   ]),
                 )
@@ -382,18 +698,60 @@ export function ConfigManager({
                 <tr>
                   <th>Suburb</th>
                   <th>Postcode</th>
+                  <th>Zone</th>
+                  <th>Road km</th>
                   <th>State</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {listedCoverage.map((c) => (
+                {pageRows.map((c) => {
+                  const zone = zoneForCoverage(c);
+                  return (
                     <tr key={c.id}>
                       <td data-label="Suburb">
                         <strong>{c.suburb}</strong>
                       </td>
                       <td data-label="Postcode">{c.postcode}</td>
+                      <td data-label="Zone">
+                        {zone ? (
+                          <span className={`portal-badge zone-${zone}`}>
+                            {ZONE_SHORT_LABELS[zone]}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td data-label="Road km">
+                        <input
+                          className="coverage-road-km"
+                          type="number"
+                          min="0"
+                          max="500"
+                          step="0.1"
+                          disabled={!ready || busy}
+                          defaultValue={
+                            typeof c.roadKm === "number" ? c.roadKm : ""
+                          }
+                          key={`${c.id}-${c.roadKm ?? "empty"}`}
+                          placeholder="km"
+                          aria-label={`Road km for ${c.suburb}`}
+                          onBlur={(event) => {
+                            const next = event.target.value.trim();
+                            const current =
+                              typeof c.roadKm === "number"
+                                ? String(c.roadKm)
+                                : "";
+                            if (!next || next === current) return;
+                            void saveRoadKm(c, next);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.currentTarget.blur();
+                          }}
+                        />
+                      </td>
                       <td data-label="State">
                         <span className="portal-badge">VIC</span>
                       </td>
@@ -412,7 +770,8 @@ export function ConfigManager({
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
               </tbody>
             </table>
             {!listedCoverage.length && (
@@ -423,6 +782,37 @@ export function ConfigManager({
               </p>
             )}
           </div>
+          {listedCoverage.length > 0 && (
+            <div className="coverage-pager">
+              <p>
+                Showing {pageStart + 1}–{pageStart + pageRows.length} of{" "}
+                {listedCoverage.length.toLocaleString("en-AU")}
+              </p>
+              {pageCount > 1 && (
+                <div className="coverage-pager-actions">
+                  <button
+                    type="button"
+                    className="portal-button-secondary"
+                    disabled={currentPage === 1}
+                    onClick={() => setPage(currentPage - 1)}
+                  >
+                    Previous
+                  </button>
+                  <span>
+                    Page {currentPage} of {pageCount}
+                  </span>
+                  <button
+                    type="button"
+                    className="portal-button-secondary"
+                    disabled={currentPage === pageCount}
+                    onClick={() => setPage(currentPage + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
       {section === "profile" && (

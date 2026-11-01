@@ -216,7 +216,7 @@ export function CheckoutPage() {
         <BrandedBackdrop />
         <div className="relative z-10 flex items-start justify-between gap-5">
           <Link href="/" className="text-[20px] font-extrabold leading-tight tracking-[-0.035em] sm:text-[24px]">
-            Premium<br /><span className="text-[#A3E635]">Skip Bin Hire</span>
+            Skippy<br /><span className="text-[#A3E635]">BinHire</span>
           </Link>
           <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/8 px-3 py-2 text-[12px] font-bold text-white/90 backdrop-blur-sm">
             <LockKeyhole className="h-4 w-4 text-[#A3E635]" /> Secure checkout

@@ -8,8 +8,8 @@ import { getBookingByCheckoutSession, getBookingById, getCheckoutAttemptBySessio
 import { getStripe } from "@/lib/server/stripe";
 
 export const metadata: Metadata = {
-  title: "Booking confirmed | Premium Skip Bin Hire",
-  description: "Your Premium Skip Bin Hire payment and booking details.",
+  title: "Booking confirmed | SkippyBinHire",
+  description: "Your SkippyBinHire payment and booking details.",
 };
 
 function firstParam(value: string | string[] | undefined) {

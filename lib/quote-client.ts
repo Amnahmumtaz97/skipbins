@@ -55,5 +55,45 @@ export async function requestQuote(input: {
       "We couldn't find pricing for that postcode — please check and try again.",
       422,
     );
-  return data as { serviceable: true; total: number | null };
+  return data as {
+    serviceable: true;
+    total: number | null;
+    zone?: 1 | 2 | 3 | 4 | null;
+    zoneFee?: number;
+  };
+}
+
+export type BinPriceCatalog = {
+  zone: 1 | 2 | 3 | 4 | null;
+  zoneFee: number;
+  rates: { binId: string; wasteId: string; price: number }[];
+};
+
+export async function requestBinPrices(
+  input: { postcode?: string; suburb?: string; date?: string },
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams();
+  if (input.postcode) params.set("postcode", input.postcode);
+  if (input.suburb) params.set("suburb", input.suburb);
+  if (input.date) params.set("date", input.date);
+  let response: Response;
+  try {
+    response = await fetch(`/api/bin-prices?${params.toString()}`, {
+      signal,
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new QuoteLookupError(
+      "We couldn't load bin prices right now. Please try again.",
+    );
+  }
+  const data = await response.json();
+  if (!response.ok || !Array.isArray(data?.rates))
+    throw new QuoteLookupError(
+      data?.error || "We couldn't load bin prices right now. Please try again.",
+      response.status,
+    );
+  return data as BinPriceCatalog;
 }

@@ -14,9 +14,15 @@ import {
 } from "@/lib/booking-utils";
 import { hireExtensionAmount } from "@/lib/pricing";
 import { isIsoDate, rateForDate } from "@/lib/admin-config";
+import {
+  deliveryZoneForSuburb,
+  zoneDeliveryFee,
+  type DeliveryZone,
+} from "@/lib/delivery-zones";
 import { getPortalConfig } from "@/lib/server/portal-service";
 import { victorianLocalities } from "@/lib/server/victorian-localities";
 import { adminDatabase } from "@/lib/server/admin-database";
+import { getRoadDistanceKm } from "@/lib/server/road-distance";
 import { bookablePostcodes } from "@/lib/server/supplier-coverage";
 export function validateQuote(data: Record<string, unknown>) {
   if (!isResolvedPostcode(data.postcode))
@@ -77,7 +83,12 @@ export function validateQuote(data: Record<string, unknown>) {
 export async function lookupQuote(
   input: ReturnType<typeof validateQuote>,
   excludeBookingId?: string,
-): Promise<{ serviceable: boolean; total: number | null }> {
+): Promise<{
+  serviceable: boolean;
+  total: number | null;
+  zone: DeliveryZone | null;
+  zoneFee: number;
+}> {
   const [localities, config] = await Promise.all([
     victorianLocalities(input.postcode),
     getPortalConfig(),
@@ -175,8 +186,60 @@ export async function lookupQuote(
       ? hireForDates(input.date, input.pickupDate)
       : null;
   const fee = extension ? extension.fee : hireExtensionAmount(input.hirePeriod);
-  const total = Math.round((result.price + fee) * 100) / 100;
+  const roadKm = await getRoadDistanceKm(input.suburb, input.postcode);
+  const zone = deliveryZoneForSuburb(
+    input.suburb,
+    input.postcode,
+    settings.zoneMaxKm,
+    roadKm,
+  );
+  if (!zone)
+    throw new InputError(
+      "We only service verified Victorian suburbs and postcodes.",
+    );
+  const zoneFee = zoneDeliveryFee(zone, settings.zoneDeliveryFees);
+  const total = Math.round((result.price + fee + zoneFee) * 100) / 100;
   if (total <= 0)
     throw new InputError("This bin does not have a valid booking price.");
-  return { serviceable: true, total };
+  return {
+    serviceable: true,
+    total,
+    zone,
+    zoneFee,
+    roadKm,
+    distanceMode: roadKm == null ? "straight-line" : "road",
+  };
+}
+
+export async function listBinPrices(input: {
+  postcode?: string;
+  suburb?: string;
+  date?: string;
+}) {
+  const config = await getPortalConfig();
+  if (!config.ready) throw new Error("Booking configuration unavailable");
+  const rates = config.rates.flatMap((rate) => {
+    const result = rateForDate(rate, input.date);
+    if (!result.available || !(result.price > 0)) return [];
+    return [
+      {
+        binId: rate.binId,
+        wasteId: rate.wasteId,
+        price: result.price,
+      },
+    ];
+  });
+  let zone: DeliveryZone | null = null;
+  let zoneFee = 0;
+  if (input.postcode && input.suburb) {
+    const roadKm = await getRoadDistanceKm(input.suburb, input.postcode);
+    zone = deliveryZoneForSuburb(
+      input.suburb,
+      input.postcode,
+      config.settings.zoneMaxKm,
+      roadKm,
+    );
+    if (zone) zoneFee = zoneDeliveryFee(zone, config.settings.zoneDeliveryFees);
+  }
+  return { zone, zoneFee, rates };
 }

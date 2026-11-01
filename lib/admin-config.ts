@@ -3,6 +3,12 @@ import {
   acceptedWaste,
   isWasteAllowedForBin,
 } from "@/lib/data/skip-bins";
+import {
+  defaultZoneDeliveryFees,
+  defaultZoneMaxKm,
+  type ZoneDeliveryFees,
+  type ZoneMaxKm,
+} from "@/lib/delivery-zones";
 export type DateRule = {
   id: string;
   start: string;
@@ -28,6 +34,8 @@ export type Coverage = {
   postcode: string;
   state: "VIC";
   active: boolean;
+  /** Cached driving km to the nearer dispatch yard, when computed. */
+  roadKm?: number | null;
 };
 export type BusinessProfile = {
   businessName: string;
@@ -52,10 +60,12 @@ export type PortalSettings = {
   stripeFeePercent: number;
   coverageMode: "victoria" | "selected";
   blockedDates: DateRule[];
+  zoneDeliveryFees: ZoneDeliveryFees;
+  zoneMaxKm: ZoneMaxKm;
 };
 export const defaultSettings: PortalSettings = {
   profile: {
-    businessName: "Premium Skip Bins",
+    businessName: "SkippyBinHire",
     abn: "",
     contactName: "",
     email: "",
@@ -83,6 +93,8 @@ export const defaultSettings: PortalSettings = {
   stripeFeePercent: 0,
   coverageMode: "victoria",
   blockedDates: [],
+  zoneDeliveryFees: { ...defaultZoneDeliveryFees },
+  zoneMaxKm: { ...defaultZoneMaxKm },
 };
 export function defaultRates(): BinRate[] {
   return acceptedWaste.flatMap((waste) =>

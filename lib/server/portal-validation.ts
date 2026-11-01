@@ -147,6 +147,22 @@ export function validateSettings(value: unknown): PortalSettings {
     throw new InputError(
       "Commission and processing fees cannot exceed 100% together.",
     );
+  const zoneFees = record(s.zoneDeliveryFees ?? defaultSettings.zoneDeliveryFees);
+  const zoneMax = record(s.zoneMaxKm ?? defaultSettings.zoneMaxKm);
+  const zone1MaxKm = Math.round(num(zoneMax[1] ?? zoneMax["1"], 500) * 10) / 10;
+  const zone2MaxKm = Math.round(num(zoneMax[2] ?? zoneMax["2"], 500) * 10) / 10;
+  const zone3MaxKm = Math.round(
+    num(
+      zoneMax[3] ?? zoneMax["3"] ?? defaultSettings.zoneMaxKm[3],
+      500,
+    ) * 10,
+  ) / 10;
+  if (zone1MaxKm <= 0)
+    throw new InputError("Zone 1 distance must be greater than 0 km.");
+  if (zone2MaxKm <= zone1MaxKm)
+    throw new InputError("Zone 2 distance must be greater than Zone 1.");
+  if (zone3MaxKm <= zone2MaxKm)
+    throw new InputError("Zone 3 distance must be greater than Zone 2.");
   return {
     profile,
     coverageMode: s.coverageMode,
@@ -157,5 +173,16 @@ export function validateSettings(value: unknown): PortalSettings {
       blocked: true,
       price: null,
     })),
+    zoneDeliveryFees: {
+      1: Math.round(num(zoneFees[1] ?? zoneFees["1"]) * 100) / 100,
+      2: Math.round(num(zoneFees[2] ?? zoneFees["2"]) * 100) / 100,
+      3: Math.round(num(zoneFees[3] ?? zoneFees["3"]) * 100) / 100,
+      4: Math.round(num(zoneFees[4] ?? zoneFees["4"] ?? 0) * 100) / 100,
+    },
+    zoneMaxKm: {
+      1: zone1MaxKm,
+      2: zone2MaxKm,
+      3: zone3MaxKm,
+    },
   };
 }

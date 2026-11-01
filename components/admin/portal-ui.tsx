@@ -108,9 +108,6 @@ export function Dialog({
         event.preventDefault();
         onClose();
       }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
     >
       <div className="portal-dialog-title">
         <h2>{title}</h2>

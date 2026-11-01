@@ -18,7 +18,7 @@ export function AdminNav({ email }: { email: string }) {
     <header className="border-b border-[#DCE4D8] bg-white">
       <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-5 px-5 sm:px-8">
         <div className="flex items-center gap-6">
-          <Link href="/admin" className="text-[16px] font-extrabold tracking-[-0.02em] text-[#0B3B24]">Premium Skip Bins <span className="text-[#65A30D]">Admin</span></Link>
+          <Link href="/admin" className="text-[16px] font-extrabold tracking-[-0.02em] text-[#0B3B24]">SkippyBinHire <span className="text-[#65A30D]">Admin</span></Link>
           <Link href="/admin/stripe-test" className="hidden text-[13px] font-bold text-[#5B6B60] transition hover:text-[#0B3B24] sm:block">Stripe test</Link>
         </div>
         <div className="flex items-center gap-3">

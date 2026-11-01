@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BookingPage } from "@/components/book/booking-page";
 
 export const metadata: Metadata = {
-  title: "Book Your Skip Bin | Premium Skip Bin Hire",
+  title: "Book Your Skip Bin | SkippyBinHire",
   description: "Book a skip bin with live pricing for Australian homes, renovations and businesses.",
 };
 
