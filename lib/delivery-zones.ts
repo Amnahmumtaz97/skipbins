@@ -89,7 +89,7 @@ export function distanceToNearestDispatch(point: {
 }
 
 export function nearestDispatch(point: { lat: number; lng: number }) {
-  let best = DISPATCH_SUBURBS[0];
+  let best: (typeof DISPATCH_SUBURBS)[number] = DISPATCH_SUBURBS[0];
   let bestKm = distanceKm(best, point);
   for (const depot of DISPATCH_SUBURBS.slice(1)) {
     const km = distanceKm(depot, point);

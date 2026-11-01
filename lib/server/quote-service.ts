@@ -88,6 +88,8 @@ export async function lookupQuote(
   total: number | null;
   zone: DeliveryZone | null;
   zoneFee: number;
+  roadKm: number | null;
+  distanceMode: "road" | "straight-line";
 }> {
   const [localities, config] = await Promise.all([
     victorianLocalities(input.postcode),
