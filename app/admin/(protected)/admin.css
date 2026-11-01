@@ -478,6 +478,25 @@
   color: #405347;
   margin-top: 4px;
 }
+.portal-table td.stripe-verification-cell {
+  min-width: 145px;
+}
+.stripe-verification-cell .portal-badge {
+  white-space: nowrap;
+}
+.stripe-dashboard-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  color: #14532d;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
 .portal-empty {
   text-align: center;
   padding: 50px 20px;

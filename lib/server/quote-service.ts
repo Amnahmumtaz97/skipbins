@@ -76,6 +76,7 @@ export function validateQuote(data: Record<string, unknown>) {
 }
 export async function lookupQuote(
   input: ReturnType<typeof validateQuote>,
+  excludeBookingId?: string,
 ): Promise<{ serviceable: boolean; total: number | null }> {
   const [localities, config] = await Promise.all([
     victorianLocalities(input.postcode),
@@ -134,12 +135,14 @@ export async function lookupQuote(
         input.pickupDate ?? standardPickupDate(input.date),
         rate.turnaround,
       );
-      const { data, error } = await db
+      let bookingQuery = db
         .from("bookings")
         .select(
           "delivery_date,pickup_date,status,reserved_until,booking_turnaround",
         )
-        .eq("bin_size", input.size)
+        .eq("bin_size", input.size);
+      if (excludeBookingId) bookingQuery = bookingQuery.neq("id", excludeBookingId);
+      const { data, error } = await bookingQuery
         .neq("operation_status", "cancelled")
         .not("operation_status", "like", "deleted%")
         .lte("delivery_date", end)

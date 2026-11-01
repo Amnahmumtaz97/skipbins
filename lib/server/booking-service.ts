@@ -9,6 +9,7 @@ import {
 import type { CustomerIdentity } from "@/lib/server/customer-service";
 import { chooseSupplierForOrder } from "@/lib/server/assign-supplier";
 import { verifiedBookingPayment } from "@/lib/server/checkout-policy";
+import { InputError } from "@/lib/server/request";
 
 export type BookingRecord = {
   address: string;
@@ -218,6 +219,65 @@ export async function createPendingBooking(
       : row);
   }
   return existing ?? { ...row, reference: row.reference };
+}
+
+export async function updatePendingBookingForCheckout(input: {
+  bookingId: string;
+  data: BookingRecord;
+  amountCents: number;
+  customer?: CustomerIdentity;
+}) {
+  const client = supabase();
+  if (!client) throw new Error("Booking provider is not configured");
+  const existing = await getBookingById(input.bookingId);
+  if (!existing || existing.status !== "pending")
+    throw new Error("Only a pending booking can be changed before payment");
+  const row = fromRecord(input.data, input.amountCents, input.customer, input.bookingId);
+  const { error } = await client.rpc("update_pending_booking_for_checkout", {
+    payload: row,
+  });
+  if (error) {
+    const message = error.message ?? "";
+    // Quoted prices come from the catalogue. The database edit only accepts a
+    // bin_rates row, which is not saved for every bookable size.
+    if (/pricing is not available/i.test(message)) await writePendingBookingUpdate(client, row);
+    else if (/bin stock is no longer available|bin unavailable/i.test(message)) throw new InputError(message);
+    else throw databaseError("Could not update pending booking", error);
+  }
+  const updated = await getBookingById(input.bookingId);
+  if (!updated) throw new Error("Updated booking could not be reloaded");
+  return updated;
+}
+
+async function writePendingBookingUpdate(client: SupabaseClient, row: StoredBooking) {
+  const { error } = await client
+    .from("bookings")
+    .update({
+      bin_size: row.bin_size,
+      postcode: row.postcode,
+      waste_type: row.waste_type,
+      delivery_date: row.delivery_date,
+      pickup_date: row.pickup_date,
+      hire_period: row.hire_period,
+      full_name: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      street_address: row.street_address,
+      placement: row.placement,
+      access: row.access,
+      notes: row.notes,
+      amount_cents: row.amount_cents,
+      ...(row.customer_id ? { customer_id: row.customer_id } : {}),
+      reserved_until: new Date(Date.now() + 31 * 60 * 1000).toISOString(),
+      booking_turnaround: 1,
+      operation_status: "payment_pending",
+      stripe_session_id: null,
+      stripe_payment_intent_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .eq("status", "pending");
+  if (error) throw databaseError("Could not update pending booking", error);
 }
 
 const bookingFields =

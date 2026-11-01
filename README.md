@@ -100,8 +100,9 @@ Run these SQL files in the Supabase SQL Editor, in order, before deploying:
 4. `supabase/admin-portal-migration.sql`
 5. `supabase/order-numbers-migration.sql`
 6. `supabase/stripe-checkout-reliability-migration.sql`
+7. `supabase/pending-booking-edit-migration.sql`
 
-The admin portal migration adds private business settings, per-waste bin rates, verified VIC locality coverage, customer status, booking sources, supplier details, and `reserve_admin_booking`. The order-number migration adds the order counter. The Stripe reliability migration adds an idempotent booking submission reservation function and a unique, server-only checkout-attempt ledger. Only the server service role can write these records. It also removes public booking inserts so clients cannot bypass stock reservations. No records or personal information from the demo video are included.
+The admin portal migration adds private business settings, per-waste bin rates, verified VIC locality coverage, customer status, booking sources, supplier details, and `reserve_admin_booking`. The order-number migration adds the order counter. The Stripe reliability migration adds an idempotent booking submission reservation function and a unique, server-only checkout-attempt ledger. The pending-booking edit migration allows a customer to update the same unpaid order before retrying checkout while checking inventory atomically. Only the server service role can write these records. It also removes public booking inserts so clients cannot bypass stock reservations. No records or personal information from the demo video are included.
 
 The portal includes bookings with daily and advanced filters, supplier allocation and notes, customer history, supplier editing and login-account creation, payout reconciliation, pricing and stock, date overrides, Victorian suburb/postcode coverage, and a business profile with opening hours and bank details. Supplier workspaces remain inside the administrator session.
 

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Eye,
   Search,
@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Save,
   Printer,
+  ExternalLink,
 } from "lucide-react";
 import {
   operationStatuses,
@@ -22,7 +23,7 @@ import type {
 } from "@/lib/server/operations-service";
 import { hireForDates } from "@/lib/booking-utils";
 import { acceptedWaste } from "@/lib/data/skip-bins";
-import { exportCsv } from "@/lib/admin-config";
+import { exportCsv, melbourneDateTime } from "@/lib/admin-config";
 import { Field, Notice, Dialog, money } from "@/components/admin/portal-ui";
 
 type OrderDraft = {
@@ -36,6 +37,10 @@ type OrderDraft = {
   placement: string;
   access: string;
   customerNotes: string;
+};
+type StripeVerification = {
+  status: "na" | "verified" | "unverified" | "failed";
+  dashboardUrl: string | null;
 };
 export function OrderManager({
   initialBookings,
@@ -109,6 +114,41 @@ export function OrderManager({
       today,
     ],
   );
+  const [stripeVerification, setStripeVerification] = useState<
+    Record<string, StripeVerification | null>
+  >({});
+  useEffect(() => {
+    const ids = visible.filter((booking) => booking.manageable).map((booking) => booking.id);
+    if (!ids.length) return;
+    let cancelled = false;
+    void (async () => {
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        try {
+          const response = await fetch("/api/admin/orders/stripe-verification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bookingIds: ids.slice(offset, offset + 100) }),
+          });
+          if (!response.ok) throw new Error("Payment verification unavailable");
+          const result = await response.json() as {
+            verifications?: Record<string, StripeVerification>;
+          };
+          if (!cancelled) setStripeVerification((current) => ({ ...current, ...result.verifications }));
+        } catch {
+          if (!cancelled) {
+            setStripeVerification((current) => {
+              const next = { ...current };
+              ids.slice(offset, offset + 100).forEach((id) => {
+                if (next[id] === undefined) next[id] = { status: "failed", dashboardUrl: null };
+              });
+              return next;
+            });
+          }
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [visible]);
   async function updateOrder(
     b: OperationsBooking,
     changes: {
@@ -220,7 +260,7 @@ export function OrderManager({
       ],
       visible.map((b) => [
         b.reference,
-        formatBookingDate(b.created_at),
+        melbourneDateTime(b.created_at),
         b.full_name,
         b.email,
         b.phone,
@@ -397,6 +437,7 @@ export function OrderManager({
                 "Bin & value",
                 "Workflow",
                 "Supplier",
+                "Stripe Payment Verification",
                 "Action",
               ].map((h) => (
                 <th key={h}>{h}</th>
@@ -409,7 +450,7 @@ export function OrderManager({
                 <td data-label="Booking">
                   <strong>{b.reference}</strong>
                   <small>
-                    Booked {formatBookingDate(b.created_at)}
+                    Booked {melbourneDateTime(b.created_at)}
                   </small>
                   <small>
                     <span
@@ -477,6 +518,41 @@ export function OrderManager({
                         </option>
                       ))}
                   </select>
+                </td>
+                <td data-label="Stripe Payment Verification" className="stripe-verification-cell">
+                  {(() => {
+                    const verification = b.manageable
+                      ? stripeVerification[b.id]
+                      : { status: "na" as const, dashboardUrl: null };
+                    const label = !verification
+                      ? "Checking…"
+                      : verification.status === "na"
+                        ? "N/A"
+                        : verification.status === "verified"
+                          ? "Verified"
+                          : verification.status === "unverified"
+                            ? "Unverified"
+                            : "Verification Failed";
+                    return (
+                      <>
+                        <span className={`portal-badge ${verification?.status === "verified" ? "" : "warning"}`}>
+                          {label}
+                        </span>
+                        {verification?.dashboardUrl && (
+                          <a
+                            className="stripe-dashboard-link"
+                            href={verification.dashboardUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`View ${b.reference} payment in Stripe`}
+                          >
+                            <ExternalLink size={12} />
+                            View in Stripe
+                          </a>
+                        )}
+                      </>
+                    );
+                  })()}
                 </td>
                 <td data-label="Action">
                   <button
@@ -568,8 +644,8 @@ function OrderEditor({
         }}
       >
         <div className="portal-grid">
-          <Field label="Date booked">
-            <input value={formatBookingDate(booking.created_at)} readOnly />
+          <Field label="Booked">
+            <input value={melbourneDateTime(booking.created_at)} readOnly />
           </Field>
           <Field label="Customer">
             <input
@@ -719,14 +795,3 @@ function OrderEditor({
   );
 }
 
-function formatBookingDate(value: string) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "Australia/Melbourne",
-  }).format(date);
-}

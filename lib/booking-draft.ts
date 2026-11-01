@@ -6,6 +6,7 @@ const draftKey = "skipbins-booking-draft";
 const awaitingKey = "skipbins-awaiting-payment";
 const checkoutClientSecretKey = "skipbins-checkout-client-secret";
 const bookingSubmissionKey = "skipbins-booking-submission-id";
+const successReturnKey = "skipbins-success-return";
 
 export function saveBookingDraft(form: BookingFormState) {
   sessionStorage.setItem(draftKey, JSON.stringify(form));
@@ -36,7 +37,10 @@ export function loadBookingSubmissionId() {
     const saved = JSON.parse(sessionStorage.getItem(bookingSubmissionKey) ?? "null") as
       | { id?: unknown }
       | null;
-    return typeof saved?.id === "string" ? saved.id : null;
+    return typeof saved?.id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(saved.id)
+      ? saved.id
+      : null;
   } catch {
     return null;
   }
@@ -52,6 +56,20 @@ export function saveCheckoutClientSecret(clientSecret: string) {
 
 export function loadCheckoutClientSecret() {
   return sessionStorage.getItem(checkoutClientSecretKey);
+}
+
+export function markSuccessForBackNavigation() {
+  sessionStorage.setItem(successReturnKey, "1");
+}
+
+export function consumeSuccessBackNavigation() {
+  if (sessionStorage.getItem(successReturnKey) !== "1") return false;
+  sessionStorage.removeItem(successReturnKey);
+  return true;
+}
+
+export function clearSuccessBackNavigation() {
+  sessionStorage.removeItem(successReturnKey);
 }
 
 export function clearBookingDraft() {

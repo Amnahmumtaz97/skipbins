@@ -23,7 +23,7 @@ import {
   ShieldCheck,
   Truck,
 } from "lucide-react";
-import { loadBookingDraft, loadCheckoutClientSecret } from "@/lib/booking-draft";
+import { consumeSuccessBackNavigation, loadBookingDraft, loadCheckoutClientSecret } from "@/lib/booking-draft";
 import { formatHirePeriod, getBinBySizeOrId, getWasteById } from "@/lib/data/skip-bins";
 import type { BookingFormState } from "@/types/skip-bin";
 
@@ -68,6 +68,16 @@ export function CheckoutPage() {
   const submittingRef = useRef(false);
 
   useEffect(() => {
+    const leaveCheckoutAfterSuccess = () => {
+      if (!consumeSuccessBackNavigation()) return;
+      window.location.replace("/booking");
+    };
+    leaveCheckoutAfterSuccess();
+    window.addEventListener("pageshow", leaveCheckoutAfterSuccess);
+    return () => window.removeEventListener("pageshow", leaveCheckoutAfterSuccess);
+  }, []);
+
+  useEffect(() => {
     const draft = loadBookingDraft();
     const clientSecret = loadCheckoutClientSecret();
     let active = true;
@@ -94,7 +104,7 @@ export function CheckoutPage() {
         expressCheckoutConfirmEvent?.paymentFailed({ reason: "fail", message: result.error.message });
         throw new Error(result.error.message);
       }
-      router.push(`/book/success?session_id=${result.session.id}`);
+      router.replace(`/book/success?session_id=${result.session.id}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Payment could not be completed. Please try again.");
       submittingRef.current = false;

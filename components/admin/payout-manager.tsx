@@ -1,5 +1,5 @@
 "use client";
-import { melbourneDate } from "@/lib/admin-config";
+import { melbourneDateTime } from "@/lib/admin-config";
 import { useMemo, useState } from "react";
 import { Download, Save, CalendarDays } from "lucide-react";
 import type {
@@ -408,7 +408,7 @@ export function PayoutManager({
                     <tr key={b.id}>
                       <td data-label="Booking">
                         <strong>{b.reference}</strong>
-                        <small>Created {melbourneDate(b.created_at)}</small>
+                        <small>Created {melbourneDateTime(b.created_at)}</small>
                       </td>
                       <td data-label="Supplier">
                         {b.supplier_name ?? "Unassigned"}

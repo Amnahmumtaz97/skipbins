@@ -27,9 +27,9 @@ export function BookingProgress({ current, maxReached, onSelect }: BookingProgre
       />
       <ol className="relative z-[2] flex flex-col gap-4">
         {STEPS.map((step) => {
-          const done = step.id < current;
           const active = step.id === current;
           const reachable = step.id <= maxReached;
+          const done = reachable && !active;
           const labelClass = done || active ? "font-bold text-[#0B3B24]" : "text-[#405347]";
 
           return (

@@ -11,6 +11,9 @@ import {
   getBookingById,
   markBookingPaid,
   recordCheckoutAttempt,
+  updatePendingBookingForCheckout,
+  type BookingRecord,
+  type StoredBooking,
 } from "@/lib/server/booking-service";
 import { lookupQuote, validateQuote } from "@/lib/server/quote-service";
 import { rateLimit } from "@/lib/server/rate-limit";
@@ -91,13 +94,19 @@ export async function POST(request: Request) {
       throw new InputError("Please check the selected disposal extras.");
 
     const existingBooking = await getBookingById(submissionId);
-    const quote = existingBooking ? null : await lookupQuote(input);
-    if (!existingBooking && (
+    if (existingBooking?.status === "paid") {
+      return Response.json(
+        { bookingId: existingBooking.id, reference: existingBooking.reference, status: "paid", sessionId: existingBooking.stripe_session_id },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const quote = await lookupQuote(input, existingBooking?.id);
+    if (
       !quote?.serviceable ||
       quote.total == null ||
       !Number.isFinite(quote.total) ||
       quote.total <= 0
-    )) {
+    ) {
       return Response.json(
         {
           error:
@@ -114,6 +123,10 @@ export async function POST(request: Request) {
 
     const selectedExtras = selectedBookingExtras(extras);
     const extrasTotal = bookingExtrasTotal(extras);
+    const extraNotes = selectedExtras.length
+      ? `Disposal extras: ${selectedExtras.map((extra) => `${extra.label} x ${extra.quantity}${extra.total === 0 ? " (FREE)" : ""}`).join(", ")}`
+      : "";
+    const savedNotes = [extraNotes, String(data.notes).trim()].filter(Boolean).join("\n");
     const extraLineItems = selectedExtras.flatMap((extra) => [
       ...(extra.freeQuantity > 0
         ? [{ quantity: extra.freeQuantity, price_data: { currency: "aud" as const, unit_amount: 0, product_data: { name: `${extra.label} — first one free` } } }]
@@ -122,7 +135,29 @@ export async function POST(request: Request) {
         ? [{ quantity: extra.chargeableQuantity, price_data: { currency: "aud" as const, unit_amount: extra.price * 100, product_data: { name: extra.freeQuantity > 0 ? `Additional ${extra.label}` : extra.label } } }]
         : []),
     ]);
-    const amountCents = existingBooking?.amount_cents ?? Math.round(((quote?.total ?? 0) + extrasTotal) * 100);
+    const amountCents = Math.round(((quote.total ?? 0) + extrasTotal) * 100);
+    const bookingInput = {
+      address: String(data.address),
+      binSize: String(data.binSize),
+      wasteType: String(data.wasteType),
+      deliveryDate: String(data.deliveryDate),
+      pickupDate: String(data.pickupDate),
+      hirePeriod: String(data.hirePeriod),
+      extras,
+      fullName: data.fullName as string,
+      email: data.email as string,
+      phone: data.phone as string,
+      streetAddress: data.streetAddress as string,
+      deliveryAddressLabel: data.deliveryAddressLabel as string,
+      placement: data.placement,
+      access: data.access as string,
+      notes: data.notes as string,
+    };
+    const updateExistingPending = Boolean(
+      existingBooking &&
+      existingBooking.status === "pending" &&
+      pendingBookingChanged(existingBooking, bookingInput, amountCents, savedNotes),
+    );
     const stripe = getStripe();
     const customerDetails = {
       fullName: data.fullName as string,
@@ -132,29 +167,74 @@ export async function POST(request: Request) {
     stage = "customer-identity";
     const customer = await resolveCustomer(customerDetails);
     stage = "booking-persistence";
-    const booking = await createPendingBooking(
-      {
-        address: String(data.address),
-        binSize: String(data.binSize),
-        wasteType: String(data.wasteType),
-        deliveryDate: String(data.deliveryDate),
-        pickupDate: String(data.pickupDate),
-        hirePeriod: String(data.hirePeriod),
-        extras,
-        fullName: data.fullName as string,
-        email: data.email as string,
-        phone: data.phone as string,
-        streetAddress: data.streetAddress as string,
-        deliveryAddressLabel: data.deliveryAddressLabel as string,
-        placement: data.placement,
-        access: data.access as string,
-        notes: data.notes as string,
-      },
-      amountCents,
-      customer,
-      "direct",
-      submissionId,
-    );
+    let priorAttempt: Awaited<ReturnType<typeof beginCheckoutAttempt>> | null = null;
+    let expiredSessionId: string | undefined;
+    if (existingBooking?.status === "pending") {
+      priorAttempt = await beginCheckoutAttempt(existingBooking.id);
+      if (updateExistingPending) {
+        const sessionId = priorAttempt.stripe_session_id ?? existingBooking.stripe_session_id;
+        if (sessionId) {
+          const current = await stripe.checkout.sessions.retrieve(sessionId);
+          const attemptNumber = Number(current.metadata?.checkoutAttempt);
+          assertSessionMatchesBooking(current, existingBooking.id, existingBooking.amount_cents, attemptNumber);
+          const paymentIntentId = typeof current.payment_intent === "string"
+            ? current.payment_intent
+            : current.payment_intent?.id ?? null;
+          if (current.payment_status === "paid") {
+            await recordCheckoutAttempt({ bookingId: existingBooking.id, attempt: attemptNumber, sessionId: current.id, paymentIntentId, status: "paid" });
+            const paid = await markBookingPaid({ id: existingBooking.id, stripeSessionId: current.id, metadataBookingId: current.metadata?.bookingId, paymentIntentId: paymentIntentId ?? undefined, amountTotal: current.amount_total, currency: current.currency });
+            return Response.json(
+              { bookingId: existingBooking.id, reference: existingBooking.reference, status: paid?.status === "paid" ? "paid" : "processing", sessionId: current.id },
+              { headers: { "Cache-Control": "no-store" } },
+            );
+          }
+
+          let attemptStatus: "expired" | "failed" | "processing" = "expired";
+          if (current.status === "open") {
+            await stripe.checkout.sessions.expire(current.id);
+          } else if (current.status === "complete" && paymentIntentId) {
+            const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+            if (intent.status === "succeeded") {
+              await recordCheckoutAttempt({ bookingId: existingBooking.id, attempt: attemptNumber, sessionId: current.id, paymentIntentId, status: "paid" });
+              const paid = await markBookingPaid({ id: existingBooking.id, stripeSessionId: current.id, metadataBookingId: current.metadata?.bookingId, paymentIntentId, amountTotal: current.amount_total, currency: current.currency });
+              return Response.json(
+                { bookingId: existingBooking.id, reference: existingBooking.reference, status: paid?.status === "paid" ? "paid" : "processing", sessionId: current.id },
+                { headers: { "Cache-Control": "no-store" } },
+              );
+            } else if (["processing", "requires_action", "requires_confirmation", "requires_capture"].includes(intent.status)) {
+              attemptStatus = "processing";
+            } else {
+              attemptStatus = "failed";
+            }
+          } else if (current.status !== "expired") {
+            attemptStatus = "processing";
+          }
+          await recordCheckoutAttempt({ bookingId: existingBooking.id, attempt: attemptNumber, sessionId: current.id, paymentIntentId, status: attemptStatus });
+          if (attemptStatus === "processing") {
+            return Response.json(
+              { bookingId: existingBooking.id, reference: existingBooking.reference, status: "processing", sessionId: current.id },
+              { headers: { "Cache-Control": "no-store" } },
+            );
+          }
+          expiredSessionId = current.id;
+        }
+      }
+    }
+
+    const booking = updateExistingPending
+      ? await updatePendingBookingForCheckout({
+          bookingId: existingBooking!.id,
+          data: bookingInput,
+          amountCents,
+          customer,
+        })
+      : existingBooking ?? await createPendingBooking(
+          bookingInput,
+          amountCents,
+          customer,
+          "direct",
+          submissionId,
+        );
     const savedCustomerDetails = {
       fullName: booking.full_name,
       email: booking.email,
@@ -169,7 +249,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingAttempt = await beginCheckoutAttempt(booking.id);
+    const existingAttempt = priorAttempt
+      ? expiredSessionId
+        ? await beginCheckoutAttempt(booking.id, expiredSessionId)
+        : priorAttempt
+      : await beginCheckoutAttempt(booking.id);
     if (existingAttempt.booking_status === "paid") {
       return Response.json(
         { bookingId: booking.id, reference: booking.reference, status: "paid", sessionId: booking.stripe_session_id },
@@ -289,6 +373,7 @@ export async function POST(request: Request) {
       }],
       metadata: {
         bookingId: booking.id,
+        orderReference: booking.reference,
         checkoutAttempt: String(attempt.attempt),
         customerId: savedCustomer.id,
         customerCode: savedCustomer.code,
@@ -299,6 +384,7 @@ export async function POST(request: Request) {
       payment_intent_data: {
         metadata: {
           bookingId: booking.id,
+          orderReference: booking.reference,
           checkoutAttempt: String(attempt.attempt),
           customerId: savedCustomer.id,
           customerCode: savedCustomer.code,
@@ -334,6 +420,28 @@ function publicCheckoutAsset(origin: string, path: string) {
   } catch {
     return undefined;
   }
+}
+
+function pendingBookingChanged(
+  existing: StoredBooking,
+  input: BookingRecord,
+  amountCents: number,
+  savedNotes: string,
+) {
+  return existing.bin_size !== input.binSize ||
+    existing.postcode !== input.address ||
+    existing.waste_type !== input.wasteType ||
+    existing.delivery_date !== input.deliveryDate ||
+    existing.pickup_date !== input.pickupDate ||
+    existing.hire_period !== input.hirePeriod ||
+    existing.full_name !== input.fullName.trim() ||
+    existing.email !== input.email.trim() ||
+    existing.phone !== input.phone.trim() ||
+    existing.street_address !== (input.deliveryAddressLabel?.trim() || input.streetAddress.trim()) ||
+    existing.placement !== input.placement ||
+    existing.access !== input.access.trim() ||
+    existing.notes !== savedNotes ||
+    existing.amount_cents !== amountCents;
 }
 
 function formatCheckoutDate(value: string) {

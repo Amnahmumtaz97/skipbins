@@ -49,8 +49,10 @@ import {
 } from "@/lib/booking-utils";
 import { quoteTotal } from "@/lib/pricing";
 import {
+  clearSuccessBackNavigation,
   isAwaitingPayment,
   getBookingSubmissionId,
+  loadBookingSubmissionId,
   loadBookingDraft,
   saveBookingDraft,
   saveCheckoutClientSecret,
@@ -174,6 +176,7 @@ export function BookingPage({
     key: string;
     total: number;
   } | null>(null);
+  const resumedSubmissionId = useRef<string | null>(null);
   const quoteKey = `${form.address}|${form.binSize}|${form.wasteType}|${form.deliveryDate}|${form.pickupDate}|${form.hirePeriod}`;
   const baseEstimate = quoteTotal(form.binSize, form.hirePeriod);
   const estimatedTotal =
@@ -190,14 +193,15 @@ export function BookingPage({
     form.deliveryDate && form.pickupDate
       ? hireForDates(form.deliveryDate, form.pickupDate)
       : null;
-  const restoredDraft = useRef(false);
+  useEffect(() => {
+    clearSuccessBackNavigation();
+  }, []);
 
   useEffect(() => {
-    if (restoredDraft.current) return;
     if (!cancelled && !isAwaitingPayment()) return;
     const draft = loadBookingDraft();
     if (!draft) return;
-    restoredDraft.current = true;
+    resumedSubmissionId.current = loadBookingSubmissionId();
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
@@ -225,19 +229,6 @@ export function BookingPage({
     value: BookingFormState[K],
   ) => {
     setRequestError("");
-    if (
-      [
-        "binSize",
-        "wasteType",
-        "address",
-        "streetAddress",
-        "deliveryDate",
-        "pickupDate",
-        "hirePeriod",
-      ].includes(field)
-    ) {
-      setMaxReached(step);
-    }
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -255,7 +246,6 @@ export function BookingPage({
 
   const updatePostcode = (value: string, label: string) => {
     setRequestError("");
-    setMaxReached(step);
     setAddressConfirmed(false);
     setForm((current) => ({
       ...current,
@@ -275,7 +265,6 @@ export function BookingPage({
 
   const updateStreetAddress = (value: string, selectedLabel = "") => {
     setRequestError("");
-    setMaxReached(step);
     setAddressConfirmed(Boolean(selectedLabel));
     setForm((current) => ({
       ...current,
@@ -291,7 +280,6 @@ export function BookingPage({
 
   const updateDeliveryDate = (value: string) => {
     setRequestError("");
-    setMaxReached(step);
     setForm((current) => ({
       ...current,
       deliveryDate: value,
@@ -308,7 +296,6 @@ export function BookingPage({
 
   const updatePickupDate = (value: string) => {
     setRequestError("");
-    setMaxReached(step);
     setForm((current) => ({
       ...current,
       pickupDate: value,
@@ -468,7 +455,7 @@ export function BookingPage({
     setSubmitting(true);
     setRequestError("");
     try {
-      const submissionId = getBookingSubmissionId(form);
+      const submissionId = resumedSubmissionId.current ?? getBookingSubmissionId(form);
       saveBookingDraft(form);
       const response = await fetch("/api/bookings", {
         method: "POST",
@@ -495,6 +482,7 @@ export function BookingPage({
       ) {
         saveBookingDraft(form);
         saveCheckoutClientSecret(result.clientSecret);
+        clearSuccessBackNavigation();
         router.push("/checkout");
         return;
       }

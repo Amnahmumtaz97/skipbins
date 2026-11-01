@@ -1,5 +1,5 @@
 "use client";
-import { melbourneDate } from "@/lib/admin-config";
+import { melbourneDate, melbourneDateTime } from "@/lib/admin-config";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Download, Search, SlidersHorizontal, Eye } from "lucide-react";
@@ -314,6 +314,8 @@ export function CustomerManager({
                 <br />
                 {b.delivery_date} · {b.bin_size.replace("m3", "m³")} ·{" "}
                 {b.postcode}
+                <br />
+                Booked {melbourneDateTime(b.created_at)}
               </span>
               <span className="portal-badge">
                 {b.operation_status.replaceAll("_", " ")}

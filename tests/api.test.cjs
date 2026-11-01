@@ -28,7 +28,7 @@ const { checkoutDecision, stripeCheckoutIdempotencyKey, verifiedBookingPayment }
 const { adminStripeTestAmountCents, adminStripeTestAmountLabel } = require('../lib/data/admin-stripe-test.ts');
 const { quoteTotal } = require('../lib/pricing.ts');
 const { rateLimit } = require('../lib/server/rate-limit.ts');
-const { createPendingBooking, formatOrderNumber, orderYearSuffix } = require('../lib/server/booking-service.ts');
+const { createPendingBooking, formatOrderNumber, orderYearSuffix, updatePendingBookingForCheckout } = require('../lib/server/booking-service.ts');
 const { newCustomerCode, normalizeCustomerEmail } = require('../lib/server/customer-service.ts');
 const { isAdminUser, isSupplierUser, supplierIdFromUser } = require('../lib/server/admin-auth.ts');
 const { isOperationStatus, supplierActionStatuses } = require('../lib/data/operations.ts');
@@ -229,6 +229,49 @@ test('repeated booking submission ID returns the original order and amount', asy
     assert.equal(second.reference, first.reference);
     assert.equal(second.amount_cents, 14900);
     assert.equal(second.full_name, 'Test');
+  } finally {
+    global.fetch = originalFetch;
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalSecretKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = originalSecretKey;
+  }
+});
+test('editing a pending booking still saves when that size has no stored rate row', async () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalSecretKey = process.env.SUPABASE_SECRET_KEY;
+  process.env.NODE_ENV = 'production';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://supabase.test';
+  process.env.SUPABASE_SECRET_KEY = 'test-secret';
+  const originalFetch = global.fetch;
+  const bookingId = '123e4567-e89b-42d3-a456-426614174000';
+  let saved = { id:bookingId, reference:'ORD-26-0016', status:'pending', amount_cents:35000, bin_size:'2m3', postcode:'3121', waste_type:'general', delivery_date:'2099-01-02', pickup_date:'2099-01-12', hire_period:'Standard (10 days)', full_name:'Test', email:'test@example.com', phone:'0400000000', street_address:'12 Test St', placement:'Driveway', access:'', notes:'' };
+  global.fetch = async (url, options = {}) => {
+    const address = String(url);
+    if (address.includes('/rest/v1/bookings') && options.method === 'PATCH') {
+      const changes = JSON.parse(options.body);
+      assert.equal(changes.bin_size, '9m3');
+      assert.equal(changes.amount_cents, 99000);
+      assert.equal(changes.stripe_session_id, null);
+      saved = { ...saved, ...changes, status:'pending' };
+      return new Response(null, { status:204 });
+    }
+    if (address.includes('/rest/v1/bookings') && address.includes(`id=eq.${bookingId}`)) {
+      return new Response(JSON.stringify([saved]), { status:200, headers:{'content-type':'application/json'} });
+    }
+    if (address.includes('/rest/v1/rpc/update_pending_booking_for_checkout')) {
+      return new Response(JSON.stringify({ code:'P0001', message:'Pricing is not available for this bin and waste type' }), { status:400, headers:{'content-type':'application/json'} });
+    }
+    throw new Error(`Unexpected fake Supabase request: ${address}`);
+  };
+  try {
+    const updated = await updatePendingBookingForCheckout({
+      bookingId,
+      amountCents: 99000,
+      data: { address:'3121', binSize:'9m3', wasteType:'general', deliveryDate:'2099-01-02', pickupDate:'2099-01-12', hirePeriod:'Standard (10 days)', extras:emptyBookingExtras(), fullName:'Test', email:'test@example.com', phone:'0400000000', streetAddress:'12 Test St', placement:'Driveway', access:'', notes:'' },
+    });
+    assert.equal(updated.bin_size, '9m3');
+    assert.equal(updated.amount_cents, 99000);
   } finally {
     global.fetch = originalFetch;
     if (originalNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalNodeEnv;

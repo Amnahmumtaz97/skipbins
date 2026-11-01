@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { BookingOrderConfirmation } from "@/components/book/booking-order-confirmation";
 import { ClearBookingDraft } from "@/components/book/clear-booking-draft";
+import { SuccessBackNavigation } from "@/components/book/success-back-navigation";
 import { Navbar } from "@/components/home/navbar";
 import { getBookingByCheckoutSession, getBookingById, getCheckoutAttemptBySession, markBookingPaid, recordCheckoutAttempt } from "@/lib/server/booking-service";
 import { getStripe } from "@/lib/server/stripe";
@@ -25,6 +26,7 @@ export default async function BookingSuccessPage({ searchParams }: PageProps<"/b
       <Navbar />
       <div aria-hidden="true" className="pointer-events-none absolute -right-28 top-24 h-80 w-80 rounded-full bg-[#DDECCB]/70 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -left-40 top-[34rem] h-96 w-96 rounded-full bg-[#d6dfd2]/80 blur-3xl" />
+      <SuccessBackNavigation />
       {booking?.status === "paid" ? <ClearBookingDraft /> : null}
       <div className="relative mx-auto w-full max-w-[1120px] px-5 pb-20 pt-32 sm:px-6 sm:pt-36 lg:px-8">
         {booking?.status === "paid" ? <BookingOrderConfirmation booking={booking} /> : <UnconfirmedBooking booking={booking} paymentStatus={result?.paymentStatus ?? "unknown"} sessionId={sessionId} />}
