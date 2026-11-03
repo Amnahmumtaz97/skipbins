@@ -27,6 +27,29 @@
   display: none;
 }
 
+.menu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #0b3b24 #e4eddc;
+  -ms-overflow-style: auto;
+}
+
+.menu-scroll::-webkit-scrollbar {
+  display: block;
+  width: 10px;
+}
+
+.menu-scroll::-webkit-scrollbar-track {
+  margin: 6px 0;
+  background: #e4eddc;
+  border-radius: 999px;
+}
+
+.menu-scroll::-webkit-scrollbar-thumb {
+  background: #0b3b24;
+  border: 2px solid #e4eddc;
+  border-radius: 999px;
+}
+
 html {
   scroll-behavior: smooth;
 }

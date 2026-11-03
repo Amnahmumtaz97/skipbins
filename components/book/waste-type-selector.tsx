@@ -12,6 +12,48 @@ type WasteTypeSelectorProps = {
   error?: string;
 };
 
+export function WasteAllowanceGuide({ waste }: { waste: WasteCategory }) {
+  return (
+    <section className="flex h-full flex-col overflow-hidden rounded-xl border border-[#C6DAB0] bg-white" aria-live="polite">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[#E8E1CF] bg-[#F4F7EC] px-3 py-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#14532D]">{waste.label} guide</span>
+      </div>
+      <div className="grid flex-1 grid-cols-2">
+        <div className="border-r border-[#E8E1CF] p-2.5">
+          <h3 className="flex items-center gap-1.5 text-[12px] font-bold text-[#14532D]">
+            <CheckCircle2 size={14} /> Allowed
+          </h3>
+          <ul className="mt-1.5 grid gap-1">
+            {waste.acceptedItems.map((item) => (
+              <li key={item} className="flex items-start gap-1.5 text-[12px] leading-4 text-[#405347]">
+                <Check size={12} className="mt-0.5 shrink-0 text-[#65A30D]" strokeWidth={3} /> {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="p-2.5">
+          <h3 className="flex items-center gap-1.5 text-[12px] font-bold text-[#A6392E]">
+            <XCircle size={14} /> Not allowed
+          </h3>
+          <ul className="mt-1.5 grid gap-1">
+            {waste.notAccepted.map((item) => (
+              <li key={item} className="flex items-start gap-1.5 text-[12px] leading-4 text-[#5B6B60]">
+                <XCircle size={12} className="mt-0.5 shrink-0 text-[#A6392E]" /> {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      {waste.warning ? (
+        <div className="flex items-start gap-2 border-t border-[#EBDBA8] bg-[#FBF3DE] px-2.5 py-2">
+          <TriangleAlert size={13} className="mt-0.5 shrink-0 text-[#9A6707]" />
+          <p className="m-0 text-[11.5px] leading-4 text-[#6E4E05]">{waste.warning}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function WasteTypeSelector({ accepted, value, onChange, error }: WasteTypeSelectorProps) {
   const selectedWaste = accepted.find((item) => item.id === value);
 
@@ -53,45 +95,7 @@ export function WasteTypeSelector({ accepted, value, onChange, error }: WasteTyp
       </div>
       <ValidationMessage message={error} />
 
-      {selectedWaste ? (
-        <section className="mt-3 overflow-hidden rounded-2xl border border-[#C6DAB0] bg-white" aria-live="polite">
-          <div className="flex items-center gap-2 border-b border-[#E8E1CF] bg-[#F4F7EC] px-4 py-2.5">
-            <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#14532D]">{selectedWaste.label} guide</span>
-          </div>
-          <div className="grid sm:grid-cols-2">
-            <div className="p-3.5 sm:border-r sm:border-[#E8E1CF]">
-              <h3 className="flex items-center gap-2 text-[13px] font-bold text-[#14532D]">
-                <CheckCircle2 size={16} /> Allowed
-              </h3>
-              <ul className="mt-2 grid gap-1.5">
-                {selectedWaste.acceptedItems.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-[12.5px] leading-5 text-[#405347]">
-                    <Check size={13} className="mt-1 shrink-0 text-[#65A30D]" strokeWidth={3} /> {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="border-t border-[#E8E1CF] p-3.5 sm:border-t-0">
-              <h3 className="flex items-center gap-2 text-[13px] font-bold text-[#A6392E]">
-                <XCircle size={16} /> Not allowed
-              </h3>
-              <ul className="mt-2 grid gap-1.5">
-                {selectedWaste.notAccepted.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-[12.5px] leading-5 text-[#5B6B60]">
-                    <XCircle size={13} className="mt-1 shrink-0 text-[#A6392E]" /> {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          {selectedWaste.warning ? (
-            <div className="flex items-start gap-2 border-t border-[#EBDBA8] bg-[#FBF3DE] px-3.5 py-2.5">
-              <TriangleAlert size={14} className="mt-0.5 shrink-0 text-[#9A6707]" />
-              <p className="m-0 text-[12px] leading-5 text-[#6E4E05]">{selectedWaste.warning}</p>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      {selectedWaste ? <div className="mt-3"><WasteAllowanceGuide waste={selectedWaste} /></div> : null}
     </div>
   );
 }

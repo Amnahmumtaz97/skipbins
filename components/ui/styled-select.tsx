@@ -64,7 +64,7 @@ export function StyledSelect({
         <div
           role="listbox"
           aria-label={label}
-          className="absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-auto rounded-xl border border-[#dfe8d7] bg-[#FAF9F3] p-1.5 shadow-[0_14px_30px_rgba(11,59,36,0.14)]"
+          className="menu-scroll absolute left-0 right-0 top-full z-30 mt-2 max-h-64 overflow-y-auto rounded-xl border border-[#dfe8d7] bg-[#FAF9F3] p-1.5 pr-1 shadow-[0_14px_30px_rgba(11,59,36,0.14)]"
         >
           {options.map((option) => {
             const nextValue = optionValue(option);

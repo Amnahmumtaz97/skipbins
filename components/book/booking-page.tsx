@@ -11,7 +11,7 @@ import {
   CircleAlert,
   Loader2,
 } from "lucide-react";
-import { BinSelector } from "@/components/book/bin-selector";
+import { SelectedBinCard } from "@/components/book/bin-selector";
 import { BookingExtras } from "@/components/book/booking-extras";
 import { BookingProgress } from "@/components/book/booking-progress";
 import { BookingSummary } from "@/components/book/booking-summary";
@@ -26,11 +26,13 @@ import {
 } from "@/lib/quote-client";
 import { inputClass } from "@/components/book/form-field";
 import { ValidationMessage } from "@/components/book/validation-message";
-import { WasteTypeSelector } from "@/components/book/waste-type-selector";
+import { WasteAllowanceGuide } from "@/components/book/waste-type-selector";
 import { Navbar } from "@/components/home/navbar";
+import { StyledSelect } from "@/components/ui/styled-select";
 import {
   acceptedWaste,
   bins,
+  formatBinLabel,
   getBinBySizeOrId,
   isWasteAllowedForBin,
   placements,
@@ -64,6 +66,15 @@ import {
   saveCheckoutClientSecret,
 } from "@/lib/booking-draft";
 import type { BinPlacement, BookingFormState } from "@/types/skip-bin";
+
+function formatHirePrice(amount: number) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 type BookingPageProps = {
   initialSize?: string;
@@ -243,10 +254,9 @@ export function BookingPage({
   }, [form.wasteType, priceCatalog]);
   const zoneNote = priceCatalog?.zone
     ? `Prices include ${ZONE_SHORT_LABELS[priceCatalog.zone]} delivery.`
-    : priceCatalog
-      ? "Choose a location to add the delivery zone fee."
-      : "";
+    : "";
   const selectedBin = getBinBySizeOrId(form.binSize);
+  const selectedWaste = acceptedWaste.find((waste) => waste.id === form.wasteType);
   const availableWaste = acceptedWaste.filter((waste) => {
     if (!isWasteAllowedForBin(form.binSize, waste.id)) return false;
     if (!priceCatalog || !form.binSize) return true;
@@ -632,7 +642,7 @@ export function BookingPage({
     <main className="flex h-dvh flex-col overflow-hidden bg-[#F6F2E7] text-[#16241C]">
       <Navbar />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-[1100px] flex-1 gap-3 px-3 pb-3 pt-[4.75rem] sm:gap-6 sm:px-6 sm:pb-4 sm:pt-24">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1100px] flex-1 gap-3 px-3 pt-[4.75rem] sm:gap-6 sm:px-6 sm:pt-24">
         {confirmed ? null : (
           <aside className="w-[6.75rem] shrink-0 overflow-y-auto sm:w-40">
             <BookingProgress
@@ -684,46 +694,81 @@ export function BookingPage({
                   <ValidationMessage message={requestError} />
                   <div key={step} className="animate-[fadeStep_280ms_ease]">
                     {step === 1 ? (
-                      <div className="space-y-4">
-                        <BinSelector
-                          value={form.binSize}
-                          onChange={updateBinSize}
-                          error={errors.binSize}
-                          prices={binPrices}
-                          pricesLoading={pricesLoading}
-                          zoneNote={zoneNote}
-                        />
-                        <div>
-                          <h2 className="mb-2 text-[15px] font-semibold text-[#0B3B24]">
-                            Waste type
-                          </h2>
-                          {form.binSize ? (
-                            <>
-                              {selectedBin?.restriction ? (
-                                <p className="mb-3 rounded-xl border border-[#F0D5A9] bg-[#FFF7E8] px-3.5 py-2.5 text-[12px] font-semibold leading-5 text-[#8A4B08]">
-                                  {selectedBin.restriction} Only compatible waste
-                                  options are shown below.
-                                </p>
-                              ) : null}
-                              <WasteTypeSelector
-                                accepted={availableWaste}
-                                value={form.wasteType}
-                                onChange={(value) =>
-                                  updateField("wasteType", value)
-                                }
-                                error={errors.wasteType}
-                              />
-                            </>
-                          ) : (
-                            <>
-                              <p className="rounded-xl border border-[#d6dfd2] bg-white px-3.5 py-3 text-[13px] leading-5 text-[#405347]">
-                                Select a bin size to see the waste types it can
-                                take.
-                              </p>
-                              <ValidationMessage message={errors.wasteType} />
-                            </>
-                          )}
+                      <div className="space-y-3">
+                        {zoneNote ? (
+                          <p className="text-[12px] font-semibold leading-5 text-[#405347]">
+                            {zoneNote}
+                          </p>
+                        ) : null}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <StyledSelect
+                            label="Bin size"
+                            name="bin-size"
+                            placeholder={
+                              pricesLoading ? "Loading prices…" : "Select a size"
+                            }
+                            value={form.binSize}
+                            onChange={updateBinSize}
+                            error={errors.binSize}
+                            options={bins.flatMap((bin) => {
+                              const price = binPrices?.[bin.id];
+                              if (binPrices && price?.amount == null) return [];
+                              const name = formatBinLabel(bin.id);
+                              const priced =
+                                price?.amount == null
+                                  ? name
+                                  : price.exact
+                                    ? `${name} · ${formatHirePrice(price.amount)}`
+                                    : `${name} · From ${formatHirePrice(price.amount)}`;
+                              return [{ value: bin.id, label: priced }];
+                            })}
+                          />
+                          <StyledSelect
+                            label="Waste type"
+                            name="waste-type"
+                            placeholder={
+                              form.binSize
+                                ? "Choose waste type"
+                                : "Select a bin size first"
+                            }
+                            value={form.wasteType}
+                            onChange={(value) => updateField("wasteType", value)}
+                            error={errors.wasteType}
+                            options={
+                              form.binSize
+                                ? availableWaste.map((item) => ({
+                                    value: item.id,
+                                    label: item.label,
+                                  }))
+                                : []
+                            }
+                          />
                         </div>
+                        {form.binSize ? (
+                          <div className={`grid items-stretch gap-3 ${selectedWaste ? "lg:grid-cols-2" : ""}`}>
+                            <div className={selectedWaste ? "grid h-full grid-rows-[1fr_auto] gap-2" : "space-y-2"}>
+                              <SelectedBinCard
+                                binId={form.binSize}
+                                price={binPrices?.[form.binSize]}
+                                pricesLoading={pricesLoading}
+                                fill={Boolean(selectedWaste)}
+                              />
+                              <div className="flex items-start gap-2 rounded-xl border border-[#C6DAB0] bg-[#DDECCB] px-3 py-2">
+                                <span className="mt-0.5 text-sm text-[#172018]">!</span>
+                                <p className="m-0 text-[12px] leading-4 text-[#0B3B24]">
+                                  Dimensions are a general guide. Some bin dimensions may vary. If you&apos;re not sure, our size guide or support team can help confirm the right fit.
+                                </p>
+                              </div>
+                            </div>
+                            {selectedWaste ? <WasteAllowanceGuide waste={selectedWaste} /> : null}
+                          </div>
+                        ) : null}
+                        {selectedBin?.restriction ? (
+                          <p className="rounded-xl border border-[#F0D5A9] bg-[#FFF7E8] px-3.5 py-2.5 text-[12px] font-semibold leading-5 text-[#8A4B08]">
+                            {selectedBin.restriction} Only compatible waste types
+                            are listed.
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -990,7 +1035,7 @@ export function BookingPage({
                 </fieldset>
                 </div>
 
-                  <div className="mb-4 flex shrink-0 items-center gap-3 bg-[#F4F7EC] pt-3 sm:mb-6">
+                  <div className="mt-auto flex shrink-0 items-center gap-3 bg-[#F4F7EC] pb-2 pt-3">
                     {step === 1 ? (
                       <Link
                         href="/"

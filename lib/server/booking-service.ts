@@ -281,7 +281,7 @@ async function writePendingBookingUpdate(client: SupabaseClient, row: StoredBook
 }
 
 const bookingFields =
-  "id, reference, status, amount_cents, stripe_session_id, stripe_payment_intent_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes";
+  "id, reference, status, amount_cents, stripe_session_id, stripe_payment_intent_id, bin_size, postcode, waste_type, delivery_date, pickup_date, hire_period, full_name, email, phone, street_address, placement, access, notes, supplier_id, operation_status";
 
 export async function getBookingById(id: string) {
   const client = supabase();

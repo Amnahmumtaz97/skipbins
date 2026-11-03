@@ -1,3 +1,4 @@
+import { sendBookingPaidEmails } from "@/lib/server/booking-emails";
 import {
   markBookingPaid,
   recordCheckoutAttempt,
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       });
       if (!booking || booking.status !== "paid")
         throw new Error("Stripe payment did not match its pending booking");
+      await sendBookingPaidEmails(booking);
     } else {
       await recordCheckoutAttempt({ bookingId, attempt, sessionId: session.id, paymentIntentId, status: "processing" });
     }
