@@ -53,19 +53,37 @@ export async function POST(request: Request) {
         amountTotal: session.amount_total,
         currency: session.currency,
       });
-      if (!booking || booking.status !== "paid")
-        throw new Error("Stripe payment did not match its pending booking");
-      await sendBookingPaidEmails(booking);
+      if (!booking || booking.status !== "paid") {
+        throw new Error(
+          "Stripe payment did not match its pending booking (check booking row, amount_cents, and booking_checkout_attempts.stripe_session_id)",
+        );
+      }
+      try {
+        await sendBookingPaidEmails(booking);
+      } catch (emailError) {
+        const emailMessage =
+          emailError instanceof Error ? emailError.message : "Unknown email error";
+        console.error("[stripe-webhook] Booking paid but email failed", {
+          bookingId: booking.id,
+          reference: booking.reference,
+          error: emailMessage,
+        });
+        throw new Error(`Booking paid but email failed: ${emailMessage}`);
+      }
     } else {
       await recordCheckoutAttempt({ bookingId, attempt, sessionId: session.id, paymentIntentId, status: "processing" });
     }
 
     return Response.json({ received: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[stripe-webhook] Could not process checkout event", {
       eventId: event.id,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: message,
     });
-    return Response.json({ error: "Could not process event" }, { status: 500, headers: { "Cache-Control": "no-store" } });
+    return Response.json(
+      { error: "Could not process event", detail: message },
+      { status: 500, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }

@@ -61,11 +61,12 @@ payments), then redeploy:
 - `STRIPE_TEST_SECRET_KEY` (test-mode secret used only by the admin diagnostic)
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin`; also receives paid-order alerts)
+- `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin` only)
 - `GET_ADDRESS_API_KEY`
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL` (e.g. `SkippyBinHire <bookings@skippybinhire.com.au>`)
 - `RESEND_REPLY_TO_EMAIL` (e.g. `info@skippybinhire.com.au`)
+- `BOOKING_NOTIFY_EMAIL` (office inbox for paid-order alerts, e.g. `info@skippybinhire.com.au`)
 - `OSRM_BASE_URL` (optional; road km defaults to public OSRM at router.project-osrm.org)
 - `OPENROUTESERVICE_API_KEY` / `ROAD_DISTANCE_PROVIDER` (optional; only if you later switch provider to ORS)
 
@@ -87,8 +88,9 @@ Configure the Stripe webhook endpoint as
 
 After a paid checkout, the webhook marks the booking paid, auto-assigns a
 supplier when coverage matches, then sends Resend emails: customer confirmation,
-supplier new-order (if assigned), and admin alert to `ADMIN_EMAILS`. Sends use
-idempotency keys so Stripe retries do not duplicate mail. Verify
+supplier new-order (if assigned), and office alert to `BOOKING_NOTIFY_EMAIL`
+(defaults to `info@skippybinhire.com.au`). `ADMIN_EMAILS` is portal login only.
+Sends use idempotency keys so Stripe retries do not duplicate mail. Verify
 `skippybinhire.com.au` in Resend and keep Google Workspace MX for `info@`
 receiving.
 

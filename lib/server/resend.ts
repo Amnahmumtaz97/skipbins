@@ -26,9 +26,17 @@ export function getResend() {
   return new Resend(key);
 }
 
-export function adminNotificationEmails() {
-  return (process.env.ADMIN_EMAILS ?? "")
+function bareEmail(value: string) {
+  const angled = /<([^>]+)>/.exec(value);
+  return (angled?.[1] ?? value).trim().toLowerCase();
+}
+
+/** Office inbox for paid-order alerts. Not used for portal login (see ADMIN_EMAILS). */
+export function bookingNotifyEmails() {
+  const configured =
+    process.env.BOOKING_NOTIFY_EMAIL?.trim() || "info@skippybinhire.com.au";
+  return configured
     .split(",")
-    .map((email) => email.trim())
+    .map(bareEmail)
     .filter(Boolean);
 }

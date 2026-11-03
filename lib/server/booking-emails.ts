@@ -1,5 +1,5 @@
 import "server-only";
-import { formatCurrency } from "@/lib/booking-utils";
+import { formatCurrency, isValidEmail } from "@/lib/booking-utils";
 import {
   formatBinLabel,
   formatHirePeriod,
@@ -9,7 +9,7 @@ import {
 import { adminDatabase } from "@/lib/server/admin-database";
 import type { StoredBooking } from "@/lib/server/booking-service";
 import {
-  adminNotificationEmails,
+  bookingNotifyEmails,
   getResend,
   resendApiKey,
   resendFromEmail,
@@ -21,6 +21,12 @@ type SupplierContact = {
   name: string;
   email: string;
 };
+
+function isDeliverableEmail(value: string) {
+  if (!isValidEmail(value)) return false;
+  const host = value.split("@")[1]?.toLowerCase() ?? "";
+  return !["example.com", "example.org", "example.net", "test.com", "localhost"].includes(host);
+}
 
 function escapeHtml(value: string) {
   return value
@@ -118,8 +124,8 @@ async function loadSupplier(supplierId: string | null | undefined): Promise<Supp
     .eq("id", supplierId)
     .maybeSingle();
   if (error || !data) return null;
-  const email = String(data.email ?? "").trim();
-  if (!email) return null;
+  const email = String(data.email ?? "").trim().toLowerCase();
+  if (!isDeliverableEmail(email)) return null;
   return {
     id: String(data.id),
     name: String(data.name ?? "Supplier"),
@@ -216,13 +222,15 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
     } catch (error) {
       failures.push(`supplier: ${error instanceof Error ? error.message : "unknown error"}`);
     }
+  } else if (booking.supplier_id) {
+    skipped.push("supplier-invalid-email");
   } else {
     skipped.push("supplier-unassigned");
   }
 
-  const admins = adminNotificationEmails();
-  if (admins.length) {
-    const adminRows: Array<[string, string]> = [
+  const office = bookingNotifyEmails();
+  if (office.length) {
+    const officeRows: Array<[string, string]> = [
       ...sharedRows,
       ["Customer", summary.customerName],
       ["Phone", summary.customerPhone],
@@ -230,31 +238,37 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
       ["Assigned supplier", supplier ? `${supplier.name} <${supplier.email}>` : "Unassigned — needs manual allocation"],
       ["Total paid", summary.amount],
     ];
-    if (summary.access) adminRows.push(["Access notes", summary.access]);
-    if (summary.notes) adminRows.push(["Order notes", summary.notes]);
+    if (summary.access) officeRows.push(["Access notes", summary.access]);
+    if (summary.notes) officeRows.push(["Order notes", summary.notes]);
 
     try {
+      console.info("[booking-emails] Sending office notify", {
+        bookingId: booking.id,
+        reference: summary.reference,
+        to: office,
+      });
       await sendMail({
-        to: admins,
+        to: office,
         subject: supplier
           ? `New paid order — ${summary.reference} → ${supplier.name}`
           : `New paid order — ${summary.reference} (unassigned)`,
-        idempotencyKey: `booking-${booking.id}-admin`,
+        // v2 busts any cached Resend failure from before domain verify
+        idempotencyKey: `booking-${booking.id}-office-v2`,
         html: emailShell(
           "New paid order",
           supplier
             ? "A customer has paid and a supplier has been auto-assigned."
             : "A customer has paid, but no active supplier covers this postcode. Assign one in the admin portal.",
-          adminRows,
-          "This alert was sent to ADMIN_EMAILS.",
+          officeRows,
+          "This alert was sent to the office booking inbox.",
         ),
       });
-      sent.push("admin");
+      sent.push("office");
     } catch (error) {
-      failures.push(`admin: ${error instanceof Error ? error.message : "unknown error"}`);
+      failures.push(`office: ${error instanceof Error ? error.message : "unknown error"}`);
     }
   } else {
-    skipped.push("admin-unconfigured");
+    skipped.push("office-unconfigured");
   }
 
   if (failures.length) {
