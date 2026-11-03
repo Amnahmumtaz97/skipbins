@@ -11,6 +11,7 @@ import {
   Save,
   Printer,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import {
   operationStatuses,
@@ -229,8 +230,40 @@ export function OrderManager({
             : item,
         ),
       );
+      if (typeof result.emailWarning === "string" && result.emailWarning) {
+        setError(result.emailWarning);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update booking.");
+    } finally {
+      setSaving("");
+    }
+  }
+  async function resendEmails(b: OperationsBooking) {
+    if (b.payment_status !== "paid") return;
+    if (
+      !window.confirm(
+        `Resend customer, supplier, and office booking emails for ${b.reference}?`,
+      )
+    ) {
+      return;
+    }
+    setSaving(b.id);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/admin/orders/${encodeURIComponent(b.id)}/resend-emails`,
+        { method: "POST" },
+      );
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error ?? "Could not resend booking emails.");
+      const sent = Array.isArray(result.sent) ? result.sent.join(", ") : "sent";
+      window.alert(`Emails resent (${sent}).`);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not resend booking emails.",
+      );
     } finally {
       setSaving("");
     }
@@ -555,13 +588,27 @@ export function OrderManager({
                   })()}
                 </td>
                 <td data-label="Action">
-                  <button
-                    className="portal-button-secondary"
-                    onClick={() => open(b)}
-                  >
-                    <Eye size={14} />
-                    Edit
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="portal-button-secondary"
+                      onClick={() => open(b)}
+                    >
+                      <Eye size={14} />
+                      Edit
+                    </button>
+                    {b.payment_status === "paid" && b.manageable ? (
+                      <button
+                        type="button"
+                        className="portal-button-secondary"
+                        disabled={saving === b.id}
+                        title="Resend customer, supplier, and office emails"
+                        onClick={() => resendEmails(b)}
+                      >
+                        <Mail size={14} />
+                        Resend email
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

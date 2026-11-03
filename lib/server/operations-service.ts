@@ -250,7 +250,10 @@ export async function updateOrderOperations(input: {
   source?: "direct" | "ppc" | "manual";
   details?: OrderDetailChanges;
   mark?: "deleted" | "refunded" | "restored";
-}) {
+}): Promise<{
+  previousSupplierId: string | null;
+  nextSupplierId: string | null;
+}> {
   const db = adminDatabase();
   let storedOperation = "";
   let storedSupplierId: string | null = null;
@@ -346,6 +349,8 @@ export async function updateOrderOperations(input: {
     changes.operation_status = `deleted|${requested ?? remembered ?? pending ?? "assigned"}`;
   }
 
+  const nextSupplierId =
+    input.supplierId !== undefined ? input.supplierId : storedSupplierId;
   const client = adminDatabase();
   if (client) {
     const { data, error } = await client
@@ -356,15 +361,24 @@ export async function updateOrderOperations(input: {
       .maybeSingle();
     if (error) throw new Error(`Could not update order: ${error.message}`);
     if (!data) throw new Error("Order not found");
-    return;
+    return {
+      previousSupplierId: storedSupplierId,
+      nextSupplierId,
+    };
   }
   if (process.env.NODE_ENV === "production")
     throw new Error("Operations database is not configured");
   const rows = await localRows();
   const row = rows.find((item) => item.id === input.bookingId);
   if (!row) throw new Error("Order not found");
+  const previousSupplierId = row.supplier_id ? String(row.supplier_id) : null;
   Object.assign(row, changes);
   await writeFile(localBookingsFile(), `${JSON.stringify(rows, null, 2)}\n`);
+  return {
+    previousSupplierId,
+    nextSupplierId:
+      input.supplierId !== undefined ? input.supplierId : previousSupplierId,
+  };
 }
 
 export type SupplierInput = Omit<SupplierRecord, "id">;

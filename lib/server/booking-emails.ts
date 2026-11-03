@@ -7,7 +7,10 @@ import {
   getWasteById,
 } from "@/lib/data/skip-bins";
 import { adminDatabase } from "@/lib/server/admin-database";
-import type { StoredBooking } from "@/lib/server/booking-service";
+import {
+  getBookingById,
+  type StoredBooking,
+} from "@/lib/server/booking-service";
 import {
   bookingNotifyEmails,
   getResend,
@@ -22,6 +25,8 @@ type SupplierContact = {
   email: string;
   canEmail: boolean;
 };
+
+type SendResult = { sent: string[]; skipped: string[] };
 
 function isDeliverableEmail(value: string) {
   if (!isValidEmail(value)) return false;
@@ -155,12 +160,13 @@ async function sendMail(input: {
   subject: string;
   html: string;
   idempotencyKey: string;
+  replyTo?: string;
 }) {
   const resend = getResend();
   const { error } = await resend.emails.send(
     {
       from: resendFromEmail(),
-      replyTo: resendReplyToEmail(),
+      replyTo: input.replyTo || resendReplyToEmail(),
       to: input.to,
       subject: input.subject,
       html: input.html,
@@ -170,22 +176,8 @@ async function sendMail(input: {
   if (error) throw new Error(error.message || "Resend could not send email");
 }
 
-export async function sendBookingPaidEmails(booking: StoredBooking) {
-  if (!resendApiKey()) {
-    console.warn("[booking-emails] RESEND_API_KEY is not set; skipped paid-order emails", {
-      bookingId: booking.id,
-      reference: booking.reference,
-    });
-    return { sent: [] as string[], skipped: ["unconfigured"] as string[] };
-  }
-
-  const summary = bookingSummary(booking);
-  const supplier = await loadSupplier(booking.supplier_id);
-  const sent: string[] = [];
-  const skipped: string[] = [];
-  const failures: string[] = [];
-
-  const sharedRows: Array<[string, string]> = [
+function sharedDetailRows(summary: ReturnType<typeof bookingSummary>): Array<[string, string]> {
+  return [
     ["Order number", summary.reference],
     ["Bin", summary.binLabel],
     ["Waste type", summary.wasteLabel],
@@ -195,12 +187,94 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
     ["Delivery address", summary.address],
     ["Placement", summary.placement],
   ];
+}
+
+function supplierJobRows(summary: ReturnType<typeof bookingSummary>): Array<[string, string]> {
+  const rows: Array<[string, string]> = [
+    ...sharedDetailRows(summary),
+    ["Customer", summary.customerName],
+    ["Phone", summary.customerPhone],
+    ["Email", summary.customerEmail],
+  ];
+  if (summary.access) rows.push(["Access notes", summary.access]);
+  if (summary.notes) rows.push(["Order notes", summary.notes]);
+  return rows;
+}
+
+async function sendSupplierJobEmail(input: {
+  booking: StoredBooking;
+  supplier: SupplierContact;
+  subject: string;
+  intro: string;
+  idempotencyKey: string;
+  footer?: string;
+}) {
+  const summary = bookingSummary(input.booking);
+  await sendMail({
+    to: input.supplier.email,
+    subject: input.subject,
+    idempotencyKey: input.idempotencyKey,
+    html: emailShell(
+      "Skip bin order update",
+      input.intro,
+      supplierJobRows(summary),
+      input.footer ||
+        "Reply to this email if you cannot fulfil this job or need the office to reassign it.",
+    ),
+  });
+}
+
+export async function sendContactFormEmail(input: {
+  name: string;
+  email: string;
+  message: string;
+}) {
+  if (!resendApiKey()) throw new Error("Resend is not configured");
+  const recipients = bookingNotifyEmails();
+  if (!recipients.length) throw new Error("Contact delivery is not configured");
+  await sendMail({
+    to: recipients,
+    replyTo: input.email,
+    subject: `Website contact — ${input.name}`,
+    idempotencyKey: `contact-${Date.now()}-${input.email.slice(0, 32)}`,
+    html: emailShell(
+      "New website message",
+      "A visitor sent a message from the SkippyBinHire contact form.",
+      [
+        ["Name", input.name],
+        ["Email", input.email],
+        ["Message", input.message],
+      ],
+      "Reply directly to this email to respond to the visitor.",
+    ),
+  });
+}
+
+export async function sendBookingPaidEmails(
+  booking: StoredBooking,
+  options?: { force?: boolean },
+): Promise<SendResult> {
+  if (!resendApiKey()) {
+    console.warn("[booking-emails] RESEND_API_KEY is not set; skipped paid-order emails", {
+      bookingId: booking.id,
+      reference: booking.reference,
+    });
+    return { sent: [], skipped: ["unconfigured"] };
+  }
+
+  const forceSuffix = options?.force ? `-resend-${Date.now()}` : "";
+  const summary = bookingSummary(booking);
+  const supplier = await loadSupplier(booking.supplier_id);
+  const sent: string[] = [];
+  const skipped: string[] = [];
+  const failures: string[] = [];
+  const sharedRows = sharedDetailRows(summary);
 
   try {
     await sendMail({
       to: summary.customerEmail,
       subject: `Booking confirmed — ${summary.reference}`,
-      idempotencyKey: `booking-${booking.id}-customer`,
+      idempotencyKey: `booking-${booking.id}-customer${forceSuffix}`,
       html: emailShell(
         "Your bin is booked",
         `Thanks ${summary.customerName.split(/\s+/)[0] || "there"}. We've received your payment and your delivery is confirmed.`,
@@ -214,26 +288,13 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
   }
 
   if (supplier?.canEmail) {
-    const supplierRows: Array<[string, string]> = [
-      ...sharedRows,
-      ["Customer", summary.customerName],
-      ["Phone", summary.customerPhone],
-      ["Email", summary.customerEmail],
-    ];
-    if (summary.access) supplierRows.push(["Access notes", summary.access]);
-    if (summary.notes) supplierRows.push(["Order notes", summary.notes]);
-
     try {
-      await sendMail({
-        to: supplier.email,
+      await sendSupplierJobEmail({
+        booking,
+        supplier,
         subject: `New order assigned — ${summary.reference}`,
-        idempotencyKey: `booking-${booking.id}-supplier`,
-        html: emailShell(
-          "New skip bin order",
-          `A paid order has been assigned to ${supplier.name}. Please review delivery details and prepare the job.`,
-          supplierRows,
-          "Reply to this email if you cannot fulfil this job or need the office to reassign it.",
-        ),
+        intro: `A paid order has been assigned to ${supplier.name}. Please review delivery details and prepare the job.`,
+        idempotencyKey: `booking-${booking.id}-supplier${forceSuffix}`,
       });
       sent.push("supplier");
     } catch (error) {
@@ -271,8 +332,7 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
         subject: supplier
           ? `New paid order — ${summary.reference} → ${supplier.name}`
           : `New paid order — ${summary.reference} (unassigned)`,
-        // v3: include admins + accurate assignment label
-        idempotencyKey: `booking-${booking.id}-office-v3`,
+        idempotencyKey: `booking-${booking.id}-office-v3${forceSuffix}`,
         html: emailShell(
           "New paid order",
           officeIntro(supplier),
@@ -293,4 +353,88 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
   }
 
   return { sent, skipped };
+}
+
+export async function notifySupplierReassignment(input: {
+  bookingId: string;
+  previousSupplierId: string | null;
+  nextSupplierId: string | null;
+}): Promise<SendResult> {
+  if (input.previousSupplierId === input.nextSupplierId) {
+    return { sent: [], skipped: ["unchanged"] };
+  }
+  if (!resendApiKey()) {
+    return { sent: [], skipped: ["unconfigured"] };
+  }
+
+  const booking = await getBookingById(input.bookingId);
+  if (!booking || booking.status !== "paid") {
+    return { sent: [], skipped: ["not-paid"] };
+  }
+
+  const stamp = Date.now();
+  const previous = await loadSupplier(input.previousSupplierId);
+  const next = await loadSupplier(input.nextSupplierId);
+  const sent: string[] = [];
+  const skipped: string[] = [];
+  const failures: string[] = [];
+  const summary = bookingSummary(booking);
+
+  if (previous?.canEmail) {
+    try {
+      await sendSupplierJobEmail({
+        booking,
+        supplier: previous,
+        subject: `Order reassigned away — ${summary.reference}`,
+        intro: next
+          ? `Order ${summary.reference} is no longer assigned to ${previous.name}. It has been moved to another supplier.`
+          : `Order ${summary.reference} is no longer assigned to ${previous.name}. It is currently unassigned.`,
+        idempotencyKey: `booking-${booking.id}-supplier-removed-${previous.id}-${stamp}`,
+        footer: "No further action is needed unless the office contacts you.",
+      });
+      sent.push("previous-supplier");
+    } catch (error) {
+      failures.push(
+        `previous-supplier: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+  } else if (input.previousSupplierId) {
+    skipped.push("previous-supplier-invalid-email");
+  }
+
+  if (next?.canEmail) {
+    try {
+      await sendSupplierJobEmail({
+        booking,
+        supplier: next,
+        subject: `New order assigned — ${summary.reference}`,
+        intro: `A paid order has been assigned to ${next.name}. Please review delivery details and prepare the job.`,
+        idempotencyKey: `booking-${booking.id}-supplier-assigned-${next.id}-${stamp}`,
+      });
+      sent.push("next-supplier");
+    } catch (error) {
+      failures.push(
+        `next-supplier: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+  } else if (input.nextSupplierId) {
+    skipped.push("next-supplier-invalid-email");
+  } else {
+    skipped.push("unassigned");
+  }
+
+  if (failures.length) {
+    throw new Error(`Supplier reassignment email failed (${failures.join("; ")})`);
+  }
+
+  return { sent, skipped };
+}
+
+export async function resendBookingPaidEmails(bookingId: string): Promise<SendResult> {
+  const booking = await getBookingById(bookingId);
+  if (!booking) throw new Error("Order not found");
+  if (booking.status !== "paid") {
+    throw new Error("Only paid orders can resend booking emails.");
+  }
+  return sendBookingPaidEmails(booking, { force: true });
 }

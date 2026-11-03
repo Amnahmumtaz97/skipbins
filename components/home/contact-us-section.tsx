@@ -14,18 +14,23 @@ type ContactInfo = {
 export function ContactUsSection({ contact }: { contact: ContactInfo }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
   const emailReady = !contact.email.endsWith(".example");
   const phoneReady = /^[+\d\s()-]+$/.test(contact.phone);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (sending) return;
-    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form));
     setSending(true);
     setError("");
+    setSent(false);
     try {
       const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values), signal: AbortSignal.timeout(12000) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "We couldn't send your message. Please try again.");
+      form.reset();
+      setSent(true);
     } catch (error) {
       setError(error instanceof Error && error.name === "Error" ? error.message : "We couldn't send your message. Please try again.");
     } finally { setSending(false); }
@@ -145,6 +150,11 @@ export function ContactUsSection({ contact }: { contact: ContactInfo }) {
             </div>
 
             <ValidationMessage message={error} />
+            {sent ? (
+              <p className="rounded-lg bg-[#DDECCB] px-4 py-3 text-sm font-semibold text-[#0B3B24]">
+                Thanks — your message was sent. We&apos;ll reply soon.
+              </p>
+            ) : null}
             <button
               type="submit"
               disabled={sending}

@@ -89,9 +89,12 @@ Configure the Stripe webhook endpoint as
 After a paid checkout, the webhook marks the booking paid, auto-assigns a
 supplier when coverage matches, then sends Resend emails: customer confirmation,
 supplier new-order (if assigned with a real email), and one office alert to
-`BOOKING_NOTIFY_EMAIL` plus `ADMIN_EMAILS` (same format). Sends use idempotency
-keys so Stripe retries do not duplicate mail. Verify `skippybinhire.com.au` in
-Resend and keep Google Workspace MX for `info@` receiving.
+`BOOKING_NOTIFY_EMAIL` plus `ADMIN_EMAILS` (same format). Admin supplier changes
+email the previous and next supplier. Paid orders can resend confirmation mail
+from the orders list. The contact form posts to the same office/admin inboxes.
+Sends use idempotency keys so Stripe retries do not duplicate mail. Verify
+`skippybinhire.com.au` in Resend and keep Google Workspace MX for `info@`
+receiving.
 
 ## Admin payment test
 

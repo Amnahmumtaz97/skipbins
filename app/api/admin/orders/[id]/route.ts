@@ -1,5 +1,6 @@
 import { isAdminUser } from "@/lib/server/admin-auth";
 import { isOperationStatus } from "@/lib/data/operations";
+import { notifySupplierReassignment } from "@/lib/server/booking-emails";
 import { verifiedOrderDetails } from "@/lib/server/order-details";
 import { InputError, apiError, readJson } from "@/lib/server/request";
 import { updateOrderOperations } from "@/lib/server/operations-service";
@@ -84,7 +85,7 @@ export async function PATCH(
       mark === undefined
     )
       throw new InputError("Choose a change to save.");
-    await updateOrderOperations({
+    const result = await updateOrderOperations({
       bookingId: id,
       supplierId,
       status,
@@ -93,8 +94,30 @@ export async function PATCH(
       details,
       mark,
     });
+    let emailWarning: string | undefined;
+    if (
+      supplierId !== undefined &&
+      result.previousSupplierId !== result.nextSupplierId
+    ) {
+      try {
+        await notifySupplierReassignment({
+          bookingId: id,
+          previousSupplierId: result.previousSupplierId,
+          nextSupplierId: result.nextSupplierId,
+        });
+      } catch (error) {
+        emailWarning =
+          error instanceof Error
+            ? error.message
+            : "Supplier notification email failed.";
+        console.error("[admin-orders] Supplier reassignment email failed", {
+          bookingId: id,
+          error: emailWarning,
+        });
+      }
+    }
     return Response.json(
-      { updated: true },
+      { updated: true, ...(emailWarning ? { emailWarning } : {}) },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
