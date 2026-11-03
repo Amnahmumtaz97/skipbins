@@ -3,11 +3,19 @@ import Image from "next/image";
 import { ContactUsSection } from "@/components/home/contact-us-section";
 import { Navbar } from "@/components/home/navbar";
 import { contactInfo } from "@/lib/data/skip-bins";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Contact Us | SkippyBinHire",
-  description: "Contact SkippyBinHire for local skip bin hire support.",
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Contact Skip Bin Hire Melbourne",
+  description:
+    "Contact SkippyBinHire for skip bin hire in Melbourne. Ask about sizes, delivery areas, permits or same-week bookings.",
+  path: "/contact",
+  keywords: [
+    "contact skip bin hire Melbourne",
+    "skip bin hire phone Melbourne",
+    "SkippyBinHire contact",
+  ],
+});
 
 export default function Page() {
   return (
@@ -30,7 +38,7 @@ export default function Page() {
           <span className="font-extrabold text-[#0B3B24]">
             SkippyBinHire<span className="text-[#65A30D]">.</span>
           </span>
-          <span>© 2026 SkippyBinHire Australia · Skip more, spend less.</span>
+          <span>Melbourne skip bin hire · info@skippybinhire.com.au</span>
         </footer>
       </div>
     </main>

@@ -177,12 +177,12 @@ export function HomePage() {
         <div className="relative z-10 grid items-center gap-5 lg:grid-cols-2 lg:gap-8 xl:gap-10">
           <div className="max-w-xl py-2 pl-2 sm:py-3 sm:pl-6 lg:py-4 lg:pl-10">
             <h1 className="text-[clamp(2.25rem,4.2vw,4rem)] font-black leading-[0.96] tracking-[-0.065em] text-[#0B3B24]">
-              Skip more,
+              Skip Bin Hire
               <br />
-              spend <span className="text-[#65A30D]">less.</span>
+              <span className="text-[#65A30D]">Melbourne.</span>
             </h1>
             <p className="mt-4 max-w-md text-base leading-7 text-white sm:text-lg">
-              Where Premium Service Meets Affordable Prices.
+              Skip more, spend less — affordable skip bins with clear pricing and free delivery.
             </p>
             <Link
               href="/booking"

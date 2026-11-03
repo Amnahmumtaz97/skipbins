@@ -3,7 +3,11 @@ import Link from "next/link";
 import { Boxes, Handshake, Route, ShieldCheck, Truck } from "lucide-react";
 import { SupplierApplicationForm } from "@/components/supplier/supplier-application-form";
 
-export const metadata: Metadata = { title: "Apply as a supplier | SkippyBinHire" };
+export const metadata: Metadata = {
+  title: "Become a skip bin supplier Melbourne",
+  description:
+    "Apply to supply skip bins with SkippyBinHire across Melbourne and Victoria.",
+};
 
 export default function SupplierApplyPage() {
   return <main className="grid min-h-screen bg-[#F4F7EC] text-[#16241C] lg:grid-cols-[.9fr_1.1fr]">
