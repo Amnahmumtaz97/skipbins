@@ -31,12 +31,21 @@ function bareEmail(value: string) {
   return (angled?.[1] ?? value).trim().toLowerCase();
 }
 
-/** Office inbox for paid-order alerts. Not used for portal login (see ADMIN_EMAILS). */
-export function bookingNotifyEmails() {
-  const configured =
-    process.env.BOOKING_NOTIFY_EMAIL?.trim() || "info@skippybinhire.com.au";
-  return configured
+function parseEmailList(value: string | undefined) {
+  return (value ?? "")
     .split(",")
     .map(bareEmail)
     .filter(Boolean);
+}
+
+/**
+ * Paid-order office alerts go to BOOKING_NOTIFY_EMAIL (info@) and ADMIN_EMAILS
+ * (same email format). ADMIN_EMAILS also remains the portal login allow-list.
+ */
+export function bookingNotifyEmails() {
+  const office = parseEmailList(
+    process.env.BOOKING_NOTIFY_EMAIL?.trim() || "info@skippybinhire.com.au",
+  );
+  const admins = parseEmailList(process.env.ADMIN_EMAILS);
+  return [...new Set([...office, ...admins])];
 }

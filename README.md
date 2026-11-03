@@ -61,7 +61,7 @@ payments), then redeploy:
 - `STRIPE_TEST_SECRET_KEY` (test-mode secret used only by the admin diagnostic)
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `ADMIN_EMAILS` (comma-separated Supabase Auth users allowed into `/admin` only)
+- `ADMIN_EMAILS` (portal `/admin` login allow-list; also receives the same paid-order alert email)
 - `GET_ADDRESS_API_KEY`
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL` (e.g. `SkippyBinHire <bookings@skippybinhire.com.au>`)
@@ -88,11 +88,10 @@ Configure the Stripe webhook endpoint as
 
 After a paid checkout, the webhook marks the booking paid, auto-assigns a
 supplier when coverage matches, then sends Resend emails: customer confirmation,
-supplier new-order (if assigned), and office alert to `BOOKING_NOTIFY_EMAIL`
-(defaults to `info@skippybinhire.com.au`). `ADMIN_EMAILS` is portal login only.
-Sends use idempotency keys so Stripe retries do not duplicate mail. Verify
-`skippybinhire.com.au` in Resend and keep Google Workspace MX for `info@`
-receiving.
+supplier new-order (if assigned with a real email), and one office alert to
+`BOOKING_NOTIFY_EMAIL` plus `ADMIN_EMAILS` (same format). Sends use idempotency
+keys so Stripe retries do not duplicate mail. Verify `skippybinhire.com.au` in
+Resend and keep Google Workspace MX for `info@` receiving.
 
 ## Admin payment test
 

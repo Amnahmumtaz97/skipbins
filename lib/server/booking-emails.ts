@@ -20,12 +20,29 @@ type SupplierContact = {
   id: string;
   name: string;
   email: string;
+  canEmail: boolean;
 };
 
 function isDeliverableEmail(value: string) {
   if (!isValidEmail(value)) return false;
   const host = value.split("@")[1]?.toLowerCase() ?? "";
   return !["example.com", "example.org", "example.net", "test.com", "localhost"].includes(host);
+}
+
+function supplierAssignmentLabel(supplier: SupplierContact | null) {
+  if (!supplier) return "Unassigned — needs manual allocation";
+  if (supplier.canEmail) return `${supplier.name} <${supplier.email}>`;
+  return `${supplier.name} (assigned — no valid supplier email on file)`;
+}
+
+function officeIntro(supplier: SupplierContact | null) {
+  if (!supplier) {
+    return "A customer has paid, but no active supplier covers this postcode. Assign one in the admin portal.";
+  }
+  if (!supplier.canEmail) {
+    return `A customer has paid and ${supplier.name} was auto-assigned, but their supplier profile has no valid email so they were not notified.`;
+  }
+  return "A customer has paid and a supplier has been auto-assigned.";
 }
 
 function escapeHtml(value: string) {
@@ -125,11 +142,11 @@ async function loadSupplier(supplierId: string | null | undefined): Promise<Supp
     .maybeSingle();
   if (error || !data) return null;
   const email = String(data.email ?? "").trim().toLowerCase();
-  if (!isDeliverableEmail(email)) return null;
   return {
     id: String(data.id),
     name: String(data.name ?? "Supplier"),
     email,
+    canEmail: isDeliverableEmail(email),
   };
 }
 
@@ -196,7 +213,7 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
     failures.push(`customer: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 
-  if (supplier) {
+  if (supplier?.canEmail) {
     const supplierRows: Array<[string, string]> = [
       ...sharedRows,
       ["Customer", summary.customerName],
@@ -222,7 +239,7 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
     } catch (error) {
       failures.push(`supplier: ${error instanceof Error ? error.message : "unknown error"}`);
     }
-  } else if (booking.supplier_id) {
+  } else if (supplier) {
     skipped.push("supplier-invalid-email");
   } else {
     skipped.push("supplier-unassigned");
@@ -235,7 +252,7 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
       ["Customer", summary.customerName],
       ["Phone", summary.customerPhone],
       ["Email", summary.customerEmail],
-      ["Assigned supplier", supplier ? `${supplier.name} <${supplier.email}>` : "Unassigned — needs manual allocation"],
+      ["Assigned supplier", supplierAssignmentLabel(supplier)],
       ["Total paid", summary.amount],
     ];
     if (summary.access) officeRows.push(["Access notes", summary.access]);
@@ -246,21 +263,21 @@ export async function sendBookingPaidEmails(booking: StoredBooking) {
         bookingId: booking.id,
         reference: summary.reference,
         to: office,
+        supplierId: booking.supplier_id ?? null,
+        supplierLabel: supplierAssignmentLabel(supplier),
       });
       await sendMail({
         to: office,
         subject: supplier
           ? `New paid order — ${summary.reference} → ${supplier.name}`
           : `New paid order — ${summary.reference} (unassigned)`,
-        // v2 busts any cached Resend failure from before domain verify
-        idempotencyKey: `booking-${booking.id}-office-v2`,
+        // v3: include admins + accurate assignment label
+        idempotencyKey: `booking-${booking.id}-office-v3`,
         html: emailShell(
           "New paid order",
-          supplier
-            ? "A customer has paid and a supplier has been auto-assigned."
-            : "A customer has paid, but no active supplier covers this postcode. Assign one in the admin portal.",
+          officeIntro(supplier),
           officeRows,
-          "This alert was sent to the office booking inbox.",
+          "This alert was sent to the office booking inbox and admin notification addresses.",
         ),
       });
       sent.push("office");
